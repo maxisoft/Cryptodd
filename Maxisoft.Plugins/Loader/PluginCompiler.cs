@@ -89,7 +89,7 @@ namespace Maxisoft.Plugins.Loader
 
         private static async Task ParallelParse(CompilerContext context, CancellationToken cancellationToken)
         {
-            var semaphore = new SemaphoreSlim(Math.Min(Math.Max(Environment.ProcessorCount, 2), 16));
+            using var semaphore = new SemaphoreSlim(Math.Min(Math.Max(Environment.ProcessorCount, 2), 16));
 
             async Task<CompilerFileTree> StartParseTask(int i)
             {
