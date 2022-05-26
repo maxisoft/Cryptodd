@@ -13,6 +13,8 @@ FROM build AS publish
 RUN dotnet publish "CryptoDumper.Console.csproj" -c Release -o /app/publish
 
 FROM base AS final
+ARG maintainer="maxisoft"
+LABEL maintainer="${maintainer}" name="crypto-dumper" description="Save usefull crypto data into databases" url="https://github.com/${maintainer}/Crypto-Dumper" vcs-url="https://github.com/${maintainer}/Crypto-Dumper" org.opencontainers.image.source="https://github.com/${maintainer}/Crypto-Dumper"
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "CryptoDumper.Console.dll"]
