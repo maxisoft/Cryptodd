@@ -3,7 +3,7 @@ WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:6.0-alpine AS build
 WORKDIR /src
-COPY ["CryptoDumper.Console/CryptoDumper.Console.csproj", "CryptoDumper.Console/", "CryptoDumper/", "Maxisoft.Plugins/", "Maxisoft.Utils/"]
+COPY ["CryptoDumper.Console/CryptoDumper.Console.csproj", "CryptoDumper.Console/"]
 RUN dotnet restore "CryptoDumper.Console/CryptoDumper.Console.csproj"
 COPY . .
 WORKDIR "/src/CryptoDumper.Console"
