@@ -6,6 +6,10 @@ on:
       - sonarcloud
   pull_request:
     types: [opened, synchronize, reopened]
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  
 jobs:
   sonarcloud:
     runs-on: windows-latest

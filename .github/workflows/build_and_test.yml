@@ -1,10 +1,11 @@
 name: build and test project using dotnet
 
 on: [push, pull_request]
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
   build:
-
     
     strategy:
       matrix:

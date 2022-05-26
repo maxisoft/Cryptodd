@@ -4,6 +4,9 @@ on:
   push:
     branches: [ main, dev, docker ]
 
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
 jobs:
   docker-build-publish:
     runs-on: ubuntu-latest
