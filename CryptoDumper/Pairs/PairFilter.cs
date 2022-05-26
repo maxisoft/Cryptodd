@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Maxisoft.Utils.Collections.Dictionaries;
 using Maxisoft.Utils.Collections.Dictionaries.Specialized;
 using Maxisoft.Utils.Collections.LinkedLists;
@@ -54,10 +55,11 @@ public class PairFilter : IPairFilter
     public static readonly Regex DetectRegex = new Regex(@"^[a-zA-Z][\w:/-]+$",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    private OrderedDequeDictionary<string, EmptyStruct> _pairsSet = new OrderedDequeDictionary<string, EmptyStruct>(StringComparer.InvariantCultureIgnoreCase);
+    private ConcurrentDictionary<string, EmptyStruct> _pairsSet = new ConcurrentDictionary<string, EmptyStruct>(StringComparer.InvariantCultureIgnoreCase);
 
     private LinkedListAsIList<PairFilterEntry> _entries = new LinkedListAsIList<PairFilterEntry>();
     private static readonly char[] Separator = new[] { '\r', '\n', ';' };
+    private static readonly ConcurrentDictionary<string, Regex> RegexCache = new ConcurrentDictionary<string, Regex>();
 
 
     public void AddAll(string input, bool allowRegex = true)
@@ -69,10 +71,13 @@ public class PairFilter : IPairFilter
             if (s.StartsWith('#') || s.StartsWith("//", StringComparison.InvariantCulture)) continue;
             if (_pairsSet.TryAdd(s, es) && allowRegex && !DetectRegex.IsMatch(s))
             {
-                _entries.AddLast(new PairFilterEntry(s,
-                    new Regex(s,
-                        RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant |
-                        RegexOptions.IgnoreCase)));
+                lock (_entries)
+                {
+                    _entries.AddLast(new PairFilterEntry(s,
+                        new Regex(s,
+                            RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant |
+                            RegexOptions.IgnoreCase)));
+                }
             }
         }
     }
@@ -93,9 +98,6 @@ public class PairFilter : IPairFilter
         {
             if (node.Value.Match(input))
             {
-                // lru behavior
-                _entries.Remove(node);
-                _entries.AddFirst(node.Value);
                 return true;
             }
 

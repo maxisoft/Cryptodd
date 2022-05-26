@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Collections.Concurrent;
+using System.Text;
 using CryptoDumper.FileSystem;
 using CryptoDumper.IoC;
 using Lamar;
@@ -19,7 +20,7 @@ public interface IPairFilterLoader : IService
 public class PairFilterLoader : IPairFilterLoader
 {
     private readonly IConfiguration _configuration;
-    private Dictionary<string, PairFilter> _pairFilters = new Dictionary<string, PairFilter>();
+    private ConcurrentDictionary<string, PairFilter> _pairFilters = new ConcurrentDictionary<string, PairFilter>();
     private static readonly char[] Separator = new[] { '/', '.', '+' };
     private readonly IPathResolver _pathResolver;
 
@@ -76,7 +77,7 @@ public class PairFilterLoader : IPairFilterLoader
                 }
             }
 
-            if (pairs is { })
+            if (pairs is not null)
             {
                 foreach (var pair in pairs)
                 {
@@ -116,7 +117,7 @@ public class PairFilterLoader : IPairFilterLoader
                 }
             }
 
-            if (files is {})
+            if (files is not null)
             {
                 foreach (var file in files)
                 {
@@ -127,7 +128,7 @@ public class PairFilterLoader : IPairFilterLoader
             }
         }
 
-
+        
         return res;
     }
 }
