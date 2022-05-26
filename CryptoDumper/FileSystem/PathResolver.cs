@@ -19,6 +19,12 @@ public class PathResolver
 
     public string Resolve(string path)
     {
-        return path;
+        if (File.Exists(path))
+        {
+            return path;
+        }
+
+        var basePath = _configuration.GetValue<string>("BasePath");
+        return Path.Combine(basePath, path);
     }
 }

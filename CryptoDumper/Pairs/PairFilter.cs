@@ -73,13 +73,23 @@ public class PairFilter : IPairFilter
             {
                 lock (_entries)
                 {
-                    _entries.AddLast(new PairFilterEntry(s,
-                        new Regex(s,
-                            RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant |
-                            RegexOptions.IgnoreCase)));
+                    _entries.AddLast(new PairFilterEntry(s, BuildRegex(s)));
                 }
             }
         }
+    }
+
+    private static Regex BuildRegex(string input)
+    {
+        if (RegexCache.TryGetValue(input, out var regex))
+        {
+            return regex;
+        }
+
+        regex = new Regex(input,
+            RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant |
+            RegexOptions.IgnoreCase);
+        return RegexCache.TryAdd(input, regex) ? regex : RegexCache[input];
     }
 
     internal void CopyFrom(PairFilter other)

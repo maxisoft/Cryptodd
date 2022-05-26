@@ -20,7 +20,7 @@ public interface IPairFilterLoader : IService
 public class PairFilterLoader : IPairFilterLoader
 {
     private readonly IConfiguration _configuration;
-    private ConcurrentDictionary<string, PairFilter> _pairFilters = new ConcurrentDictionary<string, PairFilter>();
+    private readonly ConcurrentDictionary<string, PairFilter> _pairFilters = new ConcurrentDictionary<string, PairFilter>();
     private static readonly char[] Separator = new[] { '/', '.', '+' };
     private readonly IPathResolver _pathResolver;
 
