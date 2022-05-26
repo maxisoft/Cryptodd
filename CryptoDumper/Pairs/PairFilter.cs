@@ -44,7 +44,12 @@ public struct PairFilterEntry : IEquatable<PairFilterEntry>
     # endregion
 }
 
-public class PairFilter
+public interface IPairFilter
+{
+    bool Match(string input);
+}
+
+public class PairFilter : IPairFilter
 {
     public static readonly Regex DetectRegex = new Regex(@"^[a-zA-Z][\w:/-]+$",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
@@ -55,14 +60,14 @@ public class PairFilter
     private static readonly char[] Separator = new[] { '\r', '\n', ';' };
 
 
-    public void AddAll(string input)
+    public void AddAll(string input, bool allowRegex = true)
     {
         var es = new EmptyStruct();
         foreach (var s in input.Split(Separator,
                      StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
             if (s.StartsWith('#') || s.StartsWith("//", StringComparison.InvariantCulture)) continue;
-            if (_pairsSet.TryAdd(s, es) && !DetectRegex.IsMatch(s))
+            if (_pairsSet.TryAdd(s, es) && allowRegex && !DetectRegex.IsMatch(s))
             {
                 _entries.AddLast(new PairFilterEntry(s,
                     new Regex(s,
@@ -70,6 +75,14 @@ public class PairFilter
                         RegexOptions.IgnoreCase)));
             }
         }
+    }
+
+    internal void CopyFrom(PairFilter other)
+    {
+        if (ReferenceEquals(this, other)) return;
+        // it's a shallow copy so a AddAll() call populate both this and other
+        _pairsSet = other._pairsSet;
+        _entries = other._entries;
     }
 
     public bool Match(string input)
@@ -89,6 +102,6 @@ public class PairFilter
             node = node.Next;
         }
 
-        return !_pairsSet.Any(); // 
+        return !_pairsSet.Any();
     }
 }
