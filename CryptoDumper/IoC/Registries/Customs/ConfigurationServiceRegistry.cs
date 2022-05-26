@@ -22,12 +22,9 @@ namespace CryptoDumper.IoC.Registries.Customs
         {
             var envConfig = new ConfigurationBuilder().AddEnvironmentVariables(EnvPrefixShort).AddEnvironmentVariables(EnvPrefix).Build();
 
-            var basePath = envConfig.GetValue("BasePath", GetDefaultDataPath());
+            var basePath = envConfig.GetValue("BASEPATH", envConfig.GetValue("BasePath", GetDefaultDataPath()));
             var workingDirectory = Directory.GetCurrentDirectory();
-            if (!File.Exists(Path.Combine(workingDirectory, ApplicationSettingsJsonFileName)))
-            {
-                workingDirectory = Directory.GetParent(Assembly.GetCallingAssembly().Location)!.FullName;
-            }
+            var assemblyDirectory = Directory.GetParent(Assembly.GetCallingAssembly().Location)!.FullName;
 
             var defaultConfig = new OrderedDictionary<string, string>(1);
 
@@ -37,16 +34,18 @@ namespace CryptoDumper.IoC.Registries.Customs
             }
 
             defaultConfig["BasePath"] = basePath;
-            
-            
+            defaultConfig["Docker"] = "" + ((Environment.GetEnvironmentVariable("IS_DOCKER") ?? "") == "1");
 
             return new ConfigurationBuilder()
                 .AddInMemoryCollection(defaultConfig)
                 .SetBasePath(new DirectoryInfo(basePath).FullName)
+                .AddJsonFile(Path.GetFullPath(Path.Combine(assemblyDirectory, ApplicationSettingsJsonFileName)), true)
+                .AddYamlFile(Path.GetFullPath(Path.Combine(assemblyDirectory, ApplicationConfigYamlFileName)), true)
                 .AddJsonFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationSettingsJsonFileName)), true)
+                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), true)
                 .AddEnvironmentVariables(EnvPrefixShort)
                 .AddEnvironmentVariables(EnvPrefix)
-                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), true)
+                .AddYamlFile(ApplicationSettingsJsonFileName, true)
                 .AddYamlFile(ApplicationConfigYamlFileName, true)
                 .Build();
         }

@@ -1,4 +1,4 @@
-name: Docker image build and publish
+name: Docker image publish
 
 on:
   push:
@@ -38,9 +38,9 @@ jobs:
             CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" crypto-dumper:testing
   
     # cross publish locally to reduce time taken
-    - run: dotnet publish "CryptoDumper.Console\CryptoDumper.Console.csproj" -c Release -o publish/linux/amd64 --no-self-contained --runtime linux-musl-x64
-    - run: dotnet publish "CryptoDumper.Console\CryptoDumper.Console.csproj" -c Release -o publish/linux/arm/v7 --no-self-contained --runtime linux-musl-arm
-    - run: dotnet publish "CryptoDumper.Console\CryptoDumper.Console.csproj" -c Release -o publish/linux/arm64/v8 --no-self-contained --runtime linux-musl-arm64
+    - run: dotnet publish "CryptoDumper.Console" -c Release -o publish/linux/amd64 --no-self-contained --runtime linux-musl-x64
+    - run: dotnet publish "CryptoDumper.Console" -c Release -o publish/linux/arm/v7 --no-self-contained --runtime linux-musl-arm
+    - run: dotnet publish "CryptoDumper.Console" -c Release -o publish/linux/arm64/v8 --no-self-contained --runtime linux-musl-arm64
 
     # https://github.com/docker/setup-qemu-action
     - name: Set up QEMU
