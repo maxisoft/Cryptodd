@@ -33,10 +33,10 @@ jobs:
         run: |
               dotnet test --configuration Release --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover
               cp CryptoDumper.Tests/TestResults/*/coverage.info CryptoDumper.Tests/TestResults/coverage.info
-        timeout-minutes: 5
+        timeout-minutes: 10
 
       - name: Upload Code Coverage to Coveralls
-        if: ${{ matrix.os }} == "ubuntu-latest"
+        if: success() && ${{ matrix.os }} == "ubuntu-latest"
         uses: coverallsapp/github-action@v1.1.2
         with:
           github-token: ${{secrets.GITHUB_TOKEN }} 
