@@ -1,2 +1,5 @@
 # Crypto-Dumper
-Save into database 
+[![Total alerts](https://img.shields.io/lgtm/alerts/g/maxisoft/Crypto-Dumper.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/maxisoft/Crypto-Dumper/alerts/)  [![Language grade: C#](https://img.shields.io/lgtm/grade/csharp/g/maxisoft/Crypto-Dumper.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/maxisoft/Crypto-Dumper/context:csharp)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=maxisoft_Crypto-Dumper&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=maxisoft_Crypto-Dumper) [![Docker image build](https://github.com/maxisoft/Crypto-Dumper/actions/workflows/docker_build.yml/badge.svg)](https://github.com/maxisoft/Crypto-Dumper/actions/workflows/docker_build.yml)
+[![build and test project using dotnet](https://github.com/maxisoft/Crypto-Dumper/actions/workflows/build_and_test.yml/badge.svg?event=push)](https://github.com/maxisoft/Crypto-Dumper/actions/workflows/build_and_test.yml)
+[![CodeQL](https://github.com/maxisoft/Crypto-Dumper/actions/workflows/codeql-analysis.yml/badge.svg?event=push)](https://github.com/maxisoft/Crypto-Dumper/actions/workflows/codeql-analysis.yml)
