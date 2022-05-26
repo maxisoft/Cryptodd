@@ -1,13 +1,13 @@
-name: Build
+name: Build using sonarcloud.io
 on:
   push:
     branches:
       - main
+      - sonarcloud
   pull_request:
     types: [opened, synchronize, reopened]
 jobs:
   sonarcloud:
-    name: Build
     runs-on: windows-latest
     steps:
       - name: Set up JDK 11
