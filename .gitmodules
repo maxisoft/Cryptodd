@@ -1,0 +1,4 @@
+[submodule "Maxisoft.Utils"]
+	path = Maxisoft.Utils
+	url = https://github.com/maxisoft/Maxisoft.Utils.git
+	branch = dev
