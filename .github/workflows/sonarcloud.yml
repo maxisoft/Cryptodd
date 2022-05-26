@@ -50,5 +50,7 @@ jobs:
           .\.sonar\scanner\dotnet-sonarscanner begin /k:"maxisoft_Crypto-Dumper" /o:"maxisoft" /d:sonar.login="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
           dotnet restore
           dotnet build --configuration Release --no-restore
-          dotnet test --configuration Release --collect:"XPlat Code Coverage"
+          dotnet test --configuration Release --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover
+          dotnet test --configuration Release --collect "DotnetCodeCoverage"
+          CodeCoverage.exe analyze /output: "%CD%\DotnetCoverage.coveragexml" "%CD%\DotnetCoverage.coverage"
           .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
