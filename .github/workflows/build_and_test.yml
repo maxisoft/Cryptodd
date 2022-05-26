@@ -34,11 +34,14 @@ jobs:
               dotnet test --configuration Release --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover
               cp CryptoDumper.Tests/TestResults/*/coverage.info CryptoDumper.Tests/TestResults/coverage.info
         timeout-minutes: 5
-      - name: Upload Code Coverage to Coveralls      
+
+      - name: Upload Code Coverage to Coveralls
+        if: ${{ matrix.os }} == "ubuntu-latest"
         uses: coverallsapp/github-action@v1.1.2
         with:
           github-token: ${{secrets.GITHUB_TOKEN }} 
           path-to-lcov: CryptoDumper.Tests/TestResults/coverage.info
+          
       - name: Create artifact
         uses: actions/upload-artifact@v2
         if: always()
