@@ -20,4 +20,4 @@ if [ ! "$(stat -c %u "${CRYPTODUMPER_BASEPATH}")" = "$PUID" ]; then
 fi
 
 renice "+${NICE_ADJUSTEMENT:-1}" $$ >/dev/null 2>&1 || :
-exec ionice -c "${IONICE_CLASS:-3}" -n "${IONICE_CLASSDATA:-7}" -t su-exec "$PUID:$PGID" "dotnet" "${APP_PATH}CryptoDumper.Console.dll" $@
+exec ionice -c "${IONICE_CLASS:-3}" -n "${IONICE_CLASSDATA:-7}" -t su-exec "$PUID:$PGID" "dotnet" "${APP_PATH}/CryptoDumper.Console.dll" $@
