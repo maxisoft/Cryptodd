@@ -20,7 +20,7 @@ namespace CryptoDumper.IoC.Registries.Customs
 
         private static IConfigurationRoot BuildConfiguration()
         {
-            var envConfig = new ConfigurationBuilder().AddEnvironmentVariables(EnvPrefix).Build();
+            var envConfig = new ConfigurationBuilder().AddEnvironmentVariables(EnvPrefixShort).AddEnvironmentVariables(EnvPrefix).Build();
 
             var basePath = envConfig.GetValue("BasePath", GetDefaultDataPath());
             var workingDirectory = Directory.GetCurrentDirectory();
@@ -37,13 +37,17 @@ namespace CryptoDumper.IoC.Registries.Customs
             }
 
             defaultConfig["BasePath"] = basePath;
+            
+            
 
             return new ConfigurationBuilder()
                 .AddInMemoryCollection(defaultConfig)
-                .SetBasePath(basePath)
+                .SetBasePath(new DirectoryInfo(basePath).FullName)
                 .AddJsonFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationSettingsJsonFileName)), true)
+                .AddEnvironmentVariables(EnvPrefixShort)
                 .AddEnvironmentVariables(EnvPrefix)
-                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), false)
+                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), true)
+                .AddYamlFile(ApplicationConfigYamlFileName, true)
                 .Build();
         }
 
