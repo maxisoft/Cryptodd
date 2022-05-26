@@ -31,7 +31,7 @@ jobs:
 
       - name: Test using Coverlet Code Coverage
         run: |
-              dotnet test --configuration Release --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover
+              dotnet test --configuration Release --collect:"XPlat Code Coverage" /p:excludebyfile="Maxisoft.Utils/*" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover
               cp CryptoDumper.Tests/TestResults/*/coverage.info CryptoDumper.Tests/TestResults/coverage.info
         timeout-minutes: 10
 
