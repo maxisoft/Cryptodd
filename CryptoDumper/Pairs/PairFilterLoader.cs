@@ -13,7 +13,7 @@ namespace CryptoDumper.Pairs;
 
 public interface IPairFilterLoader : IService
 {
-    PairFilter GetPairFilter(string name);
+    ValueTask<PairFilter> GetPairFilterAsync(string name, CancellationToken cancellationToken = default);
 }
 
 [Singleton]
@@ -30,18 +30,18 @@ public class PairFilterLoader : IPairFilterLoader
         _pathResolver = pathResolver;
     }
 
-    public PairFilter GetPairFilter(string name)
+    public async ValueTask<PairFilter> GetPairFilterAsync(string name, CancellationToken cancellationToken = default)
     {
         if (_pairFilters.TryGetValue(name, out var res))
         {
             return res;
         }
-        res = LoadPairFilter(name);
+        res = await LoadPairFilterAsync(name, cancellationToken);
         _pairFilters[name] = res;
         return res;
     }
 
-    private PairFilter LoadPairFilter(string name)
+    private async ValueTask<PairFilter> LoadPairFilterAsync(string name, CancellationToken cancellationToken = default)
     {
         var splited = name.Split(Separator, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var paths = splited.ToArrayList(copy: false);
@@ -121,7 +121,7 @@ public class PairFilterLoader : IPairFilterLoader
             {
                 foreach (var file in files)
                 {
-                    var content = File.ReadAllText(file, Encoding.UTF8);
+                    var content = await File.ReadAllTextAsync(file, Encoding.UTF8, cancellationToken);
                     res.AddAll(content);
                 }
                 break;
