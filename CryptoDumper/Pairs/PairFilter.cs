@@ -106,12 +106,16 @@ public class PairFilter : IPairFilter
             node = node.Next;
         }
 
-        if (!_entries.Any()) // empty filter mean match any input string
+        var usingRegex = _entries.First is {};
+        if (!usingRegex && !_pairsSet.Any()) // empty filter mean match any input string
         {
             return true;
         }
-        
-        _noMatchPairsSet.TryAdd(input, default);
+
+        if (usingRegex)
+        {
+            _noMatchPairsSet.TryAdd(input, default);
+        }
         return false;
     }
 }
