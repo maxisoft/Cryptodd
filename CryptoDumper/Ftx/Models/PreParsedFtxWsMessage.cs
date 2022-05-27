@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Globalization;
+using System.Text.Json;
 
 namespace CryptoDumper.Ftx;
 
@@ -97,13 +98,18 @@ public readonly record struct PreParsedFtxWsMessage(string Type, string Channel,
                                     channel = reader.GetString();
                                     break;
                                 case "code":
-                                    if (reader.TokenType != JsonTokenType.String)
+                                    if (reader.TokenType is JsonTokenType.String)
                                     {
-                                        return;
+                                        code = reader.GetString();
+                                        break;
                                     }
-
-                                    code = reader.GetString();
-                                    break;
+                                    if (reader.TokenType is JsonTokenType.Number)
+                                    {
+                                        code = reader.GetInt64().ToString(CultureInfo.InvariantCulture);
+                                        break;
+                                    }
+                                    
+                                    return;
                                 case "msg":
                                 case "message":
                                     if (reader.TokenType != JsonTokenType.String)
