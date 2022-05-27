@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks.Dataflow;
 using CryptoDumper.Ftx.Models;
+using CryptoDumper.Ftx.Models.Json;
 using CryptoDumper.Http;
 using CryptoDumper.IoC;
 using Maxisoft.Utils.Collections.Queues.Specialized;
@@ -29,7 +30,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
     private readonly IClientWebSocketFactory _webSocketFactory;
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
 
-    private List<ITargetBlock<OrderbookGroupedWrapper>> _targetBlocks = new ();
+    private List<ITargetBlock<GroupedOrderbookDetails>> _targetBlocks = new ();
 
     private readonly ILogger _logger;
 
@@ -61,7 +62,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         return _requests.Count;
     }
 
-    public void RegisterTargetBlock(ITargetBlock<OrderbookGroupedWrapper> block)
+    public void RegisterTargetBlock(ITargetBlock<GroupedOrderbookDetails> block)
     {
         _targetBlocks.Add(block);
     }
@@ -213,7 +214,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
                 return;
             }
             
-            var orderbookGroupedWrapper = JsonSerializer.Deserialize<OrderbookGroupedWrapper>(memory.Span,
+            var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(memory.Span,
                 OrderBookJsonSerializerOptions);
             if (orderbookGroupedWrapper is null) return;
             foreach (var block in _targetBlocks)

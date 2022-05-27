@@ -40,6 +40,7 @@ namespace CryptoDumper.IoC
                 x.IncludeRegistry(loggerRegistry);
                 x.IncludeRegistry<MemoryCacheRegistry>();
                 x.IncludeRegistry<RedisServiceRegistry>();
+                x.IncludeRegistry<HandlerRegistry>();
                 if (pluginRegistry is not null)
                 {
                     x.IncludeRegistry(pluginRegistry);
