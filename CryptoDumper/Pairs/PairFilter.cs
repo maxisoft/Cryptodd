@@ -7,7 +7,7 @@ using Maxisoft.Utils.Empties;
 
 namespace CryptoDumper.Pairs;
 
-public struct PairFilterEntry : IEquatable<PairFilterEntry>
+public readonly struct PairFilterEntry
 {
     public readonly string Text;
     public readonly Regex? Regex;
@@ -29,20 +29,6 @@ public struct PairFilterEntry : IEquatable<PairFilterEntry>
 
         return Text == s;
     }
-
-    # region IEquatable
-
-    public bool Equals(PairFilterEntry other) => Text == other.Text && Equals(Regex, other.Regex);
-
-    public override bool Equals(object? obj) => obj is PairFilterEntry other && Equals(other);
-
-    public override int GetHashCode() => HashCode.Combine(Text, Regex);
-
-    public static bool operator ==(PairFilterEntry left, PairFilterEntry right) => left.Equals(right);
-
-    public static bool operator !=(PairFilterEntry left, PairFilterEntry right) => !left.Equals(right);
-
-    # endregion
 }
 
 public interface IPairFilter
@@ -52,14 +38,15 @@ public interface IPairFilter
 
 public class PairFilter : IPairFilter
 {
-    public static readonly Regex DetectRegex = new Regex(@"^[a-zA-Z][\w:/-]+$",
+    public static readonly Regex DetectRegex = new(@"^[a-zA-Z][\w:/-]+$",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    private ConcurrentDictionary<string, EmptyStruct> _pairsSet = new ConcurrentDictionary<string, EmptyStruct>(StringComparer.InvariantCultureIgnoreCase);
+    private ConcurrentDictionary<string, EmptyStruct> _pairsSet = new(StringComparer.InvariantCultureIgnoreCase);
+    private readonly ConcurrentDictionary<string, EmptyStruct> _noMatchPairsSet = new(StringComparer.InvariantCultureIgnoreCase);
 
-    private LinkedListAsIList<PairFilterEntry> _entries = new LinkedListAsIList<PairFilterEntry>();
-    private static readonly char[] Separator = new[] { '\r', '\n', ';' };
-    private static readonly ConcurrentDictionary<string, Regex> RegexCache = new ConcurrentDictionary<string, Regex>();
+    private LinkedListAsIList<PairFilterEntry> _entries = new();
+    private static readonly char[] Separator = { '\r', '\n', ';' };
+    private static readonly ConcurrentDictionary<string, Regex> RegexCache = new();
 
 
     public void AddAll(string input, bool allowRegex = true)
@@ -77,6 +64,7 @@ public class PairFilter : IPairFilter
                 }
             }
         }
+        _noMatchPairsSet.Clear();
     }
 
     private static Regex BuildRegex(string input)
@@ -98,22 +86,32 @@ public class PairFilter : IPairFilter
         // it's a shallow copy so a AddAll() call populate both this and other
         _pairsSet = other._pairsSet;
         _entries = other._entries;
+        _noMatchPairsSet.Clear();
     }
 
     public bool Match(string input)
     {
         if (_pairsSet.ContainsKey(input)) return true;
+        if (_noMatchPairsSet.ContainsKey(input)) return false;
         var node = _entries.First;
+        if (node is {Next: null, Value.Text: ".*" }) return true;
         while (node is {})
         {
             if (node.Value.Match(input))
             {
+                _pairsSet.TryAdd(input, default); // cache the result to avoid using regex again
                 return true;
             }
 
             node = node.Next;
         }
 
-        return !_pairsSet.Any();
+        if (!_entries.Any()) // empty filter mean match any input string
+        {
+            return true;
+        }
+        
+        _noMatchPairsSet.TryAdd(input, default);
+        return false;
     }
 }
