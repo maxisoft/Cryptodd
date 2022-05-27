@@ -8,7 +8,7 @@ public interface IPathResolver : IService
     public string Resolve(string path);
 }
 
-public class PathResolver
+public class PathResolver : IPathResolver
 {
     private readonly IConfiguration _configuration;
 
