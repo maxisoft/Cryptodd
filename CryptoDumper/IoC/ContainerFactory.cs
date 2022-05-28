@@ -6,53 +6,68 @@ using Lamar;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace CryptoDumper.IoC
+namespace CryptoDumper.IoC;
+
+public interface IContainerFactory
 {
-    public interface IContainerFactory
+    Container CreateContainer();
+}
+
+internal class CreateContainerOptions
+{
+    internal bool ScanForPlugins { get; set; } = true;
+
+    internal ConfigurationServiceOptions ConfigurationServiceOptions { get; set; } = new ConfigurationServiceOptions();
+
+    internal bool DebugPrint { get; set; } = true;
+
+    internal Action<ServiceRegistry> PreConfigure = registry => {};
+    internal Action<ServiceRegistry> PostConfigure = registry => {};
+}
+
+public class ContainerFactory : IContainerFactory
+{
+    public Container CreateContainer()
     {
-        Container CreateContainer();
+        return CreateContainer(new CreateContainerOptions());
     }
-
-    public class ContainerFactory : IContainerFactory
+    
+    internal Container CreateContainer(CreateContainerOptions options)
     {
-        public Container CreateContainer()
+        var configurationRegistry = new ConfigurationServiceRegistry(options.ConfigurationServiceOptions);
+        var configuration = configurationRegistry.Configuration;
+        var loggerRegistry = new LoggerServiceRegistry(configuration);
+        var logger = loggerRegistry.Logger.ForContext(GetType());
+        PluginRegistry? pluginRegistry = null;
+        if (options.ScanForPlugins && configuration.GetValue("LoadPlugins", true))
         {
-            var configurationRegistry = new ConfigurationServiceRegistry();
-            var configuration = configurationRegistry.Configuration;
-            var loggerRegistry = new LoggerServiceRegistry(configuration);
-            var logger = loggerRegistry.Logger.ForContext(GetType());
-            PluginRegistry? pluginRegistry = null;
-            if (configuration.GetValue("LoadPlugins", true))
+            pluginRegistry = new PluginRegistry(configuration, loggerRegistry.Logger);
+        }
+        var container = new Container(x =>
+        {
+            options.PreConfigure(x);
+            x.Scan(scanner =>
             {
-                pluginRegistry = new PluginRegistry(configuration, loggerRegistry.Logger);
-            }
-            var container = new Container(x =>
-            {
-                x.Scan(scanner =>
-                {
-                    scanner.TheCallingAssembly();
-                    scanner.LookForRegistries();
-                    scanner.IncludeNamespaceContainingType<DefaultServiceRegistry>();
-                    scanner.ExcludeNamespaceContainingType<LoggerServiceRegistry>();
-                });
-
-                x.IncludeRegistry(configurationRegistry);
-                x.IncludeRegistry(loggerRegistry);
-                x.IncludeRegistry<MemoryCacheRegistry>();
-                x.IncludeRegistry<RedisServiceRegistry>();
-                x.IncludeRegistry<HandlerRegistry>();
-                if (pluginRegistry is not null)
-                {
-                    x.IncludeRegistry(pluginRegistry);
-                }
-                
-                x.Injectable<IContainer>();
+                scanner.TheCallingAssembly();
+                scanner.LookForRegistries();
+                scanner.IncludeNamespaceContainingType<DefaultServiceRegistry>();
+                scanner.ExcludeNamespaceContainingType<LoggerServiceRegistry>();
             });
 
-            
-            container.Configure(c =>
+            x.IncludeRegistry(configurationRegistry);
+            x.IncludeRegistry(loggerRegistry);
+            x.IncludeRegistry<MemoryCacheRegistry>();
+            x.IncludeRegistry<RedisServiceRegistry>();
+            x.IncludeRegistry<HandlerRegistry>();
+            if (pluginRegistry is not null)
             {
+                x.IncludeRegistry(pluginRegistry);
+            }
                 
+            x.Injectable<IContainer>();
+
+            x.Configure((IServiceCollection c) =>
+            {
                 c.AddSingleton<IContainerFactory>(this);
                 c.AddHttpClient<IFtxPublicHttpApi, FtxPublicHttpApi>((provider, client) => 
                     {
@@ -63,20 +78,26 @@ namespace CryptoDumper.IoC
                     .AddPolicyHandler((provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
                 //.AddPolicyHandler(GetCircuitBreakerPolicy());
             });
-            
-            if (configuration.GetValue("DoubleCheckContainer", false))
-            {
-                container.AssertConfigurationIsValid();
-            }
+
+            options.PostConfigure(x);
+        });
+
+        if (configuration.GetValue("DoubleCheckContainer", false))
+        {
+            container.AssertConfigurationIsValid();
+        }
 #if DEBUG
+        if (options.DebugPrint)
+        {
             // ReSharper disable once TemplateIsNotCompileTimeConstantProblem
             logger.Debug(container.WhatDidIScan());
             // ReSharper disable once TemplateIsNotCompileTimeConstantProblem
             logger.Debug(container.WhatDoIHave());
-#endif
-
-            logger.Verbose("Done creating container");
-            return container;
+            
         }
+
+#endif
+        logger.Verbose("Done creating container");
+        return container;
     }
 }

@@ -110,7 +110,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
             }
 
             var handlerTasks = new List<Task>();
-            handlerTasks.AddRange(handlers.Select(handler => handler.Handle(groupedOrderBooks, cancellationToken)));
+            handlerTasks.AddRange(handlers.Where(handler => !handler.Disabled).Select(handler => handler.Handle(groupedOrderBooks, cancellationToken)));
             await Task.WhenAll(handlerTasks).ConfigureAwait(false);
             _logger.Information("Processed {Count} grouped orderbooks in {Elapsed}", processed, sw.Elapsed);
         }

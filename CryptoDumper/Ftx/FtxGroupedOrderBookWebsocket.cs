@@ -93,8 +93,8 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
             {
                 await _ws!.SendAsync(
                     Encoding.UTF8.GetBytes(
-                        "{\"op\": \"subscribe\", \"channel\": \"orderbookGrouped\", \"market\": \"" +
-                        $"{request.Market}" + "\", \"grouping\": " + request.Grouping.ToString(CultureInfo.InvariantCulture) + 
+                        "{\"op\":\"subscribe\",\"channel\":\"orderbookGrouped\",\"market\":\"" +
+                        $"{request.Market}" + "\",\"grouping\":" + request.Grouping.ToString(CultureInfo.InvariantCulture) + 
                         "}"),
                     WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
             }
@@ -275,7 +275,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         var pingTask = Task.CompletedTask;
         if (_pingStopWatch.ElapsedMilliseconds > 15_000 && !IsClosed)
         {
-            pingTask = _ws?.SendAsync(Encoding.UTF8.GetBytes("{\"op\": \"ping\"}"), WebSocketMessageType.Text, true,
+            pingTask = _ws?.SendAsync(Encoding.UTF8.GetBytes("{\"op\":\"ping\"}"), WebSocketMessageType.Text, true,
                 CancellationToken) ?? Task.CompletedTask;
             pingTask = pingTask.ContinueWith(task =>
             {

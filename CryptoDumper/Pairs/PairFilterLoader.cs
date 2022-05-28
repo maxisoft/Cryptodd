@@ -13,7 +13,7 @@ namespace CryptoDumper.Pairs;
 
 public interface IPairFilterLoader : IService
 {
-    ValueTask<PairFilter> GetPairFilterAsync(string name, CancellationToken cancellationToken = default);
+    ValueTask<IPairFilter> GetPairFilterAsync(string name, CancellationToken cancellationToken = default);
 }
 
 [Singleton]
@@ -30,7 +30,7 @@ public class PairFilterLoader : IPairFilterLoader
         _pathResolver = pathResolver;
     }
 
-    public async ValueTask<PairFilter> GetPairFilterAsync(string name, CancellationToken cancellationToken = default)
+    public async ValueTask<IPairFilter> GetPairFilterAsync(string name, CancellationToken cancellationToken = default)
     {
         if (_pairFilters.TryGetValue(name, out var res))
         {

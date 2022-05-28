@@ -95,7 +95,8 @@ public class PairFilter : IPairFilter
         if (_noMatchPairsSet.ContainsKey(input)) return false;
         var node = _entries.First;
         if (node is {Next: null, Value.Text: ".*" }) return true;
-        while (node is {})
+        var usingRegex = false;
+        while (node is not null)
         {
             if (node.Value.Match(input))
             {
@@ -104,9 +105,10 @@ public class PairFilter : IPairFilter
             }
 
             node = node.Next;
+            usingRegex = true;
         }
 
-        var usingRegex = _entries.First is {};
+        
         if (!usingRegex && !_pairsSet.Any()) // empty filter mean match any input string
         {
             return true;

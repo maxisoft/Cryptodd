@@ -1,12 +1,6 @@
-﻿using CryptoDumper.IoC;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 
 namespace CryptoDumper.FileSystem;
-
-public interface IPathResolver : IService
-{
-    public string Resolve(string path);
-}
 
 public class PathResolver : IPathResolver
 {
