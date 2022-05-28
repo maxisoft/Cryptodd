@@ -339,6 +339,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
     public async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
         LoopCancellationTokenSource.Cancel();
         var ws = _ws;
         if (ws is { State: WebSocketState.Open })
@@ -363,6 +364,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         Close();
         try
         {
@@ -371,8 +373,9 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
                 LoopCancellationTokenSource.Cancel();
             }
         }
-        catch (ObjectDisposedException)
+        catch (ObjectDisposedException e) // lgtm [cs/empty-catch-block]
         {
+            Debug.Write(e);
         }
         
         _semaphoreSlim.Dispose();
