@@ -6,8 +6,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoDumper.Console", "Cry
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maxisoft.Plugins", "Maxisoft.Plugins\Maxisoft.Plugins.csproj", "{5DA662C8-FAD9-4152-8160-A935A61B43EF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maxisoft.Utils", "Maxisoft.Utils\Maxisoft.Utils\Maxisoft.Utils.csproj", "{9F60ED23-78F7-4976-B321-2553A1492883}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoDumper.Tests", "CryptoDumper.Tests\CryptoDumper.Tests.csproj", "{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}"
 EndProject
 Global
@@ -28,10 +26,6 @@ Global
 		{5DA662C8-FAD9-4152-8160-A935A61B43EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5DA662C8-FAD9-4152-8160-A935A61B43EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5DA662C8-FAD9-4152-8160-A935A61B43EF}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9F60ED23-78F7-4976-B321-2553A1492883}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9F60ED23-78F7-4976-B321-2553A1492883}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9F60ED23-78F7-4976-B321-2553A1492883}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9F60ED23-78F7-4976-B321-2553A1492883}.Release|Any CPU.Build.0 = Release|Any CPU
 		{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}.Release|Any CPU.ActiveCfg = Release|Any CPU
