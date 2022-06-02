@@ -36,14 +36,14 @@ jobs:
         timeout-minutes: 10
 
       - name: Create artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: always()
         with:
           name: Cryptodd_${{ matrix.os }}_${{ matrix.dotnet-version }}
           path: Cryptodd.Console/bin/Release/*
 
       - name: Create artifact TestResults
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: always()
         with:
           name: Cryptodd_TestResults_${{ matrix.os }}_${{ matrix.dotnet-version }}
