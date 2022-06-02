@@ -7,6 +7,10 @@ on:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
+concurrency:
+   group: ${{ github.ref }}-${{ github.workflow }}-${{ github.event_name }}-${{ github.actor }}
+   cancel-in-progress: true
+
 jobs:
   docker-build-publish:
     runs-on: ubuntu-latest
