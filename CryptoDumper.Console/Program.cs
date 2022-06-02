@@ -27,11 +27,8 @@ namespace CryptoDumper.Console
             var client = container.GetInstance<IFtxPublicHttpApi>();
             var resp = await client.GetAllFuturesAsync();
             var resp2 = await client.GetAllFundingRatesAsync();
-            var ftxWs = container.GetInstance<FtxGroupedOrderBookWebsocket>();
-            var recv = ftxWs.RecvLoop();
-            ftxWs._requests.Add(new GroupedOrderBookRequest(){Market = "BTC-PERP"});
-            await ftxWs.ProcessRequests();
-            await recv;
+            var ftxWs = container.GetInstance<GatherGroupedOrderBookService>();
+            await ftxWs.CollectOrderBooks(default(CancellationToken));
         }
     }
 }

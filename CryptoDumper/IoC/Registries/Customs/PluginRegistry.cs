@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Reflection;
+using CryptoDumper.Ftx;
 using CryptoDumper.Plugins;
 using Lamar;
 using Maxisoft.Plugins.Loader;
@@ -39,9 +40,10 @@ namespace CryptoDumper.IoC.Registries.Customs
                     {
                         scanner.Assembly(assembly);
                     }
-
+                    scanner.ExcludeType<INoAutoRegister>();
                     scanner.AddAllTypesOf<IPluginService>();
                     scanner.AddAllTypesOf<IBasePlugin>(ServiceLifetime.Singleton);
+                    scanner.AddAllTypesOf<IGroupedOrderbookHandler>();
                 });
             }
         }

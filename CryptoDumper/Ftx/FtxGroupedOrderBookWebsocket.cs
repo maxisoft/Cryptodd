@@ -1,7 +1,13 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks.Dataflow;
+using CryptoDumper.Ftx.Models;
+using CryptoDumper.Ftx.Models.Json;
 using CryptoDumper.Http;
 using CryptoDumper.IoC;
 using Maxisoft.Utils.Collections.Queues.Specialized;
@@ -11,19 +17,20 @@ using Serilog;
 
 namespace CryptoDumper.Ftx;
 
-internal struct GroupedOrderBookRequest
+public readonly record struct GroupedOrderBookRequest(string Market, double Grouping)
 {
-    public string Market { get; set; }
 }
 
 public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposable
 {
-    internal PooledDeque<GroupedOrderBookRequest> _requests = new PooledDeque<GroupedOrderBookRequest>();
+    internal BufferBlock<GroupedOrderBookRequest> _requests = new BufferBlock<GroupedOrderBookRequest>();
     private readonly IMemoryCache _memoryCache;
     private ClientWebSocket? _ws;
     private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
     private readonly IClientWebSocketFactory _webSocketFactory;
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
+
+    private List<ITargetBlock<GroupedOrderbookDetails>> _targetBlocks = new ();
 
     private readonly ILogger _logger;
 
@@ -35,8 +42,35 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         _logger = logger;
     }
 
-    internal CancellationTokenSource LoopCancellationTokenSource = new CancellationTokenSource();
+    internal readonly CancellationTokenSource LoopCancellationTokenSource = new CancellationTokenSource();
+
+    private static readonly JsonSerializerOptions OrderBookJsonSerializerOptions = CreateOrderBookJsonSerializerOptions();
+
+    private static JsonSerializerOptions CreateOrderBookJsonSerializerOptions() 
+    {
+        var res = new JsonSerializerOptions()
+            { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
+        res.Converters.Add(new PriceSizePairConverter());
+        return res;
+    }
+        
+
     public CancellationToken CancellationToken => LoopCancellationTokenSource.Token;
+
+    public int NumRemainingRequests()
+    {
+        return _requests.Count;
+    }
+
+    public void RegisterTargetBlock(ITargetBlock<GroupedOrderbookDetails> block)
+    {
+        _targetBlocks.Add(block);
+    }
+
+    public bool RegisterGroupedOrderBookRequest(string market, double grouping)
+    {
+        return _requests.Post(new GroupedOrderBookRequest(market, grouping));
+    }
 
     public bool IsClosed
     {
@@ -48,27 +82,26 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         }
     }
 
-    internal async ValueTask ProcessRequests()
+    internal async ValueTask ProcessRequests(CancellationToken cancellationToken)
     {
         while (!LoopCancellationTokenSource.IsCancellationRequested)
         {
             await ConnectIfNeeded().ConfigureAwait(false);
             await PingRemote().ConfigureAwait(false);
-            if (_requests.IsEmpty) return;
-
-            while (_requests.TryPopFront(out var request))
+            if (_requests.Count == 0) return;
+            while (_requests.TryReceive(out var request) && !cancellationToken.IsCancellationRequested)
             {
                 await _ws!.SendAsync(
                     Encoding.UTF8.GetBytes(
-                        "{\"op\": \"subscribe\", \"channel\": \"orderbook\", \"market\": \"" +
-                        $"{request.Market}" +
-                        "\"}"),
-                    WebSocketMessageType.Text, true, CancellationToken);
+                        "{\"op\":\"subscribe\",\"channel\":\"orderbookGrouped\",\"market\":\"" +
+                        $"{request.Market}" + "\",\"grouping\":" + request.Grouping.ToString(CultureInfo.InvariantCulture) + 
+                        "}"),
+                    WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
             }
         }
     }
 
-    internal async ValueTask RecvLoop()
+    internal async Task RecvLoop()
     {
         try
         {
@@ -100,7 +133,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
                     if (!PreParsedFtxWsMessage.TryParse(mem.Memory[..resp.Count].Span, out var pre))
                     {
-                        _logger.Warning("Unable to pre parse message {0}", pre);
+                        _logger.Warning("Unable to pre parse message {Message}", pre);
                         Close();
                         continue;
                     }
@@ -168,13 +201,70 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         }
     }
 
+    private async ValueTask HandleOrderbookGrouped(PreParsedFtxWsMessage pre, Memory<byte> memory, CancellationToken cancellationToken)
+    {
+        Debug.Assert(pre.Channel == "orderbookGrouped");
+        if (pre.Type is "subscribed" or "unsubscribed") return;
+        
+        var unsub = Unsubscribe(pre);
+        try
+        {
+            if (pre.Type != "partial")
+            {
+                return;
+            }
+            
+            var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(memory.Span,
+                OrderBookJsonSerializerOptions);
+            if (orderbookGroupedWrapper is null) return;
+            foreach (var block in _targetBlocks)
+            {
+                await block.SendAsync(orderbookGroupedWrapper, cancellationToken);
+            }
+        }
+        finally
+        {
+            if (!unsub.IsCompleted)
+            {
+                await unsub;
+            }
+        }
+    }
+
+    private async Task Unsubscribe(PreParsedFtxWsMessage pre)
+    {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.Append("{\"op\":\"unsubscribe\"");
+        if (!string.IsNullOrWhiteSpace(pre.Channel))
+        {
+            stringBuilder.Append(CultureInfo.InvariantCulture, $",\"channel\":\"{pre.Channel}\"");
+        }
+
+        if (!string.IsNullOrWhiteSpace(pre.Market))
+        {
+            stringBuilder.Append(CultureInfo.InvariantCulture, $",\"market\":\"{pre.Market}\"");
+        }
+
+        if (pre.Grouping.HasValue)
+        {
+            stringBuilder.Append(CultureInfo.InvariantCulture, $",\"grouping\":\"{pre.Grouping}\"");
+        }
+        stringBuilder.Append('}');
+        await (_ws?.SendAsync(Encoding.UTF8.GetBytes(stringBuilder.ToString()), WebSocketMessageType.Text, true,
+            CancellationToken) ?? Task.CompletedTask);
+    }
+    
     private ValueTask DispatchMessage(PreParsedFtxWsMessage pre, Memory<byte> memory,
         CancellationToken cancellationToken)
     {
-        switch (pre.Channel)
+        switch (pre.Type, pre.Channel)
         {
+            case ("subscribed" or "unsubscribed" or "pong", _):
+                break;
+            case (_, "orderbookGrouped"):
+                return HandleOrderbookGrouped(pre, memory, cancellationToken);
             default:
-                _logger.Warning("No handling for {0}", pre);
+                _logger.Warning("No handling for {Pre}", pre);
                 break;
         }
         return ValueTask.CompletedTask;
@@ -185,7 +275,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         var pingTask = Task.CompletedTask;
         if (_pingStopWatch.ElapsedMilliseconds > 15_000 && !IsClosed)
         {
-            pingTask = _ws?.SendAsync(Encoding.UTF8.GetBytes("{\"op\": \"ping\"}"), WebSocketMessageType.Text, true,
+            pingTask = _ws?.SendAsync(Encoding.UTF8.GetBytes("{\"op\":\"ping\"}"), WebSocketMessageType.Text, true,
                 CancellationToken) ?? Task.CompletedTask;
             pingTask = pingTask.ContinueWith(task =>
             {
@@ -249,18 +339,23 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
     public async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
+        LoopCancellationTokenSource.Cancel();
         var ws = _ws;
         if (ws is { State: WebSocketState.Open })
         {
-            using var closeCancellationToken = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
+            using var closeCancellationToken = new CancellationTokenSource();
             closeCancellationToken.CancelAfter(1000);
             try
             {
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
             }
-            catch (OperationCanceledException e)
+            catch (Exception e) when (e is OperationCanceledException or WebSocketException)
             {
-                _logger.Warning(e, "Error when closing ws");
+                if (_requests.Count > 0)
+                {
+                    _logger.Debug(e, "Error when closing ws");
+                }
             }
         }
 
@@ -269,8 +364,20 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         Close();
-        LoopCancellationTokenSource.Cancel();
+        try
+        {
+            if (!LoopCancellationTokenSource.IsCancellationRequested)
+            {
+                LoopCancellationTokenSource.Cancel();
+            }
+        }
+        catch (ObjectDisposedException e) // lgtm [cs/empty-catch-block]
+        {
+            Debug.Write(e);
+        }
+        
         _semaphoreSlim.Dispose();
         LoopCancellationTokenSource.Dispose();
     }
