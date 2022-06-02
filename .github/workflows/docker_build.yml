@@ -23,7 +23,7 @@ jobs:
       name: Build Dockerfile
       timeout-minutes: 20
       run: |
-            docker build -t crypto-dumper:testing -f ./Docker/Dockerfile .
+            docker build -t cryptodd:testing -f ./Docker/Dockerfile .
 
     - 
       name: Install and Run Dive
@@ -33,4 +33,4 @@ jobs:
             wget --no-verbose https://github.com/wagoodman/dive/releases/download/v0.10.0/dive_0.10.0_linux_amd64.deb
             sudo apt install --quiet -y ./dive_0.10.0_linux_amd64.deb
             popd
-            CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" crypto-dumper:testing
+            CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" cryptodd:testing
