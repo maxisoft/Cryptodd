@@ -1,21 +1,19 @@
-﻿
-namespace Cryptodd
-{
-    public static class Const
-    {
-        public const string ApplicationName = "cryptodd";
-        public const string EnvPrefix = "CRYPTODD_";
-        public const string EnvPrefixShort = "CDD_";
-        public const string ApplicationSettingsJsonFileName = "appsettings.json";
-        public const string ApplicationConfigYamlFileName = "config.yaml";
-        public const string DatabaseExtension = ".db";
+﻿namespace Cryptodd;
 
-        public const bool IsDebug =
+public static class Const
+{
+    public const string ApplicationName = "cryptodd";
+    public const string EnvPrefix = "CRYPTODD_";
+    public const string EnvPrefixShort = "CDD_";
+    public const string ApplicationSettingsJsonFileName = "appsettings.json";
+    public const string ApplicationConfigYamlFileName = "config.yaml";
+    public const string DatabaseExtension = ".db";
+
+    public const bool IsDebug =
 #if DEBUG
-                true
+            true
 #else
                 false
 #endif
-            ;
-    }
+        ;
 }

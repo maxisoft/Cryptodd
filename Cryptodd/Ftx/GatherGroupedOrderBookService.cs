@@ -5,20 +5,17 @@ using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
 using Lamar;
-using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace Cryptodd.Ftx;
 
 public class GatherGroupedOrderBookService : IService, IDisposable
 {
-    private readonly IPairFilterLoader _pairFilterLoader;
-    private readonly ILogger _logger;
-    private FtxPublicHttpApi FtxPublicHttpApi => _container.GetInstance<FtxPublicHttpApi>();
     private readonly IConfiguration _configuration;
     private readonly IContainer _container;
+    private readonly ILogger _logger;
+    private readonly IPairFilterLoader _pairFilterLoader;
 
     public GatherGroupedOrderBookService(IPairFilterLoader pairFilterLoader, ILogger logger,
         IConfiguration configuration, IContainer container)
@@ -29,17 +26,21 @@ public class GatherGroupedOrderBookService : IService, IDisposable
         _container = container;
     }
 
+    private FtxPublicHttpApi FtxPublicHttpApi => _container.GetInstance<FtxPublicHttpApi>();
+
+    public void Dispose() { }
+
     public async Task CollectOrderBooks(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         var markets = await FtxPublicHttpApi.GetAllMarketsAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var ftxConfig = _configuration.GetSection("Ftx");
-        var maxNumWs = ftxConfig.GetValue<int>("MaxWebSockets", 20);
+        var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 20);
         var webSockets = new List<FtxGroupedOrderBookWebsocket>();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx/GroupedOrderBook", cancellationToken);
         var groupedOrderBookSection = ftxConfig.GetSection("GroupedOrderBook");
-        var percent = groupedOrderBookSection.GetValue<double>("Percent", 0.05);
+        var percent = groupedOrderBookSection.GetValue("Percent", 0.05);
         var tasks = new List<Task>();
         var targetBlock = new BufferBlock<GroupedOrderbookDetails>();
         var requests = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
@@ -55,7 +56,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
             }
 
             var taskNum = 0;
-            
+
             foreach (var market in markets)
             {
                 if (market.Enabled && !market.PostOnly && market.Ask is > 0 && market.Bid is > 0 &&
@@ -64,24 +65,26 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                     var markPrice = 0.5 * (market.Ask.Value + market.Bid.Value);
                     var grouping = ComputeGrouping(market, percent, markPrice);
                     Debug.Assert(grouping > 0);
-                    if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(market.Name, grouping)) continue;
+                    if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(market.Name, grouping))
+                    {
+                        continue;
+                    }
+
                     requests.Add(market.Name);
                     if (taskNum < webSockets.Count)
                     {
-                        tasks.Add(webSockets[taskNum % maxNumWs].RecvLoop().ContinueWith(_ =>
-                        {
-                            Interlocked.Increment(ref recvDone);
-                        }, cancellationToken));
+                        tasks.Add(webSockets[taskNum % maxNumWs].RecvLoop()
+                            .ContinueWith(_ => { Interlocked.Increment(ref recvDone); }, cancellationToken));
                     }
 
                     taskNum++;
-
                 }
             }
 
             using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cancellationTokenSource.CancelAfter(groupedOrderBookSection.GetValue<int>("GatherTimeout", 60 * 1000));
-            await Parallel.ForEachAsync(webSockets, cancellationTokenSource.Token, (ws, token) => ws.ProcessRequests(token));
+            cancellationTokenSource.CancelAfter(groupedOrderBookSection.GetValue("GatherTimeout", 60 * 1000));
+            await Parallel.ForEachAsync(webSockets, cancellationTokenSource.Token,
+                (ws, token) => ws.ProcessRequests(token));
 
             var processed = 0;
             var handlers = _container.GetAllInstances<IGroupedOrderbookHandler>();
@@ -93,47 +96,44 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                     _logger.Warning("Sockets got disconnected");
                     break;
                 }
-                
+
                 GroupedOrderbookDetails resp;
-                
+
                 try
                 {
                     resp = await targetBlock.ReceiveAsync(cancellationTokenSource.Token).ConfigureAwait(false);
                 }
-                catch (Exception e) when(e is OperationCanceledException or TaskCanceledException)
+                catch (Exception e) when (e is OperationCanceledException or TaskCanceledException)
                 {
                     break;
                 }
-                
+
                 groupedOrderBooks.Add(resp);
                 processed += 1;
             }
 
             var handlerTasks = new List<Task>();
-            handlerTasks.AddRange(handlers.Where(handler => !handler.Disabled).Select(handler => handler.Handle(groupedOrderBooks, cancellationToken)));
+            handlerTasks.AddRange(handlers.Where(handler => !handler.Disabled)
+                .Select(handler => handler.Handle(groupedOrderBooks, cancellationToken)));
             await Task.WhenAll(handlerTasks).ConfigureAwait(false);
             _logger.Information("Processed {Count} grouped orderbooks in {Elapsed}", processed, sw.Elapsed);
         }
         finally
         {
-            await Parallel.ForEachAsync(webSockets, cancellationToken, (ws, token) => ws.DisposeAsync()).ConfigureAwait(false);
+            await Parallel.ForEachAsync(webSockets, cancellationToken, (ws, token) => ws.DisposeAsync())
+                .ConfigureAwait(false);
             targetBlock.Complete();
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    
-    
+
     private static double ComputeGrouping(Market market, double percent, double markPrice)
     {
         var grouping = percent / 100.0 * markPrice;
         grouping = PriceUtils.Round(grouping, market.PriceIncrement);
         grouping = Math.Max(grouping, market.PriceIncrement);
         return grouping;
-    }
-
-    public void Dispose()
-    {
     }
 }

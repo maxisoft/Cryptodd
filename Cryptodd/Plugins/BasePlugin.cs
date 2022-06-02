@@ -1,36 +1,30 @@
-﻿using System;
-using Lamar;
-using LamarCodeGeneration;
+﻿using Lamar;
 using Serilog;
 
-namespace Cryptodd.Plugins
+namespace Cryptodd.Plugins;
+
+public abstract class BasePlugin : IBasePlugin
 {
-    public abstract class BasePlugin : IBasePlugin
+    protected BasePlugin(IContainer container)
     {
-        protected BasePlugin(IContainer container)
-        {
-            Container = container;
-            Logger = container.GetInstance<ILogger>().ForContext(GetType());
-        }
+        Container = container;
+        Logger = container.GetInstance<ILogger>().ForContext(GetType());
+    }
 
-        public virtual string Name => GetType().Name;
-        public virtual Version Version => GetType().Assembly.GetName().Version ?? new Version();
-        
-        public ILogger Logger { get; protected set; }
+    public ILogger Logger { get; protected set; }
 
-        protected IContainer Container { get; }
+    protected IContainer Container { get; }
 
-        public virtual Task OnStart()
-        {
-            return Task.CompletedTask;
-        }
+    public virtual string Name => GetType().Name;
+    public virtual Version Version => GetType().Assembly.GetName().Version ?? new Version();
 
-        public int Order { get; protected set; } = 0;
+    public virtual Task OnStart() => Task.CompletedTask;
 
-        public virtual ValueTask DisposeAsync()
-        {
-            GC.SuppressFinalize(this);
-            return ValueTask.CompletedTask;
-        }
+    public int Order { get; protected set; } = 0;
+
+    public virtual ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
     }
 }

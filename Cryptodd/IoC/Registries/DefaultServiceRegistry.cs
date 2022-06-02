@@ -1,21 +1,20 @@
 ﻿using Cryptodd.Ftx;
 using Lamar;
 
-namespace Cryptodd.IoC.Registries
+namespace Cryptodd.IoC.Registries;
+
+public class DefaultServiceRegistry : ServiceRegistry
 {
-    public class DefaultServiceRegistry : ServiceRegistry
+    public DefaultServiceRegistry()
     {
-        public DefaultServiceRegistry()
+        Scan(scanner =>
         {
-            Scan(scanner =>
-            {
-                scanner.TheCallingAssembly();
-                scanner.ExcludeType<INoAutoRegister>();
-                scanner.ExcludeType<IGroupedOrderbookHandler>();
-                scanner.AddAllTypesOf<IService>();
-                scanner.SingleImplementationsOfInterface();
-                scanner.WithDefaultConventions();
-            });
-        }
+            scanner.TheCallingAssembly();
+            scanner.ExcludeType<INoAutoRegister>();
+            scanner.ExcludeType<IGroupedOrderbookHandler>();
+            scanner.AddAllTypesOf<IService>();
+            scanner.SingleImplementationsOfInterface();
+            scanner.WithDefaultConventions();
+        });
     }
 }

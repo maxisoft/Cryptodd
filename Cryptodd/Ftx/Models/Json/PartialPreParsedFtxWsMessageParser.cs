@@ -5,12 +5,12 @@ namespace Cryptodd.Ftx.Models.Json;
 
 public struct PartialPreParsedFtxWsMessageParser
 {
-    private static readonly JsonReaderOptions Options = new JsonReaderOptions
+    private static readonly JsonReaderOptions Options = new()
     {
         CommentHandling = JsonCommentHandling.Disallow,
         AllowTrailingCommas = false
     };
-    
+
     public static bool TryParse(ReadOnlySpan<byte> bytes, out PreParsedFtxWsMessage result)
     {
         var type = "";
@@ -101,12 +101,13 @@ public struct PartialPreParsedFtxWsMessageParser
                                         code = reader.GetString();
                                         break;
                                     }
+
                                     if (reader.TokenType is JsonTokenType.Number)
                                     {
                                         code = reader.GetInt64().ToString(CultureInfo.InvariantCulture);
                                         break;
                                     }
-                                    
+
                                     return;
                                 case "msg":
                                 case "message":
@@ -201,8 +202,8 @@ public struct PartialPreParsedFtxWsMessageParser
         }
 
 
-        result = new PreParsedFtxWsMessage(Type: type, Channel: channel, Market: market, Code: code, Msg: msg,
-            Checksum: checksum, Grouping: grouping, Time: time);
+        result = new PreParsedFtxWsMessage(type, channel, market, code, msg,
+            checksum, grouping, time);
         return done && !string.IsNullOrWhiteSpace(type);
     }
 }

@@ -35,7 +35,8 @@ public class PriceSizePairConverter : JsonConverter<PriceSizePair>
 
         if (!reader.Read() || reader.TokenType != JsonTokenType.EndArray)
         {
-            throw new JsonException("JsonArray expected to have only 2 elements", null, null, reader.Position.GetInteger());
+            throw new JsonException("JsonArray expected to have only 2 elements", null, null,
+                reader.Position.GetInteger());
         }
 
         return new PriceSizePair(price, size);
@@ -43,6 +44,6 @@ public class PriceSizePairConverter : JsonConverter<PriceSizePair>
 
     public override void Write(Utf8JsonWriter writer, PriceSizePair value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize<double[]>(writer, new double[] { value.Price, value.Size });
+        JsonSerializer.Serialize(writer, new[] { value.Price, value.Size });
     }
 }

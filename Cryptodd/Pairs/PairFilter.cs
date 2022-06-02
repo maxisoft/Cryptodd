@@ -1,7 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using Maxisoft.Utils.Collections.Dictionaries;
-using Maxisoft.Utils.Collections.Dictionaries.Specialized;
 using Maxisoft.Utils.Collections.LinkedLists;
 using Maxisoft.Utils.Empties;
 
@@ -41,12 +39,60 @@ public class PairFilter : IPairFilter
     public static readonly Regex DetectRegex = new(@"^[a-zA-Z][\w:/-]+$",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    private ConcurrentDictionary<string, EmptyStruct> _pairsSet = new(StringComparer.InvariantCultureIgnoreCase);
-    private readonly ConcurrentDictionary<string, EmptyStruct> _noMatchPairsSet = new(StringComparer.InvariantCultureIgnoreCase);
-
-    private LinkedListAsIList<PairFilterEntry> _entries = new();
     private static readonly char[] Separator = { '\r', '\n', ';' };
     private static readonly ConcurrentDictionary<string, Regex> RegexCache = new();
+
+    private readonly ConcurrentDictionary<string, EmptyStruct> _noMatchPairsSet =
+        new(StringComparer.InvariantCultureIgnoreCase);
+
+    private LinkedListAsIList<PairFilterEntry> _entries = new();
+
+    private ConcurrentDictionary<string, EmptyStruct> _pairsSet = new(StringComparer.InvariantCultureIgnoreCase);
+
+    public bool Match(string input)
+    {
+        if (_pairsSet.ContainsKey(input))
+        {
+            return true;
+        }
+
+        if (_noMatchPairsSet.ContainsKey(input))
+        {
+            return false;
+        }
+
+        var node = _entries.First;
+        if (node is { Next: null, Value.Text: ".*" })
+        {
+            return true;
+        }
+
+        var usingRegex = false;
+        while (node is not null)
+        {
+            if (node.Value.Match(input))
+            {
+                _pairsSet.TryAdd(input, default); // cache the result to avoid using regex again
+                return true;
+            }
+
+            node = node.Next;
+            usingRegex = true;
+        }
+
+
+        if (!usingRegex && !_pairsSet.Any()) // empty filter mean match any input string
+        {
+            return true;
+        }
+
+        if (usingRegex)
+        {
+            _noMatchPairsSet.TryAdd(input, default);
+        }
+
+        return false;
+    }
 
 
     public void AddAll(string input, bool allowRegex = true)
@@ -55,7 +101,11 @@ public class PairFilter : IPairFilter
         foreach (var s in input.Split(Separator,
                      StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
-            if (s.StartsWith('#') || s.StartsWith("//", StringComparison.InvariantCulture)) continue;
+            if (s.StartsWith('#') || s.StartsWith("//", StringComparison.InvariantCulture))
+            {
+                continue;
+            }
+
             if (_pairsSet.TryAdd(s, es) && allowRegex && !DetectRegex.IsMatch(s))
             {
                 lock (_entries)
@@ -64,6 +114,7 @@ public class PairFilter : IPairFilter
                 }
             }
         }
+
         _noMatchPairsSet.Clear();
     }
 
@@ -82,42 +133,14 @@ public class PairFilter : IPairFilter
 
     internal void CopyFrom(PairFilter other)
     {
-        if (ReferenceEquals(this, other)) return;
+        if (ReferenceEquals(this, other))
+        {
+            return;
+        }
+
         // it's a shallow copy so a AddAll() call populate both this and other
         _pairsSet = other._pairsSet;
         _entries = other._entries;
         _noMatchPairsSet.Clear();
-    }
-
-    public bool Match(string input)
-    {
-        if (_pairsSet.ContainsKey(input)) return true;
-        if (_noMatchPairsSet.ContainsKey(input)) return false;
-        var node = _entries.First;
-        if (node is {Next: null, Value.Text: ".*" }) return true;
-        var usingRegex = false;
-        while (node is not null)
-        {
-            if (node.Value.Match(input))
-            {
-                _pairsSet.TryAdd(input, default); // cache the result to avoid using regex again
-                return true;
-            }
-
-            node = node.Next;
-            usingRegex = true;
-        }
-
-        
-        if (!usingRegex && !_pairsSet.Any()) // empty filter mean match any input string
-        {
-            return true;
-        }
-
-        if (usingRegex)
-        {
-            _noMatchPairsSet.TryAdd(input, default);
-        }
-        return false;
     }
 }
