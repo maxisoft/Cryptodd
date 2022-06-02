@@ -32,7 +32,7 @@ jobs:
       - name: Test using Coverlet Code Coverage
         run: |
               dotnet test --configuration Release --collect:"XPlat Code Coverage" /p:excludebyfile="Maxisoft.Utils/*" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=json,cobertura,lcov,teamcity,opencover
-              cp CryptoDumper.Tests/TestResults/*/coverage.info CryptoDumper.Tests/TestResults/coverage.info
+              cp Cryptodd.Tests/TestResults/*/coverage.info Cryptodd.Tests/TestResults/coverage.info
         timeout-minutes: 10
 
       - name: Upload Code Coverage to Coveralls
@@ -40,11 +40,11 @@ jobs:
         uses: coverallsapp/github-action@1.1.3
         with:
           github-token: ${{secrets.GITHUB_TOKEN }} 
-          path-to-lcov: CryptoDumper.Tests/TestResults/coverage.info
+          path-to-lcov: Cryptodd.Tests/TestResults/coverage.info
 
       - name: Create artifact
         uses: actions/upload-artifact@v2
         if: always()
         with:
-          name: cryptodumper_${{ matrix.os }}_${{ matrix.dotnet-version }}
-          path: CryptoDumper.Console/bin/Release/*
+          name: Cryptodd_${{ matrix.os }}_${{ matrix.dotnet-version }}
+          path: Cryptodd.Console/bin/Release/*
