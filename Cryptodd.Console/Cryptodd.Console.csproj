@@ -9,13 +9,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Cryptodd\Cryptodd.csproj" />
+        <ProjectReference Include="..\Cryptodd\Cryptodd.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="config.yaml">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
+        <None Update="config.yaml">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>

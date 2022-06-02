@@ -44,7 +44,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
     internal readonly CancellationTokenSource LoopCancellationTokenSource = new CancellationTokenSource();
 
-    private static readonly JsonSerializerOptions OrderBookJsonSerializerOptions = CreateOrderBookJsonSerializerOptions();
+    internal static readonly JsonSerializerOptions OrderBookJsonSerializerOptions = CreateOrderBookJsonSerializerOptions();
 
     private static JsonSerializerOptions CreateOrderBookJsonSerializerOptions() 
     {

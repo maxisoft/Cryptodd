@@ -36,12 +36,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Maxisoft.Plugins\Maxisoft.Plugins.csproj" />
+        <ProjectReference Include="..\Maxisoft.Plugins\Maxisoft.Plugins.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Json" />
-      <Folder Include="Redis" />
+        <Folder Include="Json" />
+        <Folder Include="Redis" />
     </ItemGroup>
 
 </Project>
