@@ -22,4 +22,4 @@ VOLUME [ "$destfolder" ]
 WORKDIR "$destfolder"
 COPY publish/$TARGETPLATFORM ${APP_PATH}
 ADD --chown=$uid:$gid ./Docker/start_crypto_dumper.sh ${APP_PATH}/start_crypto_dumper.sh
-ENTRYPOINT [ "/bin/sh", "${APP_PATH}/start_crypto_dumper.sh" ]
+ENTRYPOINT [ "/bin/sh", "/app/start_crypto_dumper.sh" ]
