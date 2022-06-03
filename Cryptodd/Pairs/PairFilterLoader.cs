@@ -4,9 +4,7 @@ using Cryptodd.FileSystem;
 using Cryptodd.IoC;
 using Lamar;
 using Maxisoft.Utils.Collections;
-using Maxisoft.Utils.Collections.Dictionaries.Specialized;
-using Maxisoft.Utils.Collections.Spans;
-using Maxisoft.Utils.Empties;
+using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
 
 namespace Cryptodd.Pairs;
@@ -17,17 +15,28 @@ public interface IPairFilterLoader : IService
 }
 
 [Singleton]
-public class PairFilterLoader : IPairFilterLoader
+public class PairFilterLoader : IPairFilterLoader, IDisposable
 {
+    private static readonly char[] Separator = { '/', '.', '+' };
     private readonly IConfiguration _configuration;
-    private readonly ConcurrentDictionary<string, PairFilter> _pairFilters = new ConcurrentDictionary<string, PairFilter>();
-    private static readonly char[] Separator = new[] { '/', '.', '+' };
+    private readonly ConcurrentDictionary<string, PairFilter> _pairFilters = new();
     private readonly IPathResolver _pathResolver;
+    private readonly DisposableManager _disposableManager = new DisposableManager();
 
     public PairFilterLoader(IConfiguration configuration, IPathResolver pathResolver)
     {
         _configuration = configuration;
+        var disposable = configuration.GetReloadToken().RegisterChangeCallback(OnConfigurationChange, this);
+        _disposableManager.LinkDisposable(disposable);
         _pathResolver = pathResolver;
+    }
+
+    private void OnConfigurationChange(object state)
+    {
+        if (ReferenceEquals(state, this))
+        {
+            _pairFilters.Clear();
+        }
     }
 
     public async ValueTask<IPairFilter> GetPairFilterAsync(string name, CancellationToken cancellationToken = default)
@@ -36,6 +45,7 @@ public class PairFilterLoader : IPairFilterLoader
         {
             return res;
         }
+
         res = await LoadPairFilterAsync(name, cancellationToken);
         _pairFilters[name] = res;
         return res;
@@ -44,7 +54,7 @@ public class PairFilterLoader : IPairFilterLoader
     private async ValueTask<PairFilter> LoadPairFilterAsync(string name, CancellationToken cancellationToken = default)
     {
         var splited = name.Split(Separator, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        var paths = splited.ToArrayList(copy: false);
+        var paths = splited.ToArrayList(false);
         var res = new PairFilter();
 
         while (paths.Any())
@@ -62,6 +72,7 @@ public class PairFilterLoader : IPairFilterLoader
             {
                 continue;
             }
+
             IList<string>? pairs;
             try
             {
@@ -95,7 +106,6 @@ public class PairFilterLoader : IPairFilterLoader
             catch (InvalidCastException)
             {
                 files = null;
-                
             }
 
             if (files is null)
@@ -124,11 +134,29 @@ public class PairFilterLoader : IPairFilterLoader
                     var content = await File.ReadAllTextAsync(file, Encoding.UTF8, cancellationToken);
                     res.AddAll(content);
                 }
+
                 break;
             }
         }
 
-        
+
         return res;
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing)
+        {
+            return;
+        }
+
+        _disposableManager.Dispose();
+        _disposableManager.UnlinkAll();
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }

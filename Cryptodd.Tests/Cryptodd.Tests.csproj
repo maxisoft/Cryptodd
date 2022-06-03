@@ -28,7 +28,18 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Cryptodd\Cryptodd.csproj" />
+        <ProjectReference Include="..\Cryptodd\Cryptodd.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="Ftx\Resources\grouped_orderbook_less_than_25.json" />
+        <EmbeddedResource Include="Ftx\Resources\grouped_orderbook_less_than_25.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </EmbeddedResource>
+        <None Remove="Ftx\Resources\grouped_orderbook_btcusd.json" />
+        <EmbeddedResource Include="Ftx\Resources\grouped_orderbook_btcusd.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </EmbeddedResource>
     </ItemGroup>
 
 </Project>

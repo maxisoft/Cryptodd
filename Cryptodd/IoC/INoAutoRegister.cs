@@ -1,6 +1,3 @@
 ﻿namespace Cryptodd.IoC;
 
-public interface INoAutoRegister
-{
-    
-}
+public interface INoAutoRegister { }

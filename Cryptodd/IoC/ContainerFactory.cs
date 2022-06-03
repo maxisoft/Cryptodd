@@ -15,23 +15,20 @@ public interface IContainerFactory
 
 internal class CreateContainerOptions
 {
+    internal Action<ServiceRegistry> PostConfigure = registry => { };
+
+    internal Action<ServiceRegistry> PreConfigure = registry => { };
     internal bool ScanForPlugins { get; set; } = true;
 
-    internal ConfigurationServiceOptions ConfigurationServiceOptions { get; set; } = new ConfigurationServiceOptions();
+    internal ConfigurationServiceOptions ConfigurationServiceOptions { get; set; } = new();
 
     internal bool DebugPrint { get; set; } = true;
-
-    internal Action<ServiceRegistry> PreConfigure = registry => {};
-    internal Action<ServiceRegistry> PostConfigure = registry => {};
 }
 
 public class ContainerFactory : IContainerFactory
 {
-    public Container CreateContainer()
-    {
-        return CreateContainer(new CreateContainerOptions());
-    }
-    
+    public Container CreateContainer() => CreateContainer(new CreateContainerOptions());
+
     internal Container CreateContainer(CreateContainerOptions options)
     {
         var configurationRegistry = new ConfigurationServiceRegistry(options.ConfigurationServiceOptions);
@@ -43,6 +40,7 @@ public class ContainerFactory : IContainerFactory
         {
             pluginRegistry = new PluginRegistry(configuration, loggerRegistry.Logger);
         }
+
         var container = new Container(x =>
         {
             options.PreConfigure(x);
@@ -63,19 +61,21 @@ public class ContainerFactory : IContainerFactory
             {
                 x.IncludeRegistry(pluginRegistry);
             }
-                
+
             x.Injectable<IContainer>();
 
             x.Configure((IServiceCollection c) =>
             {
                 c.AddSingleton<IContainerFactory>(this);
-                c.AddHttpClient<IFtxPublicHttpApi, FtxPublicHttpApi>((provider, client) => 
+                c.AddHttpClient<IFtxPublicHttpApi, FtxPublicHttpApi>((provider, client) =>
                     {
                         var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
                         httpClientFactoryHelper?.Configure(client);
                     })
-                    .ConfigurePrimaryHttpMessageHandler(provider => provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
-                    .AddPolicyHandler((provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
+                    .ConfigurePrimaryHttpMessageHandler(provider =>
+                        provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
+                    .AddPolicyHandler(
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
                 //.AddPolicyHandler(GetCircuitBreakerPolicy());
             });
 
@@ -93,7 +93,6 @@ public class ContainerFactory : IContainerFactory
             logger.Debug(container.WhatDidIScan());
             // ReSharper disable once TemplateIsNotCompileTimeConstantProblem
             logger.Debug(container.WhatDoIHave());
-            
         }
 
 #endif

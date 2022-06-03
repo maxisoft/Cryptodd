@@ -1,6 +1,3 @@
-﻿namespace Cryptodd.IoC
-{
-    public interface IService
-    {
-    }
-}
+﻿namespace Cryptodd.IoC;
+
+public interface IService { }

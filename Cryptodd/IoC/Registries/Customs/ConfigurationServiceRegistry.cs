@@ -11,7 +11,7 @@ internal class ConfigurationServiceOptions
     internal string? DefaultBasePath { get; set; }
     internal string? WorkingDirectory { get; set; }
 
-    internal OrderedDictionary<string, string> DefaultConfig { get; set; } = new OrderedDictionary<string, string>();
+    internal OrderedDictionary<string, string> DefaultConfig { get; set; } = new();
 
     internal bool ScanForAssemblyConfig { get; set; } = true;
     internal bool ScanForWorkingDirectoryConfig { get; set; } = true;
@@ -76,7 +76,7 @@ public class ConfigurationServiceRegistry : ServiceRegistry
             builder = builder.AddEnvironmentVariables(EnvPrefixShort)
                 .AddEnvironmentVariables(EnvPrefix);
         }
-        
+
         if (options.ScanForWorkingDirectoryConfig)
         {
             builder = builder
@@ -87,8 +87,6 @@ public class ConfigurationServiceRegistry : ServiceRegistry
         return builder.Build();
     }
 
-    private static string GetDefaultDataPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ApplicationName);
-    }
+    private static string GetDefaultDataPath() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ApplicationName);
 }

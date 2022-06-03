@@ -1,7 +1,3 @@
-﻿namespace Cryptodd.IoC
-{
-    public class IPluginService : IService
-    {
-        
-    }
-}
+﻿namespace Cryptodd.IoC;
+
+public class IPluginService : IService { }

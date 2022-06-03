@@ -1,11 +1,6 @@
-﻿using Cryptodd.IoC;
-
-namespace Cryptodd.Http;
+﻿namespace Cryptodd.Http;
 
 public class UriRewriteService : IUriRewriteService
 {
-    public ValueTask<Uri> Rewrite(Uri uri)
-    {
-        return ValueTask.FromResult<Uri>(uri);
-    }
+    public ValueTask<Uri> Rewrite(Uri uri) => ValueTask.FromResult(uri);
 }
