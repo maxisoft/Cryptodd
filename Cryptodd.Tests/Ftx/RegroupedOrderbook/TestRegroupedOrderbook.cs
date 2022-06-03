@@ -139,7 +139,7 @@ public class TestCreateGroupedOrderbook
         var resource = $"{asm.GetName().Name}.Ftx.Resources.{sampleFile}";
         using (var stream = asm.GetManifestResourceStream(resource))
         {
-            if (stream != null)
+            if (stream is not null)
             {
                 var reader = new StreamReader(stream);
                 return reader.ReadToEndAsync();
