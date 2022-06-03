@@ -7,6 +7,10 @@ on:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
+concurrency:
+   group: ${{ github.ref }}-${{ github.workflow }}-${{ github.event_name }}-${{ github.actor }}
+   cancel-in-progress: true
+
 jobs:
   docker-build-publish:
     runs-on: ubuntu-latest
@@ -26,7 +30,7 @@ jobs:
       name: Build Dockerfile
       timeout-minutes: 20
       run: |
-            docker build -t crypto-dumper:testing -f ./Docker/Dockerfile .
+            docker build -t cryptodd:testing -f ./Docker/Dockerfile .
     - 
       name: Install and Run Dive
       timeout-minutes: 2
@@ -35,19 +39,19 @@ jobs:
             wget --no-verbose https://github.com/wagoodman/dive/releases/download/v0.10.0/dive_0.10.0_linux_amd64.deb
             sudo apt install --quiet -y ./dive_0.10.0_linux_amd64.deb
             popd
-            CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" crypto-dumper:testing
+            CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" cryptodd:testing
   
     # cross publish locally to reduce time taken
-    - run: dotnet publish "CryptoDumper.Console" -c Release -o publish/linux/amd64 --runtime linux-musl-x64 --self-contained false
-    - run: dotnet publish "CryptoDumper.Console" -c Release -o publish/linux/arm/v7 --runtime linux-musl-arm --self-contained false
-    - run: dotnet publish "CryptoDumper.Console" -c Release -o publish/linux/arm64/v8 --runtime linux-musl-arm64 --self-contained false
+    - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/amd64 --runtime linux-musl-x64 --self-contained false
+    - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm/v7 --runtime linux-musl-arm --self-contained false
+    - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm64/v8 --runtime linux-musl-arm64 --self-contained false
 
     # https://github.com/docker/setup-qemu-action
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v1
+      uses: docker/setup-qemu-action@v2
     # https://github.com/docker/setup-buildx-action
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      uses: docker/setup-buildx-action@v2
 
     - name: Build dockerfile
       if: success() && github.ref != 'refs/heads/main'
@@ -61,7 +65,7 @@ jobs:
             --output "type=image,push=true" \
             --build-arg maintainer=${{ github.repository_owner }} \
             --file ./Docker/Dockerfile.multiarch . \
-            --tag ghcr.io/${{ github.repository_owner }}/crypto-dumper/crypto-dumper-testing:latest
+            --tag ghcr.io/${{ github.repository_owner }}/cryptodd/cryptodd-testing:latest
 
     - name: Build dockerfile
       if: success() && github.ref == 'refs/heads/main'
@@ -74,4 +78,4 @@ jobs:
             --output "type=image,push=true" \
             --build-arg maintainer=${{ github.repository_owner }} \
             --file ./Docker/Dockerfile.multiarch . \
-            --tag ghcr.io/${{ github.repository_owner }}/crypto-dumper/crypto-dumper:latest
+            --tag ghcr.io/${{ github.repository_owner }}/cryptodd/cryptodd:latest

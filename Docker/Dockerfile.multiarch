@@ -6,22 +6,20 @@ ARG TARGETPLATFORM
 ARG maintainer="maxisoft"
 ARG uid=913 # the User id used to run program / create new output files
 ARG gid=913
-ARG destfolder=/cryptodumper
-ARG username=cryptodumper
-ARG groupname=cryptodumper
+ARG destfolder=/cryptodd
+ARG username=cryptodd
+ARG groupname=cryptodd
 ARG APP_PATH=/app
-LABEL maintainer="${maintainer}" name="crypto-dumper" description="Save usefull crypto data into databases" url="https://github.com/${maintainer}/Crypto-Dumper" vcs-url="https://github.com/${maintainer}/Crypto-Dumper" org.opencontainers.image.source="https://github.com/${maintainer}/Crypto-Dumper"
-ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_RUNNING_IN_CONTAINER=true DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false PUID=$uid PGID=$gid IS_DOCKER=1 NICE_ADJUSTEMENT=5 IONICE_CLASS=3 IONICE_CLASSDATA=7 CRYPTODUMPER_BASEPATH=$destfolder CRYPTO_DUMPER_USER_NAME=${username} CRYPTO_DUMPER_GROUP_NAME=${groupname} APP_PATH=${APP_PATH}
-ADD --chown=$uid:$gid ./Docker/start_crypto_dumper.sh ${APP_PATH}/start_crypto_dumper.sh
+LABEL maintainer="${maintainer}" name="cryptodd" description="Save usefull crypto data into databases" url="https://github.com/${maintainer}/Cryptodd" vcs-url="https://github.com/${maintainer}/Cryptodd" org.opencontainers.image.source="https://github.com/${maintainer}/Cryptodd"
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_RUNNING_IN_CONTAINER=true DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false PUID=$uid PGID=$gid IS_DOCKER=1 NICE_ADJUSTEMENT=5 IONICE_CLASS=3 IONICE_CLASSDATA=7 CRYPTODd_BASEPATH=$destfolder CRYPTO_DUMPER_USER_NAME=${username} CRYPTO_DUMPER_GROUP_NAME=${groupname} APP_PATH=${APP_PATH}
 RUN \
     apk add --no-cache su-exec shadow icu-libs && \
     addgroup --system --gid $gid $groupname && \
     adduser --system --uid $uid --ingroup $groupname --shell /bin/sh $username && \
     mkdir -p "$destfolder" && \
-    chown -R $uid:$gid "$destfolder" && \
-    ln -s "/start_crypto_dumper.sh" "${APP_PATH}/start_crypto_dumper.sh" && \
-    chmod +x /start_crypto_dumper.sh
+    chown -R $uid:$gid "$destfolder"
 VOLUME [ "$destfolder" ]
 WORKDIR "$destfolder"
 COPY publish/$TARGETPLATFORM ${APP_PATH}
-ENTRYPOINT [ "/bin/sh", "/start_crypto_dumper.sh" ]
+ADD --chown=$uid:$gid ./Docker/start_crypto_dumper.sh ${APP_PATH}/start_crypto_dumper.sh
+ENTRYPOINT [ "/bin/sh", "${APP_PATH}/start_crypto_dumper.sh" ]
