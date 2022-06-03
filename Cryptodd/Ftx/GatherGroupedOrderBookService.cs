@@ -38,7 +38,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
         var markets = await FtxPublicHttpApi.GetAllMarketsAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var ftxConfig = _configuration.GetSection("Ftx");
-        var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 20);
+        var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 10);
         var webSockets = new List<FtxGroupedOrderBookWebsocket>();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx/GroupedOrderBook", cancellationToken);
         var groupedOrderBookSection = ftxConfig.GetSection("GroupedOrderBook");

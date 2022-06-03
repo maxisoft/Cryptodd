@@ -26,9 +26,18 @@ public class PairFilterLoader : IPairFilterLoader, IDisposable
     public PairFilterLoader(IConfiguration configuration, IPathResolver pathResolver)
     {
         _configuration = configuration;
-        var disposable = configuration.GetReloadToken().RegisterChangeCallback(OnConfigurationChange, this);
-        _disposableManager.LinkDisposable(disposable);
         _pathResolver = pathResolver;
+
+        var disposable = configuration.GetReloadToken().RegisterChangeCallback(OnConfigurationChange, this);
+        try
+        {
+            _disposableManager.LinkDisposable(disposable);
+        }
+        catch (Exception)
+        {
+            disposable.Dispose();
+            throw;
+        }
     }
 
     private void OnConfigurationChange(object state)
@@ -120,7 +129,11 @@ public class PairFilterLoader : IPairFilterLoader, IDisposable
             if (files is null)
             {
                 var fileName = Path.Join(paths.ToArray());
-                fileName = _pathResolver.Resolve(fileName);
+                fileName = _pathResolver.Resolve(fileName, new ResolveOption()
+                {
+                    Namespace = GetType().Namespace!, FileType = "pair filter",
+                    IntendedAction = FileIntendedAction.Read
+                });
                 if (File.Exists(fileName))
                 {
                     files = new[] { fileName };
