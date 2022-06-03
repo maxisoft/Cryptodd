@@ -21,7 +21,9 @@ internal class Program
         }*/
 
         foreach (var plugin in container.GetAllInstances<IBasePlugin>().OrderBy(plugin => plugin.Order))
+        {
             await plugin.OnStart();
+        }
 
         var client = container.GetInstance<IFtxPublicHttpApi>();
         var resp = await client.GetAllFuturesAsync();
