@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
+using Cryptodd.Ftx.RegroupedOrderbooks;
 using Cryptodd.IoC;
 using Cryptodd.IoC.Registries.Customs;
 using Cryptodd.Pairs;
@@ -59,6 +60,11 @@ public class GatherGroupedOrderbookServiceTest : IDisposable
         });
 
         foreach (var handler in _container.GetAllInstances<IGroupedOrderbookHandler>())
+        {
+            handler.Disabled = true;
+        }
+        
+        foreach (var handler in _container.GetAllInstances<IRegroupedOrderbookHandler>())
         {
             handler.Disabled = true;
         }

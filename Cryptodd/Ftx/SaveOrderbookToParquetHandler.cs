@@ -7,12 +7,15 @@ using Parquet.Data;
 
 namespace Cryptodd.Ftx;
 
-public class SaveOrderbookToParquet : IGroupedOrderbookHandler
+/// <summary>
+/// Save raw orderbook into a parquet database
+/// </summary>
+public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 {
     private readonly IConfiguration _configuration;
     private readonly IPathResolver _pathResolver;
 
-    public SaveOrderbookToParquet(IConfiguration configuration, IPathResolver pathResolver)
+    public SaveOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver)
     {
         _configuration = configuration;
         _pathResolver = pathResolver;

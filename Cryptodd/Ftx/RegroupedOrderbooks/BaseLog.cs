@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.Ftx.RegroupedOrderbook;
+﻿namespace Cryptodd.Ftx.RegroupedOrderbooks;
 
 public interface IBaseLog
 {

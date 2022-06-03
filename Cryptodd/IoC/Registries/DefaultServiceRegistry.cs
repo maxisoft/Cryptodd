@@ -1,4 +1,5 @@
 ﻿using Cryptodd.Ftx;
+using Cryptodd.Ftx.RegroupedOrderbooks;
 using Lamar;
 
 namespace Cryptodd.IoC.Registries;
@@ -12,6 +13,7 @@ public class DefaultServiceRegistry : ServiceRegistry
             scanner.TheCallingAssembly();
             scanner.ExcludeType<INoAutoRegister>();
             scanner.ExcludeType<IGroupedOrderbookHandler>();
+            scanner.ExcludeType<IRegroupedOrderbookHandler>();
             scanner.AddAllTypesOf<IService>();
             scanner.SingleImplementationsOfInterface();
             scanner.WithDefaultConventions();

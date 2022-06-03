@@ -5,7 +5,7 @@ using Cryptodd.Ftx.Models;
 using Cryptodd.Utils;
 using Maxisoft.Utils.Empties;
 
-namespace Cryptodd.Ftx.RegroupedOrderbook;
+namespace Cryptodd.Ftx.RegroupedOrderbooks;
 
 public static class RegroupedOrderbookAlgorithm
 {
@@ -192,6 +192,10 @@ public static class RegroupedOrderbookAlgorithm
                         pairs = pairs[..^1];
                     }
                     else if (pairs[0].Size <= 0)
+                    {
+                        pairs = pairs[1..];
+                    }
+                    else if (pairs[0].Price <= 0)
                     {
                         pairs = pairs[1..];
                     }
@@ -399,6 +403,10 @@ public static class RegroupedOrderbookAlgorithm
                     var price = priceSpan[i];
                     var index = BisectLeft(obPrice, price);
                     index = Math.Min(index, obPrice.Length - 1);
+                    if (index + 1 < slice.End.GetOffset(obSize.Length))
+                    {
+                        break;
+                    }
                     slice = new Range(slice.End, index + 1);
                     foreach (var s in obSize[slice])
                     {
@@ -555,6 +563,10 @@ public static class RegroupedOrderbookAlgorithm
                     var price = priceSpan[i];
                     var index = BisectRight(obPrice, price) - 1;
                     index = Math.Max(index, 0);
+                    if (index > slice.Start.GetOffset(obSize.Length))
+                    {
+                        break;
+                    }
                     slice = new Range(index, slice.Start);
                     foreach (var s in obSize[slice])
                     {

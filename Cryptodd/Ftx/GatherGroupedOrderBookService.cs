@@ -1,6 +1,8 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Ftx.Models;
+using Cryptodd.Ftx.RegroupedOrderbooks;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
@@ -87,7 +89,6 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                 (ws, token) => ws.ProcessRequests(token));
 
             var processed = 0;
-            var handlers = _container.GetAllInstances<IGroupedOrderbookHandler>();
             var groupedOrderBooks = new List<GroupedOrderbookDetails>();
             while (processed < requests.Count && !cancellationToken.IsCancellationRequested)
             {
@@ -112,11 +113,10 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                 processed += 1;
             }
 
-            var handlerTasks = new List<Task>();
-            handlerTasks.AddRange(handlers.Where(handler => !handler.Disabled)
-                .Select(handler => handler.Handle(groupedOrderBooks, cancellationToken)));
-            await Task.WhenAll(handlerTasks).ConfigureAwait(false);
-            _logger.Information("Processed {Count} grouped orderbooks in {Elapsed}", processed, sw.Elapsed);
+            
+            var dispatchObHandler =  DispatchOrderbookHandler(groupedOrderBooks, processed, sw, cancellationToken);
+            var dispatchGroupedObHandler = DispatchRegroupedOrderbookHandler(groupedOrderBooks, sw, cancellationToken);
+            await Task.WhenAll(dispatchObHandler, dispatchGroupedObHandler).ConfigureAwait(false);
         }
         finally
         {
@@ -126,6 +126,119 @@ public class GatherGroupedOrderBookService : IService, IDisposable
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
+    }
+
+    private async Task DispatchRegroupedOrderbookHandler(List<GroupedOrderbookDetails> groupedOrderBooks, Stopwatch stopWatch, CancellationToken cancellationToken)
+    {
+        var regroupedHandlers = _container.GetAllInstances<IRegroupedOrderbookHandler>();
+        ConcurrentBag<RegroupedOrderbook> regroupedOrderbooks;
+        if (regroupedHandlers.Any() && groupedOrderBooks.Any())
+        {
+            regroupedOrderbooks = new ConcurrentBag<RegroupedOrderbook>();
+            Parallel.ForEach(groupedOrderBooks, (details) =>
+            {
+                try
+                {
+                    var regroupedOrderbook = RegroupedOrderbookAlgorithm.Create(details);
+                    regroupedOrderbooks.Add(regroupedOrderbook);
+                }
+                catch (Exception e)
+                {
+                    _logger.Error(e, "Error while creating regrouped orderbook for {Market} #asks:{Asks} #bids{Bids}",
+                        details.Market, details.Data.Asks.Length, details.Data.Bids.Length);
+                }
+            });
+        }
+        else
+        {
+            _logger.Debug("There's no need to compute regrouped orderbook as there's no handler");
+            return;
+        }
+
+        var handlerTasks = new List<Task>();
+        handlerTasks.AddRange(regroupedHandlers.Where(handler => !handler.Disabled)
+            .Select(handler => handler.Handle(regroupedOrderbooks, cancellationToken)));
+
+        var errorCount = 0;
+        try
+        {
+            await Task.WhenAll(handlerTasks).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            errorCount += 1;
+            _logger.Error(e, "Unable to handle {Count} groupedorderbooks", regroupedOrderbooks.Count);
+        }
+
+        foreach (var task in handlerTasks)
+        {
+            try
+            {
+                // ReSharper disable once MethodHasAsyncOverload
+                task.Wait(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                errorCount += 1;
+                _logger.Error(e, "A regrouped orderbook handler throwed up. This shouldn't occurs !");
+            }
+        }
+
+        if (errorCount == 0)
+        {
+            _logger.Information("Processed {Count} regrouped orderbooks in {Elapsed}", regroupedOrderbooks.Count,
+                stopWatch.Elapsed);
+        }
+        else
+        {
+            _logger.Warning("Got {ErrorCount} errors while processing {Count} regrouped orderbooks in {Elapsed}", errorCount,
+                regroupedOrderbooks.Count,
+                stopWatch.Elapsed);
+        }
+    }
+
+    private async Task DispatchOrderbookHandler(List<GroupedOrderbookDetails> groupedOrderBooks, int processed,
+        Stopwatch stopWatch, CancellationToken cancellationToken)
+    {
+        var handlerTasks = new List<Task>();
+        var handlers = _container.GetAllInstances<IGroupedOrderbookHandler>();
+        handlerTasks.AddRange(handlers.Where(handler => !handler.Disabled)
+            .Select(handler => handler.Handle(groupedOrderBooks, cancellationToken)));
+
+        var errorCount = 0;
+        try
+        {
+            await Task.WhenAll(handlerTasks).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            errorCount += 1;
+            _logger.Error(e, "Unable to handle {Count} orderbooks", groupedOrderBooks.Count);
+        }
+
+        foreach (var task in handlerTasks)
+        {
+            try
+            {
+                // ReSharper disable once MethodHasAsyncOverload
+                task.Wait(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                errorCount += 1;
+                _logger.Error(e, "An orderbook handler throwed up. This shouldn't occurs !");
+            }
+        }
+
+        if (errorCount == 0)
+        {
+            _logger.Information("Processed {Count} grouped orderbooks in {Elapsed}", processed, stopWatch.Elapsed);
+        }
+        else
+        {
+            _logger.Warning("Got {ErrorCount} errors while processing {Count} grouped orderbooks in {Elapsed}", errorCount, processed,
+                stopWatch.Elapsed);
+        }
     }
 
 

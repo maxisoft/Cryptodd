@@ -42,6 +42,7 @@
     <ItemGroup>
         <Folder Include="Json" />
         <Folder Include="Redis" />
+        <Folder Include="Scheduler" />
     </ItemGroup>
 
 </Project>
