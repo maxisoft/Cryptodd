@@ -25,6 +25,10 @@ public class PluginRegistry : ServiceRegistry, IPluginRegistry
     {
         Log = logger.ForContext(GetType());
         PluginDirectory = Path.Combine(configuration.GetValue<string>("BasePath"), "plugins");
+        if (!Directory.Exists(PluginDirectory))
+        {
+            PluginDirectory = Path.Combine(configuration.GetValue<string>("BasePath"), "Plugins");
+        }
         _pluginCompiler = new PluginCompiler(_assemblyReferenceCollector);
         ForSingletonOf<IAssemblyReferenceCollector>().Use(_assemblyReferenceCollector);
         ForSingletonOf<IPluginCompiler>().Use(_pluginCompiler);
