@@ -80,8 +80,9 @@ public class ConfigurationServiceRegistry : ServiceRegistry
         if (options.ScanForWorkingDirectoryConfig)
         {
             builder = builder
-                .AddJsonFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationSettingsJsonFileName)), true)
-                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), true);
+                .AddJsonFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationSettingsJsonFileName)), true, reloadOnChange: true)
+                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), true,
+                    reloadOnChange: true);
         }
 
         return builder.Build();

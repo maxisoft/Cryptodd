@@ -3,7 +3,7 @@ using Cryptodd.Ftx.RegroupedOrderbooks;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Cryptodd.IoC.Registries.Customs;
+namespace Cryptodd.IoC.Registries;
 
 public class HandlerRegistry : ServiceRegistry
 {

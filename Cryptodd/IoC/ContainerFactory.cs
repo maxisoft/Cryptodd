@@ -54,9 +54,10 @@ public class ContainerFactory : IContainerFactory
 
             x.IncludeRegistry(configurationRegistry);
             x.IncludeRegistry(loggerRegistry);
-            x.IncludeRegistry<MemoryCacheRegistry>();
-            x.IncludeRegistry<RedisServiceRegistry>();
-            x.IncludeRegistry<HandlerRegistry>();
+            //x.IncludeRegistry<MemoryCacheRegistry>();
+            //x.IncludeRegistry<RedisServiceRegistry>();
+            //x.IncludeRegistry<HandlerRegistry>();
+            //x.IncludeRegistry<ScheduledTaskRegistry>();
             if (pluginRegistry is not null)
             {
                 x.IncludeRegistry(pluginRegistry);

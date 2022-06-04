@@ -25,7 +25,7 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
     public Task Handle(IReadOnlyCollection<RegroupedOrderbook> orderbooks, CancellationToken cancellationToken)
     {
         Debug.Assert(!Disabled);
-        var section = _configuration.GetSection("Ftx.RegroupedOrderBook.Parquet");
+        var section = _configuration.GetSection("Ftx").GetSection("RegroupedOrderBook").GetSection("Parquet");
         if (!section.GetValue("Enable", true))
         {
             return Task.CompletedTask;
