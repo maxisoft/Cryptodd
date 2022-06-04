@@ -19,5 +19,10 @@ if [ ! "$(stat -c %u "${CRYPTOdd_BASEPATH}")" = "$PUID" ]; then
 	chown "$PUID:$PGID" -R "${CRYPTOdd_BASEPATH}"
 fi
 
+cp --no-clobber "$APP_PATH/config.yaml" "${CRYPTOdd_BASEPATH}/config.yaml"
+chown "$PUID:$PGID" "${CRYPTOdd_BASEPATH}/config.yaml"
+cp --no-clobber "$APP_PATH/appsettings.json" ""${CRYPTOdd_BASEPATH}/appsettings.json"
+rm -rf /tmp/*
+
 renice "+${NICE_ADJUSTEMENT:-3}" $$ >/dev/null 2>&1 || :
 exec ionice -c "${IONICE_CLASS:-2}" -n "${IONICE_CLASSDATA:-5}" -t su-exec "$PUID:$PGID" "dotnet" "${APP_PATH}/Cryptodd.Console.dll" $@

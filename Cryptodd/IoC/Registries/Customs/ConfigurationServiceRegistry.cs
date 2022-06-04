@@ -57,14 +57,25 @@ public class ConfigurationServiceRegistry : ServiceRegistry
         }
 
         defaultConfig.TryAdd("BasePath", basePath);
-        defaultConfig.TryAdd("Docker", "" + ((Environment.GetEnvironmentVariable("IS_DOCKER") ?? "") == "1"));
+        defaultConfig.TryAdd("Docker",
+            "" + ((Environment.GetEnvironmentVariable("IS_DOCKER") ??
+                   Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") ?? "") == "1"));
 
         IConfigurationBuilder builder = new ConfigurationBuilder();
 
         builder = builder
             .AddInMemoryCollection(defaultConfig)
             .SetBasePath(new DirectoryInfo(basePath).FullName);
-        if (options.ScanForAssemblyConfig)
+        if (options.ScanForWorkingDirectoryConfig)
+        {
+            builder = builder
+                .AddJsonFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationSettingsJsonFileName)), true,
+                    true)
+                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), true,
+                    true);
+        }
+
+        if (envConfig.GetValue("ScanForAssemblyConfig", options.ScanForAssemblyConfig))
         {
             builder = builder
                 .AddJsonFile(Path.GetFullPath(Path.Combine(assemblyDirectory, ApplicationSettingsJsonFileName)), true)
@@ -75,14 +86,6 @@ public class ConfigurationServiceRegistry : ServiceRegistry
         {
             builder = builder.AddEnvironmentVariables(EnvPrefixShort)
                 .AddEnvironmentVariables(EnvPrefix);
-        }
-
-        if (options.ScanForWorkingDirectoryConfig)
-        {
-            builder = builder
-                .AddJsonFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationSettingsJsonFileName)), true, reloadOnChange: true)
-                .AddYamlFile(Path.GetFullPath(Path.Combine(workingDirectory, ApplicationConfigYamlFileName)), true,
-                    reloadOnChange: true);
         }
 
         return builder.Build();
