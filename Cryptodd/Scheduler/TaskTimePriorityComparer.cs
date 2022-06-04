@@ -1,4 +1,6 @@
-﻿namespace Cryptodd.Scheduler;
+﻿using Cryptodd.Scheduler.Tasks;
+
+namespace Cryptodd.Scheduler;
 
 public struct TaskTimePriorityComparer<TTask> : IComparer<TTask> where TTask : ScheduledTask
 {

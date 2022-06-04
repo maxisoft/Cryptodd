@@ -1,4 +1,5 @@
 ﻿using Cryptodd.Scheduler;
+using Cryptodd.Scheduler.Tasks;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 

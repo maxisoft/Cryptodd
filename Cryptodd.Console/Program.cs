@@ -3,6 +3,7 @@ using Cryptodd.Ftx;
 using Cryptodd.IoC;
 using Cryptodd.Plugins;
 using Cryptodd.Scheduler;
+using Cryptodd.Scheduler.Tasks;
 using Lamar;
 using Maxisoft.Utils.Objects;
 using TaskScheduler = Cryptodd.Scheduler.TaskScheduler;

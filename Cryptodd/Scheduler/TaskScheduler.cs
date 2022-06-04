@@ -1,8 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Cryptodd.IoC;
-using Maxisoft.Utils.Collections.Lists;
+using Cryptodd.Scheduler.Tasks;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 using Maxisoft.Utils.Disposables;
 using Serilog;
@@ -11,20 +10,19 @@ namespace Cryptodd.Scheduler;
 
 public class TaskScheduler : IService
 {
-    private readonly DisposableManager _disposableManager = new DisposableManager();
+    private readonly DisposableManager _disposableManager = new();
+
+    private readonly ILogger _logger;
+    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+
+    // TODO use a PriorityQueue ?
+    public PriorityQueue<ScheduledTask, ScheduledTask> Tasks = new(new TaskTimePriorityComparer<ScheduledTask>());
 
     public TaskScheduler(ILogger logger)
     {
         _logger = logger;
         _disposableManager.LinkDisposableAsWeak(_semaphoreSlim);
     }
-
-    // TODO use a PriorityQueue ?
-    public PriorityQueue<ScheduledTask, ScheduledTask> Tasks =
-        new PriorityQueue<ScheduledTask, ScheduledTask>(new TaskTimePriorityComparer<ScheduledTask>());
-
-    private readonly ILogger _logger;
-    private readonly SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1, 1);
 
 
     internal void RegisterTask<TTask>(TTask task) where TTask : ScheduledTask
@@ -92,7 +90,7 @@ public class TaskScheduler : IService
         using var runningTasks = new PooledList<Task>();
         var postExecutes = new ConcurrentBag<Task>();
         using var toReschedule = new PooledList<ScheduledTask>();
-        
+
         void Cleanup()
         {
             lock (Tasks)
@@ -103,7 +101,7 @@ public class TaskScheduler : IService
                 }
             }
         }
-        
+
         try
         {
             while (hasElement && !cancellationToken.IsCancellationRequested)
@@ -114,8 +112,15 @@ public class TaskScheduler : IService
                     hasElement = Tasks.TryPeek(out task!, out _);
                 }
 
-                if (!hasElement) break;
-                if (task.NextSchedule > now) break;
+                if (!hasElement)
+                {
+                    break;
+                }
+
+                if (task.NextSchedule > now)
+                {
+                    break;
+                }
 
                 TaskExecutionStatistics stats;
                 lock (Tasks)
