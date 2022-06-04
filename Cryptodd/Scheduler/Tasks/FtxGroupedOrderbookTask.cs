@@ -70,7 +70,7 @@ public class FtxGroupedOrderbookTask : ScheduledTask
             nextSchedule *= (long)Period.TotalMilliseconds;
             nextSchedule -= Math.Min(mean + 0.5 * _prevExecutionStd, mean * 2);
             var next = DateTimeOffset.FromUnixTimeMilliseconds((long)nextSchedule);
-            if (next > NextSchedule)
+            if (next > NextSchedule && (next - NextSchedule).Duration() > Period / 2)
             {
                 NextSchedule = next;
                 break;
