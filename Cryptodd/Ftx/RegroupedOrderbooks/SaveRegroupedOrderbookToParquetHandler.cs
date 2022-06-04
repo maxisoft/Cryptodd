@@ -13,6 +13,8 @@ namespace Cryptodd.Ftx.RegroupedOrderbooks;
 /// </summary>
 public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
 {
+    public const string DefaultFileName = "ftx_regrouped_orderbook.parquet";
+    public const string FileType = "parquet";
     private readonly IConfiguration _configuration;
     private readonly IPathResolver _pathResolver;
 
@@ -31,10 +33,10 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
             return Task.CompletedTask;
         }
 
-        var fileName = section.GetValue<string>("File", "ftx_regrouped_orderbook.parquet");
+        var fileName = section.GetValue<string>("File", DefaultFileName);
         fileName = _pathResolver.Resolve(fileName, new ResolveOption()
         {
-            Namespace = GetType().Namespace!, FileType = "parquet",
+            Namespace = GetType().Namespace!, FileType = FileType,
             IntendedAction = FileIntendedAction.Append | FileIntendedAction.Read | FileIntendedAction.Create |
                              FileIntendedAction.Write
         });

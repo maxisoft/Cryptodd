@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Maxisoft.Plugins", "Maxisof
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cryptodd.Tests", "Cryptodd.Tests\Cryptodd.Tests.csproj", "{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cryptodd.Plugins.Examples", "Cryptodd.Plugins.Examples\Cryptodd.Plugins.Examples.csproj", "{20BBA9AD-CA3C-421D-8845-189C77CD3B4E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{99FB43DE-F0C2-488A-A33E-60CEFB43A21B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{20BBA9AD-CA3C-421D-8845-189C77CD3B4E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{20BBA9AD-CA3C-421D-8845-189C77CD3B4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{20BBA9AD-CA3C-421D-8845-189C77CD3B4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{20BBA9AD-CA3C-421D-8845-189C77CD3B4E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

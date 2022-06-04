@@ -12,13 +12,22 @@ public class PathResolver : IPathResolver
     private readonly ConcurrentDictionary<(string, ResolveOption), string> _cache =
         new ConcurrentDictionary<(string, ResolveOption), string>();
 
-    public PathResolver(IConfiguration configuration)
+    private readonly IContainer _container;
+
+    public PathResolver(IConfiguration configuration, IContainer container)
     {
         _configuration = configuration;
+        _container = container;
     }
 
     public string Resolve(string path, in ResolveOption option = default)
     {
+        // ReSharper disable once LoopCanBeConvertedToQuery
+        foreach (var pluginPathResolver in _container.GetAllInstances<IPluginPathResolver>().OrderBy(resolver => resolver.Priority))
+        {
+            path = pluginPathResolver.Resolve(path, in option);
+        }
+        
         if (option.AllowCache && _cache.TryGetValue((path, option), out var result))
         {
             return result;

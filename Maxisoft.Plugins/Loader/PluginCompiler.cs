@@ -39,16 +39,26 @@ namespace Maxisoft.Plugins.Loader
                 throw new ArgumentNullException(nameof(path));
             var context = CreateContextFromPath(path);
             context.RootAssembly = parent ?? GetType().Assembly;
-            context.LinkedAssemblies = _assemblyReferenceCollector.CollectMetadataReferences(context.RootAssembly)
-                .ToImmutableArray();
+            var linkedAssemblies = _assemblyReferenceCollector.CollectMetadataReferences(context.RootAssembly).ToHashSet();
+            context.LinkedAssemblies = linkedAssemblies.ToImmutableArray();
 
             await ParallelParse(context, cancellationToken);
-            
+            var compilationOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                optimizationLevel: OptimizationLevel.Release, usings:new[]
+                {
+                    "System",   
+                    "System.IO",   
+                    "System.Net",   
+                    "System.Linq",   
+                    "System.Text",   
+                    "System.Text.RegularExpressions",   
+                    "System.Collections.Generic",
+                    "Cryptodd"
+                });
             var compilation = CSharpCompilation.Create(context.AssemblyName,
                 context.CompilerFileTrees.Select(tree => tree.SyntaxTree ?? throw new NullReferenceException()),
-                context.LinkedAssemblies,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
-                    optimizationLevel: OptimizationLevel.Release));
+                context.LinkedAssemblies, compilationOptions
+                );
             var outputStream = new MemoryStream();
             try
             {
