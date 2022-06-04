@@ -7,6 +7,7 @@ using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
 using Lamar;
+using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -38,7 +39,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
         var markets = await FtxPublicHttpApi.GetAllMarketsAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var ftxConfig = _configuration.GetSection("Ftx");
-        var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 20);
+        var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 10);
         var webSockets = new List<FtxGroupedOrderBookWebsocket>();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx/GroupedOrderBook", cancellationToken);
         var groupedOrderBookSection = ftxConfig.GetSection("GroupedOrderBook");
@@ -90,6 +91,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
 
             var processed = 0;
             var groupedOrderBooks = new List<GroupedOrderbookDetails>();
+            using var dm = new DisposableManager();
             while (processed < requests.Count && !cancellationToken.IsCancellationRequested)
             {
                 if (recvDone >= tasks.Count)
@@ -110,6 +112,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                 }
 
                 groupedOrderBooks.Add(resp);
+                dm.LinkDisposable(resp);
                 processed += 1;
             }
 
@@ -145,7 +148,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                 catch (Exception e)
                 {
                     _logger.Error(e, "Error while creating regrouped orderbook for {Market} #asks:{Asks} #bids{Bids}",
-                        details.Market, details.Data.Asks.Length, details.Data.Bids.Length);
+                        details.Market, details.Data.Asks.Count, details.Data.Bids.Count);
                 }
             });
         }

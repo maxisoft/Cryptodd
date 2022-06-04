@@ -2,7 +2,7 @@
 
 namespace Cryptodd.Ftx.Models;
 
-public class GroupedOrderbookDetails
+public class GroupedOrderbookDetails : IDisposable
 {
     public string Type { get; set; } = string.Empty;
     public string Channel { get; set; } = string.Empty;
@@ -17,4 +17,10 @@ public class GroupedOrderbookDetails
     public GroupedOrderbook Data { get; set; } = GroupedOrderbook.Empty;
 
     public GroupedOrderBookRequest ToRequest() => new GroupedOrderBookRequest(Market, Grouping);
+
+    public void Dispose()
+    {
+        Data.Dispose();
+        GC.SuppressFinalize(this);
+    }
 }

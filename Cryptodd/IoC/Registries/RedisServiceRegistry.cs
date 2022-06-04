@@ -8,7 +8,7 @@ using StackExchange.Redis.Extensions.Core.Configuration;
 using StackExchange.Redis.Extensions.Core.Implementations;
 using StackExchange.Redis.Extensions.System.Text.Json;
 
-namespace Cryptodd.IoC.Registries.Customs;
+namespace Cryptodd.IoC.Registries;
 
 public interface IRedisServiceRegistry { }
 

@@ -1,2 +1,12 @@
 ﻿Http:
 # Proxy: socks5://127.0.0.1:39050
+Ftx:
+  GroupedOrderBook:
+    Parquet:
+      Enable: false
+    Task:
+      Period: 60000
+  RegroupedOrderBook:
+    Parquet:
+      HighCompression: true
+  

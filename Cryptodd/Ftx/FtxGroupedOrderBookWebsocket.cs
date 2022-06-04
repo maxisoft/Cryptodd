@@ -105,6 +105,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         var res = new JsonSerializerOptions
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
         res.Converters.Add(new PriceSizePairConverter());
+        res.Converters.Add(new PooledListPriceSizePairConverter());
         return res;
     }
 

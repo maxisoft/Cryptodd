@@ -2,7 +2,11 @@
 using Cryptodd.Ftx;
 using Cryptodd.IoC;
 using Cryptodd.Plugins;
+using Cryptodd.Scheduler;
+using Cryptodd.Scheduler.Tasks;
 using Lamar;
+using Maxisoft.Utils.Objects;
+using TaskScheduler = Cryptodd.Scheduler.TaskScheduler;
 
 namespace Cryptodd.Console;
 
@@ -24,11 +28,21 @@ internal class Program
         {
             await plugin.OnStart();
         }
+        
+        var cancellationToken = container.GetInstance<Boxed<CancellationToken>>();
+        
+        var sched = container.GetInstance<TaskScheduler>();
+        var schedTasks = container.GetAllInstances<ScheduledTask>();
+        foreach (var schedTask in schedTasks)
+        {
+            sched.RegisterTask(schedTask);
+        }
 
-        var client = container.GetInstance<IFtxPublicHttpApi>();
-        var resp = await client.GetAllFuturesAsync();
-        var resp2 = await client.GetAllFundingRatesAsync();
-        var ftxWs = container.GetInstance<GatherGroupedOrderBookService>();
-        await ftxWs.CollectOrderBooks(default);
+        while (!cancellationToken.Value.IsCancellationRequested)
+        {
+            await sched.Tick(cancellationToken);
+            await Task.Delay(300);
+        }
+
     }
 }

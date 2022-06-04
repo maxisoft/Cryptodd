@@ -24,14 +24,20 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
     public Task Handle(IReadOnlyCollection<GroupedOrderbookDetails> orderbooks, CancellationToken cancellationToken)
     {
         Debug.Assert(!Disabled);
-        var section = _configuration.GetSection("Ftx.GroupedOrderBook.Parquet");
-        if (!section.GetValue("Enable", true))
+        var section = _configuration.GetSection("Ftx").GetSection("GroupedOrderBook").GetSection("Parquet");
+        if (!section.GetValue("Enable", false))
         {
             return Task.CompletedTask;
         }
 
         var fileName = section.GetValue<string>("File", "ftx_grouped_orderbook.parquet");
-        fileName = _pathResolver.Resolve(fileName);
+        fileName = _pathResolver.Resolve(fileName,
+            new ResolveOption()
+            {
+                Namespace = GetType().Namespace!, FileType = "parquet",
+                IntendedAction = FileIntendedAction.Append | FileIntendedAction.Read | FileIntendedAction.Create |
+                                 FileIntendedAction.Write
+            });
         var gzip = section.GetValue("HighCompression", false); // use snappy else
         return Task.Factory.StartNew(() => SaveToParquet(orderbooks, fileName, gzip), cancellationToken);
     }
