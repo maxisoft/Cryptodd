@@ -202,6 +202,15 @@ public class TaskScheduler : IService
             _logger.Debug(e, "Running tasks {Count} cancelled", runningTasks.Count);
         }
 
+        for (var index = 0; index < runningTasks.Count; index++)
+        {
+            var runningTask = runningTasks[index];
+            if (runningTask.IsFaulted)
+            {
+                _logger.Warning(runningTask.Exception, "");
+            }
+        }
+
         try
         {
             await Task.WhenAll(postExecutes).ConfigureAwait(false);
