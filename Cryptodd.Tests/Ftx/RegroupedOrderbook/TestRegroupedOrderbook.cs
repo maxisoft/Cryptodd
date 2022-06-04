@@ -30,7 +30,7 @@ public class TestCreateGroupedOrderbook
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var bids = orderbookGroupedWrapper!.Data.Bids;
-        Array.Sort(bids, (pair, otherPair) => pair.Price.CompareTo(otherPair.Price));
+        bids.Sort();
         var result = RegroupedOrderbookAlgorithm.CompressBids(bids);
         Assert.True(result.prices.Memory.Span[..DefaultSize].SequenceEqual(new double[]
         {
@@ -57,10 +57,10 @@ public class TestCreateGroupedOrderbook
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var bids = orderbookGroupedWrapper!.Data.Bids;
-        Array.Sort(bids, (pair, otherPair) => pair.Price.CompareTo(otherPair.Price));
+        bids.Sort();
         var result = RegroupedOrderbookAlgorithm.CompressBids(bids);
-        Assert.True(result.prices.Memory.Span[..DefaultSize][^orderbookGroupedWrapper.Data.Bids.Length..].SequenceEqual(orderbookGroupedWrapper.Data.Bids.Select(pair => pair.Price).ToArray()));
-        Assert.True(result.sizes.Memory.Span[..DefaultSize][^orderbookGroupedWrapper.Data.Bids.Length..].SequenceEqual(orderbookGroupedWrapper.Data.Bids.Select(pair => pair.Size).ToArray()));
+        Assert.True(result.prices.Memory.Span[..DefaultSize][^orderbookGroupedWrapper.Data.Bids.Count..].SequenceEqual(orderbookGroupedWrapper.Data.Bids.Select(pair => pair.Price).ToArray()));
+        Assert.True(result.sizes.Memory.Span[..DefaultSize][^orderbookGroupedWrapper.Data.Bids.Count..].SequenceEqual(orderbookGroupedWrapper.Data.Bids.Select(pair => pair.Size).ToArray()));
 
         result.prices.Dispose();
         result.sizes.Dispose();
@@ -73,7 +73,7 @@ public class TestCreateGroupedOrderbook
         var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
-        var bids = orderbookGroupedWrapper!.Data.Bids;
+        var bids = orderbookGroupedWrapper!.Data.Bids.ToArray();
         var copy = bids.ToImmutableSortedSet();
         Array.Sort(bids, (pair, otherPair) => pair.Price.CompareTo(otherPair.Price));
         Assert.Equal(bids, copy);
@@ -86,7 +86,7 @@ public class TestCreateGroupedOrderbook
         var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
-        var asks = orderbookGroupedWrapper!.Data.Asks;
+        var asks = orderbookGroupedWrapper!.Data.Asks.ToArray();
         Array.Sort(asks);
         var result = RegroupedOrderbookAlgorithm.CompressAsks(asks);
         Assert.True(result.prices.Memory.Length >= DefaultSize);
@@ -111,11 +111,11 @@ public class TestCreateGroupedOrderbook
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var asks = orderbookGroupedWrapper!.Data.Asks;
-        Array.Sort(asks);
+        asks.Sort();
         var result = RegroupedOrderbookAlgorithm.CompressAsks(asks);
         Assert.True(result.prices.Memory.Length >= DefaultSize);
-        Assert.True(result.prices.Memory.Span[..DefaultSize][..orderbookGroupedWrapper.Data.Asks.Length].SequenceEqual(orderbookGroupedWrapper.Data.Asks.Select(pair => pair.Price).ToArray()));
-        Assert.True(result.sizes.Memory.Span[..DefaultSize][..orderbookGroupedWrapper.Data.Asks.Length].SequenceEqual(orderbookGroupedWrapper.Data.Asks.Select(pair => pair.Size).ToArray()));
+        Assert.True(result.prices.Memory.Span[..DefaultSize][..orderbookGroupedWrapper.Data.Asks.Count].SequenceEqual(orderbookGroupedWrapper.Data.Asks.Select(pair => pair.Price).ToArray()));
+        Assert.True(result.sizes.Memory.Span[..DefaultSize][..orderbookGroupedWrapper.Data.Asks.Count].SequenceEqual(orderbookGroupedWrapper.Data.Asks.Select(pair => pair.Size).ToArray()));
         
         result.prices.Dispose();
         result.sizes.Dispose();

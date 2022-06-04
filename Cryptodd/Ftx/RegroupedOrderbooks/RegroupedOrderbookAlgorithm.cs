@@ -170,11 +170,11 @@ public static class RegroupedOrderbookAlgorithm
     public static RegroupedOrderbook Create(GroupedOrderbook orderbook, int n = DefaultSize, bool legacy = false)
     {
         Debug.Assert(Marshal.SizeOf<PriceSizePair>() == 2 * sizeof(double));
-        using var bidMemory = DoubleMemoryPool.Rent(orderbook.Bids.Length * 2);
-        using var askMemory = DoubleMemoryPool.Rent(orderbook.Asks.Length * 2);
+        using var bidMemory = DoubleMemoryPool.Rent(orderbook.Bids.Count * 2);
+        using var askMemory = DoubleMemoryPool.Rent(orderbook.Asks.Count * 2);
 
-        var bids = MemoryMarshal.Cast<double, PriceSizePair>(bidMemory.Memory.Span)[..orderbook.Bids.Length];
-        var asks = MemoryMarshal.Cast<double, PriceSizePair>(askMemory.Memory.Span)[..orderbook.Asks.Length];
+        var bids = MemoryMarshal.Cast<double, PriceSizePair>(bidMemory.Memory.Span)[..orderbook.Bids.Count];
+        var asks = MemoryMarshal.Cast<double, PriceSizePair>(askMemory.Memory.Span)[..orderbook.Asks.Count];
 
         ((Span<PriceSizePair>)orderbook.Asks).CopyTo(asks);
         ((Span<PriceSizePair>)orderbook.Bids).CopyTo(bids);

@@ -1,6 +1,8 @@
-﻿namespace Cryptodd.Ftx.Models;
+﻿using Maxisoft.Utils.Collections.Lists.Specialized;
 
-public readonly record struct GroupedOrderbook(PriceSizePair[] Bids, PriceSizePair[] Asks)
+namespace Cryptodd.Ftx.Models;
+
+public readonly record struct GroupedOrderbook(PooledList<PriceSizePair> Bids, PooledList<PriceSizePair> Asks)
 {
-    public static readonly GroupedOrderbook Empty = new(Array.Empty<PriceSizePair>(), Array.Empty<PriceSizePair>());
+    public static readonly GroupedOrderbook Empty = new(new PooledList<PriceSizePair>(), new PooledList<PriceSizePair>());
 }

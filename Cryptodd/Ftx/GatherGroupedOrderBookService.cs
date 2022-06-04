@@ -145,7 +145,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                 catch (Exception e)
                 {
                     _logger.Error(e, "Error while creating regrouped orderbook for {Market} #asks:{Asks} #bids{Bids}",
-                        details.Market, details.Data.Asks.Length, details.Data.Bids.Length);
+                        details.Market, details.Data.Asks.Count, details.Data.Bids.Count);
                 }
             });
         }
