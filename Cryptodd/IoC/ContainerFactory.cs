@@ -91,9 +91,9 @@ public class ContainerFactory : IContainerFactory
         if (options.DebugPrint)
         {
             // ReSharper disable once TemplateIsNotCompileTimeConstantProblem
-            logger.Debug("{Scan}", container.WhatDidIScan());
+            logger.Debug(container.WhatDidIScan());
             // ReSharper disable once TemplateIsNotCompileTimeConstantProblem
-            logger.Debug("{Having}", container.WhatDoIHave());
+            logger.Debug(container.WhatDoIHave());
         }
 
 #endif
