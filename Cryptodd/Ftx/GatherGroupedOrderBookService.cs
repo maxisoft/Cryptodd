@@ -7,6 +7,7 @@ using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
 using Lamar;
+using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -90,6 +91,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
 
             var processed = 0;
             var groupedOrderBooks = new List<GroupedOrderbookDetails>();
+            using var dm = new DisposableManager();
             while (processed < requests.Count && !cancellationToken.IsCancellationRequested)
             {
                 if (recvDone >= tasks.Count)
@@ -110,6 +112,7 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                 }
 
                 groupedOrderBooks.Add(resp);
+                dm.LinkDisposable(resp);
                 processed += 1;
             }
 
