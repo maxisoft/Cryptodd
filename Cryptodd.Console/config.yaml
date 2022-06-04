@@ -3,7 +3,7 @@
 Ftx:
   GroupedOrderBook:
     Parquet:
-      Enable: false
+      Enable: true
     Task:
       Period: 60000
   RegroupedOrderBook:

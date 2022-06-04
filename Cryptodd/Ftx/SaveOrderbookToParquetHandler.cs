@@ -1,4 +1,7 @@
-﻿using System.Diagnostics;
+﻿using System.Buffers;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Cryptodd.FileSystem;
 using Cryptodd.Ftx.Models;
 using Microsoft.Extensions.Configuration;
@@ -8,7 +11,7 @@ using Parquet.Data;
 namespace Cryptodd.Ftx;
 
 /// <summary>
-/// Save raw orderbook into a parquet database
+///     Save raw orderbook into a parquet database
 /// </summary>
 public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 {
@@ -32,7 +35,7 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 
         var fileName = section.GetValue<string>("File", "ftx_grouped_orderbook.parquet");
         fileName = _pathResolver.Resolve(fileName,
-            new ResolveOption()
+            new ResolveOption
             {
                 Namespace = GetType().Namespace!, FileType = "parquet",
                 IntendedAction = FileIntendedAction.Append | FileIntendedAction.Read | FileIntendedAction.Create |
@@ -69,11 +72,64 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
             orderbooks.Select(o => o.Time.ToUnixTimeMilliseconds()).ToArray()));
         groupWriter.WriteColumn(new DataColumn(marketColumn, orderbooks.Select(o => o.Market).ToArray()));
         groupWriter.WriteColumn(new DataColumn(groupingColumn, orderbooks.Select(o => o.Grouping).ToArray()));
-        groupWriter.WriteColumn(new DataColumn(bidsColumn,
-            orderbooks.Select(o => o.Data.Bids.SelectMany(b => new[] { b.Price, b.Size }))
-                .SelectMany(doubles => doubles).ToArray()));
-        groupWriter.WriteColumn(new DataColumn(asksColumn,
-            orderbooks.Select(o => o.Data.Asks.SelectMany(a => new[] { a.Price, a.Size }))
-                .SelectMany(doubles => doubles).ToArray()));
+        {
+            var (bids, bidsRepetitionLevels) = PackPairs<PairBidSelector>(orderbooks);
+            groupWriter.WriteColumn(new DataColumn(bidsColumn,
+                bids,
+                bidsRepetitionLevels));
+        }
+
+        {
+            var (asks, asksRepetitionLevels) = PackPairs<PairAskSelector>(orderbooks);
+            groupWriter.WriteColumn(new DataColumn(asksColumn,
+                asks,
+                asksRepetitionLevels));
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private static (double[] payload, int[] repetitions) PackPairs<TSelector>(
+        IReadOnlyCollection<GroupedOrderbookDetails> orderbooks) where TSelector : struct, IPairAskBidSelector
+    {
+        var size = orderbooks.Sum(details => new TSelector().Select(details.Data).Length);
+
+        var payload = new double[size * 2];
+        var repetitions = new int[size * 2];
+        Span<double> payloadSpan = payload;
+        payloadSpan = payloadSpan[..(size * 2)];
+        Span<int> repetitionsSpan = repetitions;
+        repetitionsSpan = repetitionsSpan[..(size * 2)];
+        repetitionsSpan.Fill(1);
+        foreach (var details in orderbooks)
+        {
+            var span = MemoryMarshal.Cast<PriceSizePair, double>(new TSelector().Select(details.Data));
+            span.CopyTo(payloadSpan);
+            payloadSpan = payloadSpan[span.Length..];
+            repetitionsSpan[0] = 0;
+            repetitionsSpan = repetitionsSpan[span.Length..];
+        }
+
+        Debug.Assert(repetitionsSpan.IsEmpty);
+        Debug.Assert(payloadSpan.IsEmpty);
+
+
+        return (payload, repetitions);
+    }
+
+    private interface IPairAskBidSelector
+    {
+        Span<PriceSizePair> Select(GroupedOrderbook orderbook);
+    }
+
+    private struct PairAskSelector : IPairAskBidSelector
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public Span<PriceSizePair> Select(GroupedOrderbook orderbook) => orderbook.Asks.AsSpan();
+    }
+
+    private struct PairBidSelector : IPairAskBidSelector
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public Span<PriceSizePair> Select(GroupedOrderbook orderbook) => orderbook.Bids.AsSpan();
     }
 }
