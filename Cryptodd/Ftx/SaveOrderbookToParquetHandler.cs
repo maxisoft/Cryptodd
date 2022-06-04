@@ -51,12 +51,12 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
         bool gzip)
     {
         var timeColumn = new DataField("time", DataType.Int64, false);
-        var marketColumn = new DataField("market", DataType.String, false);
+        //var marketColumn = new DataField("market", DataType.String, false);
         var groupingColumn = new DataField("grouping", DataType.Double, false);
         var bidsColumn = new DataField("bid", DataType.Double, isArray: true);
-        var asksColumn = new DataField("ask", DataType.Double, isArray: true);
+        //var asksColumn = new DataField("ask", DataType.Double, isArray: true);
 
-        var schema = new Schema(timeColumn, marketColumn, groupingColumn, bidsColumn, asksColumn);
+        var schema = new Schema(timeColumn, groupingColumn, bidsColumn);
 
         var exists = File.Exists(fileName);
         using Stream fileStream = File.Open(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
@@ -70,7 +70,7 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
         using var groupWriter = parquetWriter.CreateRowGroup();
         groupWriter.WriteColumn(new DataColumn(timeColumn,
             orderbooks.Select(o => o.Time.ToUnixTimeMilliseconds()).ToArray()));
-        groupWriter.WriteColumn(new DataColumn(marketColumn, orderbooks.Select(o => o.Market).ToArray()));
+        //groupWriter.WriteColumn(new DataColumn(marketColumn, orderbooks.Select(o => o.Market).ToArray()));
         groupWriter.WriteColumn(new DataColumn(groupingColumn, orderbooks.Select(o => o.Grouping).ToArray()));
         {
             var (bids, bidsRepetitionLevels) = PackPairs<PairBidSelector>(orderbooks);
@@ -79,40 +79,46 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
                 bidsRepetitionLevels));
         }
 
-        {
+        /*{
             var (asks, asksRepetitionLevels) = PackPairs<PairAskSelector>(orderbooks);
             groupWriter.WriteColumn(new DataColumn(asksColumn,
                 asks,
                 asksRepetitionLevels));
-        }
+        }*/
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private static (double[] payload, int[] repetitions) PackPairs<TSelector>(
+    private static (double?[] payload, int[] repetitions) PackPairs<TSelector>(
         IReadOnlyCollection<GroupedOrderbookDetails> orderbooks) where TSelector : struct, IPairAskBidSelector
     {
-        var size = orderbooks.Sum(details => new TSelector().Select(details.Data).Length);
+        var size = orderbooks.Sum(details => Math.Max(new TSelector().Select(details.Data).Length * 2, 1));
 
-        var payload = new double[size * 2];
-        var repetitions = new int[size * 2];
-        Span<double> payloadSpan = payload;
-        payloadSpan = payloadSpan[..(size * 2)];
+        var payload = new double?[size];
+        var repetitions = new int[size];
+        Span<double?> payloadSpan = payload;
+        payloadSpan = payloadSpan[..size];
         Span<int> repetitionsSpan = repetitions;
-        repetitionsSpan = repetitionsSpan[..(size * 2)];
+        repetitionsSpan = repetitionsSpan[..size];
         repetitionsSpan.Fill(1);
         foreach (var details in orderbooks)
         {
             var span = MemoryMarshal.Cast<PriceSizePair, double>(new TSelector().Select(details.Data));
-            span.CopyTo(payloadSpan);
-            payloadSpan = payloadSpan[span.Length..];
+            for (var i = 0; i < span.Length; i++)
+            {
+                payloadSpan[i] = span[i];
+            }
+            if (span.IsEmpty)
+            {
+                payloadSpan[0] = null;
+            }
+            payloadSpan = payloadSpan[Math.Max(span.Length, 1)..];
             repetitionsSpan[0] = 0;
-            repetitionsSpan = repetitionsSpan[span.Length..];
+            repetitionsSpan = repetitionsSpan[Math.Max(span.Length, 1)..];
         }
 
         Debug.Assert(repetitionsSpan.IsEmpty);
         Debug.Assert(payloadSpan.IsEmpty);
-
-
+        
         return (payload, repetitions);
     }
 
