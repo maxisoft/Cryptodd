@@ -17,7 +17,7 @@ public interface IPairFilterLoader : IService
 [Singleton]
 public class PairFilterLoader : IPairFilterLoader, IDisposable
 {
-    private static readonly char[] Separators = { '/', '.', '+' };
+    private static readonly char[] Separators = { '/', '.', '+', ':' };
     private readonly IConfiguration _configuration;
     private readonly ConcurrentDictionary<string, PairFilter> _pairFilters = new();
     private readonly IPathResolver _pathResolver;
