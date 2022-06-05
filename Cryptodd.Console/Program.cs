@@ -19,11 +19,6 @@ internal class Program
 
         using var container = rootContainer.GetNestedContainer();
         container.Inject((IContainer)container);
-        /*foreach (var typeRegistrer in container.GetAllInstances<ITypeRegistrer>())
-        {
-            typeRegistrer.RegisterType(BsonMapper.Global);
-        }*/
-
         foreach (var plugin in container.GetAllInstances<IBasePlugin>().OrderBy(plugin => plugin.Order))
         {
             await plugin.OnStart();

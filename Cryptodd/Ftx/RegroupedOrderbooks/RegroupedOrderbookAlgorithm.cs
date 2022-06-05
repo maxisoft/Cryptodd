@@ -380,7 +380,7 @@ public static class RegroupedOrderbookAlgorithm
         using var d2 = (IDisposable?)newPriceSize?.prices ?? new EmptyDisposable();
         using var d3 = (IDisposable?)newPriceSize?.sizes ?? new EmptyDisposable();
 
-        prices = DoubleMemoryPool.Rent(pricesIndex.Length); // TODO try except dispose
+        prices = DoubleMemoryPool.Rent(pricesIndex.Length);
         try
         {
             sizes = DoubleMemoryPool.Rent(pricesIndex.Length);
