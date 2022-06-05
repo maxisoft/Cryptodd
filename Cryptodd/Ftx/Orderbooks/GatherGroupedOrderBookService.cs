@@ -10,6 +10,7 @@ using Lamar;
 using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
 using Serilog;
+using Serilog.Events;
 
 namespace Cryptodd.Ftx.Orderbooks;
 
@@ -90,6 +91,7 @@ public sealed class GatherGroupedOrderBookService : IService
             var processed = 0;
             var groupedOrderBooks = new List<GroupedOrderbookDetails>();
             using var dm = new DisposableManager();
+            var validators = _container.GetAllInstances<IValidator<GroupedOrderbookDetails>>();
             while (processed < requests.Count && !cancellationToken.IsCancellationRequested)
             {
                 if (recvDone >= tasks.Count)
@@ -108,10 +110,29 @@ public sealed class GatherGroupedOrderBookService : IService
                 {
                     break;
                 }
+                dm.LinkDisposable(resp);
+
+                var valid = true;
+                foreach (var validator in validators)
+                {
+                    if (validator.Validate(resp, out var details))
+                    {
+                        continue;
+                    }
+
+                    valid = false;
+                    if (details is null || !_logger.IsEnabled(LogEventLevel.Debug)) continue;
+                    _logger.Debug("Orderbook for {Market} has invalid field(s): {Fields}", resp.Market, string.Join(" ", details.InvalidFields.Keys));
+                }
+
+                if (!valid)
+                {
+                    continue;
+                }
 
                 groupedOrderBooks.Add(resp);
-                dm.LinkDisposable(resp);
                 processed += 1;
+
             }
 
 
