@@ -45,7 +45,7 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
         }
 
         var section = _configuration.GetSection("Ftx").GetSection("GroupedOrderBook").GetSection("Parquet");
-        if (!section.GetValue("Enable", false))
+        if (!section.GetValue("Enabled", false))
         {
             return;
         }

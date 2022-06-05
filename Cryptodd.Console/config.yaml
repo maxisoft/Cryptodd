@@ -3,7 +3,7 @@
 Ftx:
   GroupedOrderBook:
     Parquet:
-      Enable: true
+      Enabled: true
       PairFilter: 
         - BTC-PERP
         - ^BTC-MOVE.*
