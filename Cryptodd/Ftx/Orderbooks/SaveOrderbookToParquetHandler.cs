@@ -15,10 +15,12 @@ namespace Cryptodd.Ftx.Orderbooks;
 /// </summary>
 public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 {
+    public const string FileType = "parquet";
+    public const string DefaultFileName = "ftx_grouped_orderbook.parquet";
     private readonly IConfiguration _configuration;
     private readonly IPairFilterLoader _pairFilterLoader;
     private readonly IPathResolver _pathResolver;
-    private readonly int ChunkSize = 64;
+    private const int ChunkSize = 32;
 
     public SaveOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,
         IPairFilterLoader pairFilterLoader)
@@ -48,11 +50,11 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
             return;
         }
 
-        var fileName = section.GetValue<string>("File", "ftx_grouped_orderbook.parquet");
+        var fileName = section.GetValue<string>("File", DefaultFileName);
         fileName = _pathResolver.Resolve(fileName,
             new ResolveOption
             {
-                Namespace = GetType().Namespace!, FileType = "parquet",
+                Namespace = GetType().Namespace!, FileType = FileType,
                 IntendedAction = FileIntendedAction.Append | FileIntendedAction.Read | FileIntendedAction.Create |
                                  FileIntendedAction.Write
             });
@@ -62,6 +64,7 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 
         foreach (var array in orderbooks
                      .Where(details => pairFilter.Match(details.Market))
+                     .OrderBy(details => details.Grouping)
                      .Chunk(section.GetValue("ChunkSize", ChunkSize)))
         {
             if (cancellationToken.IsCancellationRequested)
