@@ -1,6 +1,6 @@
 ﻿using Cryptodd.Ftx.Models;
 
-namespace Cryptodd.Ftx.RegroupedOrderbooks;
+namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
 public struct RegroupedOrderbook
 {

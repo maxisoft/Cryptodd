@@ -8,7 +8,7 @@
 using System;
 using System.Globalization;
 using Cryptodd.FileSystem;
-using Cryptodd.Ftx.RegroupedOrderbooks;
+using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;

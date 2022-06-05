@@ -13,7 +13,7 @@ using Cryptodd.IoC;
 using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 
-namespace Cryptodd.Ftx;
+namespace Cryptodd.Ftx.Orderbooks;
 
 public readonly record struct GroupedOrderBookRequest(string Market, double Grouping) { }
 
@@ -25,13 +25,13 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
     private readonly ILogger _logger;
     private readonly IMemoryCache _memoryCache;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+
+    private readonly List<ITargetBlock<GroupedOrderbookDetails>> _targetBlocks = new();
     private readonly IClientWebSocketFactory _webSocketFactory;
 
     internal readonly CancellationTokenSource LoopCancellationTokenSource = new();
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
-    internal BufferBlock<GroupedOrderBookRequest> _requests = new();
-
-    private readonly List<ITargetBlock<GroupedOrderbookDetails>> _targetBlocks = new();
+    internal BufferBlock<GroupedOrderBookRequest> Requests = new();
     private ClientWebSocket? _ws;
 
     public FtxGroupedOrderBookWebsocket(IMemoryCache memoryCache, IClientWebSocketFactory webSocketFactory,
@@ -70,7 +70,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
             }
             catch (Exception e) when (e is OperationCanceledException or WebSocketException)
             {
-                if (_requests.Count > 0)
+                if (Requests.Count > 0)
                 {
                     _logger.Debug(e, "Error when closing ws");
                 }
@@ -109,7 +109,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         return res;
     }
 
-    public int NumRemainingRequests() => _requests.Count;
+    public int NumRemainingRequests() => Requests.Count;
 
     public void RegisterTargetBlock(ITargetBlock<GroupedOrderbookDetails> block)
     {
@@ -117,7 +117,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
     }
 
     public bool RegisterGroupedOrderBookRequest(string market, double grouping) =>
-        _requests.Post(new GroupedOrderBookRequest(market, grouping));
+        Requests.Post(new GroupedOrderBookRequest(market, grouping));
 
     internal async ValueTask ProcessRequests(CancellationToken cancellationToken)
     {
@@ -125,12 +125,12 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         {
             await ConnectIfNeeded().ConfigureAwait(false);
             await PingRemote().ConfigureAwait(false);
-            if (_requests.Count == 0)
+            if (Requests.Count == 0)
             {
                 return;
             }
 
-            while (_requests.TryReceive(out var request) && !cancellationToken.IsCancellationRequested)
+            while (Requests.TryReceive(out var request) && !cancellationToken.IsCancellationRequested)
             {
                 await _ws!.SendAsync(
                     Encoding.UTF8.GetBytes(

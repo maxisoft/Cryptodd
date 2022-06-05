@@ -5,7 +5,7 @@ using Cryptodd.Ftx.Models;
 using Cryptodd.Utils;
 using Maxisoft.Utils.Empties;
 
-namespace Cryptodd.Ftx.RegroupedOrderbooks;
+namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
 public static class RegroupedOrderbookAlgorithm
 {
@@ -407,6 +407,7 @@ public static class RegroupedOrderbookAlgorithm
                     {
                         break;
                     }
+
                     slice = new Range(slice.End, index + 1);
                     foreach (var s in obSize[slice])
                     {
@@ -567,6 +568,7 @@ public static class RegroupedOrderbookAlgorithm
                     {
                         break;
                     }
+
                     slice = new Range(index, slice.Start);
                     foreach (var s in obSize[slice])
                     {

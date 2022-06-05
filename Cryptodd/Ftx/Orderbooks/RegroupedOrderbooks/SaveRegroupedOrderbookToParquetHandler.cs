@@ -6,10 +6,10 @@ using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
 
-namespace Cryptodd.Ftx.RegroupedOrderbooks;
+namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
 /// <summary>
-/// Save raw orderbook into a parquet database
+///     Save raw orderbook into a parquet database
 /// </summary>
 public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
 {
@@ -34,7 +34,7 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         }
 
         var fileName = section.GetValue<string>("File", DefaultFileName);
-        fileName = _pathResolver.Resolve(fileName, new ResolveOption()
+        fileName = _pathResolver.Resolve(fileName, new ResolveOption
         {
             Namespace = GetType().Namespace!, FileType = FileType,
             IntendedAction = FileIntendedAction.Append | FileIntendedAction.Read | FileIntendedAction.Create |

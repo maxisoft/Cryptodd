@@ -8,9 +8,10 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
-using Cryptodd.Ftx.RegroupedOrderbooks;
+using Cryptodd.Ftx.Orderbooks;
+using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Xunit;
-using static Cryptodd.Ftx.RegroupedOrderbooks.RegroupedOrderbookAlgorithm;
+using static Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks.RegroupedOrderbookAlgorithm;
 
 namespace Cryptodd.Tests.Ftx.RegroupedOrderbook;
 

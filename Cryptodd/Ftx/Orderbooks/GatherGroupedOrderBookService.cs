@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Ftx.Models;
-using Cryptodd.Ftx.RegroupedOrderbooks;
+using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
@@ -11,7 +11,7 @@ using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
-namespace Cryptodd.Ftx;
+namespace Cryptodd.Ftx.Orderbooks;
 
 public class GatherGroupedOrderBookService : IService, IDisposable
 {
@@ -116,8 +116,8 @@ public class GatherGroupedOrderBookService : IService, IDisposable
                 processed += 1;
             }
 
-            
-            var dispatchObHandler =  DispatchOrderbookHandler(groupedOrderBooks, processed, sw, cancellationToken);
+
+            var dispatchObHandler = DispatchOrderbookHandler(groupedOrderBooks, processed, sw, cancellationToken);
             var dispatchGroupedObHandler = DispatchRegroupedOrderbookHandler(groupedOrderBooks, sw, cancellationToken);
             await Task.WhenAll(dispatchObHandler, dispatchGroupedObHandler).ConfigureAwait(false);
         }
@@ -131,14 +131,15 @@ public class GatherGroupedOrderBookService : IService, IDisposable
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private async Task DispatchRegroupedOrderbookHandler(List<GroupedOrderbookDetails> groupedOrderBooks, Stopwatch stopWatch, CancellationToken cancellationToken)
+    private async Task DispatchRegroupedOrderbookHandler(List<GroupedOrderbookDetails> groupedOrderBooks,
+        Stopwatch stopWatch, CancellationToken cancellationToken)
     {
         var regroupedHandlers = _container.GetAllInstances<IRegroupedOrderbookHandler>();
         ConcurrentBag<RegroupedOrderbook> regroupedOrderbooks;
         if (regroupedHandlers.Any() && groupedOrderBooks.Any())
         {
             regroupedOrderbooks = new ConcurrentBag<RegroupedOrderbook>();
-            Parallel.ForEach(groupedOrderBooks, (details) =>
+            Parallel.ForEach(groupedOrderBooks, details =>
             {
                 try
                 {
@@ -194,7 +195,8 @@ public class GatherGroupedOrderBookService : IService, IDisposable
         }
         else
         {
-            _logger.Warning("Got {ErrorCount} errors while processing {Count} regrouped orderbooks in {Elapsed}", errorCount,
+            _logger.Warning("Got {ErrorCount} errors while processing {Count} regrouped orderbooks in {Elapsed}",
+                errorCount,
                 regroupedOrderbooks.Count,
                 stopWatch.Elapsed);
         }
@@ -239,7 +241,8 @@ public class GatherGroupedOrderBookService : IService, IDisposable
         }
         else
         {
-            _logger.Warning("Got {ErrorCount} errors while processing {Count} grouped orderbooks in {Elapsed}", errorCount, processed,
+            _logger.Warning("Got {ErrorCount} errors while processing {Count} grouped orderbooks in {Elapsed}",
+                errorCount, processed,
                 stopWatch.Elapsed);
         }
     }

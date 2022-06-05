@@ -44,7 +44,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Ftx\Orderbooks" />
         <Folder Include="Json" />
         <Folder Include="Redis" />
     </ItemGroup>

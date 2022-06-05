@@ -1,6 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Reflection;
 using Cryptodd.Ftx;
+using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Plugins;
 using Lamar;
 using Maxisoft.Plugins.Loader;

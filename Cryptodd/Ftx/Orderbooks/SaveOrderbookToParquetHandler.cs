@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Cryptodd.FileSystem;
@@ -9,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
 
-namespace Cryptodd.Ftx;
+namespace Cryptodd.Ftx.Orderbooks;
 
 /// <summary>
 ///     Save raw orderbook into a parquet database
@@ -17,8 +16,8 @@ namespace Cryptodd.Ftx;
 public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 {
     private readonly IConfiguration _configuration;
-    private readonly IPathResolver _pathResolver;
     private readonly IPairFilterLoader _pairFilterLoader;
+    private readonly IPathResolver _pathResolver;
     private readonly int ChunkSize = 64;
 
     public SaveOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,

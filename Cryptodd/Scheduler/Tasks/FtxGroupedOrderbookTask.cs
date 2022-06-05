@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Cryptodd.Ftx;
+using Cryptodd.Ftx.Orderbooks;
 using Lamar;
 using MathNet.Numerics.Statistics;
 using Microsoft.Extensions.Configuration;
