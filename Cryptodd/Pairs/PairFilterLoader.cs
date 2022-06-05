@@ -17,7 +17,7 @@ public interface IPairFilterLoader : IService
 [Singleton]
 public class PairFilterLoader : IPairFilterLoader, IDisposable
 {
-    private static readonly char[] Separator = { '/', '.', '+' };
+    private static readonly char[] Separators = { '/', '.', '+', ':' };
     private readonly IConfiguration _configuration;
     private readonly ConcurrentDictionary<string, PairFilter> _pairFilters = new();
     private readonly IPathResolver _pathResolver;
@@ -55,14 +55,14 @@ public class PairFilterLoader : IPairFilterLoader, IDisposable
             return res;
         }
 
-        res = await LoadPairFilterAsync(name, cancellationToken);
+        res = await LoadPairFilterAsync(name, cancellationToken).ConfigureAwait(false);
         _pairFilters[name] = res;
         return res;
     }
 
     private async ValueTask<PairFilter> LoadPairFilterAsync(string name, CancellationToken cancellationToken = default)
     {
-        var splited = name.Split(Separator, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var splited = name.Split(Separators, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var paths = splited.ToArrayList(false);
         var res = new PairFilter();
 
@@ -85,11 +85,15 @@ public class PairFilterLoader : IPairFilterLoader, IDisposable
             IList<string>? pairs;
             try
             {
-                pairs = section.GetValue<List<string>?>("PairFilter", null);
+                pairs = section.GetSection("PairFilter").Get<string[]>(null);
             }
             catch (InvalidCastException)
             {
                 pairs = null;
+            }
+
+            if (pairs is null)
+            {
                 var pair = section.GetValue("PairFilter", string.Empty);
                 if (!string.IsNullOrWhiteSpace(pair))
                 {
@@ -144,7 +148,7 @@ public class PairFilterLoader : IPairFilterLoader, IDisposable
             {
                 foreach (var file in files)
                 {
-                    var content = await File.ReadAllTextAsync(file, Encoding.UTF8, cancellationToken);
+                    var content = await File.ReadAllTextAsync(file, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
                     res.AddAll(content);
                 }
 

@@ -36,10 +36,10 @@ public interface IPairFilter
 
 public class PairFilter : IPairFilter
 {
-    public static readonly Regex DetectRegex = new(@"^[a-zA-Z][\w:/-]+$",
+    public static readonly Regex DetectRegex = new(@"^[a-zA-Z][\w:/-_]+$",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
-    private static readonly char[] Separator = { '\r', '\n', ';' };
+    private static readonly char[] Separators = { '\r', '\n', ';' };
     private static readonly ConcurrentDictionary<string, Regex> RegexCache = new();
 
     private readonly ConcurrentDictionary<string, EmptyStruct> _noMatchPairsSet =
@@ -98,7 +98,7 @@ public class PairFilter : IPairFilter
     public void AddAll(string input, bool allowRegex = true)
     {
         var es = new EmptyStruct();
-        foreach (var s in input.Split(Separator,
+        foreach (var s in input.Split(Separators,
                      StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
             if (s.StartsWith('#') || s.StartsWith("//", StringComparison.InvariantCulture))

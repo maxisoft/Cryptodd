@@ -1,6 +1,6 @@
 ﻿using Cryptodd.Ftx.Models;
 
-namespace Cryptodd.Ftx;
+namespace Cryptodd.Ftx.Orderbooks;
 
 public interface IGroupedOrderbookHandler
 {

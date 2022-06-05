@@ -6,21 +6,20 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
-using Cryptodd.Ftx.RegroupedOrderbooks;
+using Cryptodd.Ftx.Orderbooks;
+using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Cryptodd.IoC;
 using Cryptodd.IoC.Registries.Customs;
 using Cryptodd.Pairs;
 using Lamar;
 using Maxisoft.Utils.Collections.Dictionaries;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using xRetry;
 using Xunit;
 
-namespace Cryptodd.Tests.Ftx;
+namespace Cryptodd.Tests.Ftx.Orderbooks;
 
 public class GatherGroupedOrderbookServiceTest : IDisposable
 {
@@ -32,7 +31,7 @@ public class GatherGroupedOrderbookServiceTest : IDisposable
     public GatherGroupedOrderbookServiceTest()
     {
         _tmpPath = Path.GetTempPath();
-        _tmpPath = Path.Combine(_tmpPath, new Guid().ToString());
+        _tmpPath = Path.Combine(_tmpPath, Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tmpPath);
         _pairFilterLoaderMock = new Mock<StaticPairFilterLoader> { CallBase = true };
         _groupedObHandlerMock = new Mock<GroupedOrderBookHandler> { CallBase = true };
@@ -120,7 +119,7 @@ public class GatherGroupedOrderbookServiceTest : IDisposable
         var pairs = new string[] { "BTC-PERP", "ETH/USDT" };
         _pairFilterLoaderMock.Object.AddAll(string.Join(";", pairs));
         
-        using var service = _container.GetInstance<GatherGroupedOrderBookService>();
+        var service = _container.GetInstance<GatherGroupedOrderBookService>();
         using var cts = new CancellationTokenSource(60 * 1000);
         await service.CollectOrderBooks(cts.Token);
 
