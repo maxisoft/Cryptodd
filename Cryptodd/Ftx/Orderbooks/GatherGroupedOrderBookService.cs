@@ -13,7 +13,7 @@ using Serilog;
 
 namespace Cryptodd.Ftx.Orderbooks;
 
-public class GatherGroupedOrderBookService : IService, IDisposable
+public sealed class GatherGroupedOrderBookService : IService
 {
     private readonly IConfiguration _configuration;
     private readonly IContainer _container;
@@ -30,8 +30,6 @@ public class GatherGroupedOrderBookService : IService, IDisposable
     }
 
     private FtxPublicHttpApi FtxPublicHttpApi => _container.GetInstance<FtxPublicHttpApi>();
-
-    public void Dispose() { }
 
     public async Task CollectOrderBooks(CancellationToken cancellationToken)
     {

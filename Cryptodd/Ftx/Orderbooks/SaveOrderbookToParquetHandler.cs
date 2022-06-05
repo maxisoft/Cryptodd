@@ -17,10 +17,10 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 {
     public const string FileType = "parquet";
     public const string DefaultFileName = "ftx_grouped_orderbook.parquet";
+    private const int ChunkSize = 32;
     private readonly IConfiguration _configuration;
     private readonly IPairFilterLoader _pairFilterLoader;
     private readonly IPathResolver _pathResolver;
-    private const int ChunkSize = 32;
 
     public SaveOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,
         IPairFilterLoader pairFilterLoader)
@@ -104,19 +104,17 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
             orderbooks.Select(o => o.Time.ToUnixTimeMilliseconds()).ToArray()));
         groupWriter.WriteColumn(new DataColumn(marketColumn, orderbooks.Select(o => o.Market).ToArray()));
         groupWriter.WriteColumn(new DataColumn(groupingColumn, orderbooks.Select(o => o.Grouping).ToArray()));
-        {
-            var (bids, bidsRepetitionLevels) = PackPairs<PairBidSelector>(orderbooks);
-            groupWriter.WriteColumn(new DataColumn(bidsColumn,
-                bids,
-                bidsRepetitionLevels));
-        }
 
-        {
-            var (asks, asksRepetitionLevels) = PackPairs<PairAskSelector>(orderbooks);
-            groupWriter.WriteColumn(new DataColumn(asksColumn,
-                asks,
-                asksRepetitionLevels));
-        }
+        var (bids, bidsRepetitionLevels) = PackPairs<PairBidSelector>(orderbooks);
+        groupWriter.WriteColumn(new DataColumn(bidsColumn,
+            bids,
+            bidsRepetitionLevels));
+
+
+        var (asks, asksRepetitionLevels) = PackPairs<PairAskSelector>(orderbooks);
+        groupWriter.WriteColumn(new DataColumn(asksColumn,
+            asks,
+            asksRepetitionLevels));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]

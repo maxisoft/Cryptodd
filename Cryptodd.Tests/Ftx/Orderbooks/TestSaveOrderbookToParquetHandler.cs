@@ -87,8 +87,7 @@ public class TestSaveOrderbookToParquetHandler
 
         var pairs = new string[] { "BTC.*", "ETH.*" };
         _pairFilterLoaderMock.Object.AddAll(string.Join(";", pairs));
-
-        using var service = _container.GetInstance<GatherGroupedOrderBookService>();
+        
         using var cts = new CancellationTokenSource(60 * 1000);
         IGroupedOrderbookHandler handler = _container.GetInstance<SaveOrderbookToParquetHandler>();
         await handler.Handle(new[] { orderbookGroupedWrapper! }, cts.Token);
@@ -111,7 +110,7 @@ public class TestSaveOrderbookToParquetHandler
         var pairs = new string[] { ".*" };
         _pairFilterLoaderMock.Object.AddAll(string.Join(";", pairs));
 
-        using var service = _container.GetInstance<GatherGroupedOrderBookService>();
+        var service = _container.GetInstance<GatherGroupedOrderBookService>();
         using var cts = new CancellationTokenSource(60 * 1000);
         IGroupedOrderbookHandler handler = _container.GetInstance<SaveOrderbookToParquetHandler>();
         await handler.Handle(new[] { orderbookGroupedWrapper1!, orderbookGroupedWrapper2! }, cts.Token);

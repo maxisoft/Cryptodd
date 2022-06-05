@@ -10,7 +10,6 @@ using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
-using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 
 namespace Cryptodd.Ftx.Orderbooks;
@@ -19,11 +18,12 @@ public readonly record struct GroupedOrderBookRequest(string Market, double Grou
 
 public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposable
 {
+    private const string WebsocketUrl = "wss://ftx.com/ws/";
+
     internal static readonly JsonSerializerOptions OrderBookJsonSerializerOptions =
         CreateOrderBookJsonSerializerOptions();
 
     private readonly ILogger _logger;
-    private readonly IMemoryCache _memoryCache;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     private readonly List<ITargetBlock<GroupedOrderbookDetails>> _targetBlocks = new();
@@ -31,13 +31,12 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
     internal readonly CancellationTokenSource LoopCancellationTokenSource = new();
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
-    internal BufferBlock<GroupedOrderBookRequest> Requests = new();
     private ClientWebSocket? _ws;
+    internal BufferBlock<GroupedOrderBookRequest> Requests = new();
 
-    public FtxGroupedOrderBookWebsocket(IMemoryCache memoryCache, IClientWebSocketFactory webSocketFactory,
+    public FtxGroupedOrderBookWebsocket(IClientWebSocketFactory webSocketFactory,
         ILogger logger)
     {
-        _memoryCache = memoryCache;
         _webSocketFactory = webSocketFactory;
         _logger = logger;
     }
@@ -82,7 +81,12 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
     public void Dispose()
     {
+        Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
         Close();
         try
         {
@@ -351,7 +355,8 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
                 Close();
 
-                _ws = await _webSocketFactory.GetWebSocket(new Uri("wss://ftx.com/ws/"), cancellationToken: CancellationToken)
+                _ws = await _webSocketFactory
+                    .GetWebSocket(new Uri(WebsocketUrl), cancellationToken: CancellationToken)
                     .ConfigureAwait(false);
                 _pingStopWatch = Stopwatch.StartNew();
                 res = true;

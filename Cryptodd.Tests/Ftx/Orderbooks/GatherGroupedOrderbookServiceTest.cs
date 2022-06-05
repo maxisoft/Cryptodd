@@ -119,7 +119,7 @@ public class GatherGroupedOrderbookServiceTest : IDisposable
         var pairs = new string[] { "BTC-PERP", "ETH/USDT" };
         _pairFilterLoaderMock.Object.AddAll(string.Join(";", pairs));
         
-        using var service = _container.GetInstance<GatherGroupedOrderBookService>();
+        var service = _container.GetInstance<GatherGroupedOrderBookService>();
         using var cts = new CancellationTokenSource(60 * 1000);
         await service.CollectOrderBooks(cts.Token);
 

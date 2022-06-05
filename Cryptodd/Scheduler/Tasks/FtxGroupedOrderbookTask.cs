@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using Cryptodd.Ftx;
 using Cryptodd.Ftx.Orderbooks;
 using Lamar;
 using MathNet.Numerics.Statistics;
@@ -13,10 +12,9 @@ public class FtxGroupedOrderbookTask : ScheduledTask
 {
     private readonly IContainer _container;
     private IDisposable? _configurationChangeDisposable;
-    private AsyncPolicy _retryPolicy;
     private double _prevExecutionStd;
-    private TimeSpan PeriodOffset { get; set; } = TimeSpan.Zero;
-    
+    private AsyncPolicy _retryPolicy;
+
     private double _rollingExecutionTimeMean = 10;
 
     public FtxGroupedOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration) : base(logger,
@@ -30,6 +28,8 @@ public class FtxGroupedOrderbookTask : ScheduledTask
         _retryPolicy = Policy.NoOpAsync();
         OnConfigurationChange(this);
     }
+
+    private TimeSpan PeriodOffset { get; set; } = TimeSpan.Zero;
 
     private void OnConfigurationChange(object obj)
     {
@@ -49,7 +49,7 @@ public class FtxGroupedOrderbookTask : ScheduledTask
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, token);
             cts.CancelAfter(Period - sw.Elapsed);
-            using var orderBookService = _container.GetInstance<GatherGroupedOrderBookService>();
+            var orderBookService = _container.GetInstance<GatherGroupedOrderBookService>();
             return orderBookService.CollectOrderBooks(cts.Token);
         }, cancellationToken);
     }
@@ -68,7 +68,8 @@ public class FtxGroupedOrderbookTask : ScheduledTask
 
         for (var i = 0; i < 10; i++)
         {
-            var nextSchedule = Math.Ceiling((DateTimeOffset.UtcNow + PeriodOffset).ToUnixTimeMilliseconds() / Period.TotalMilliseconds) +
+            var nextSchedule = Math.Ceiling((DateTimeOffset.UtcNow + PeriodOffset).ToUnixTimeMilliseconds() /
+                                            Period.TotalMilliseconds) +
                                i;
             nextSchedule *= (long)Period.TotalMilliseconds;
             nextSchedule -= Math.Min(mean + 0.5 * _prevExecutionStd, mean * 2);

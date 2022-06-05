@@ -88,7 +88,7 @@ public class TestSaveRegroupedOrderbookToParquetHandler
         var pairs = new string[] { "BTC.*", "ETH.*" };
         _pairFilterLoaderMock.Object.AddAll(string.Join(";", pairs));
         var regroupedOrderbook = RegroupedOrderbookAlgorithm.Create(orderbookGroupedWrapper!);
-        using var service = _container.GetInstance<GatherGroupedOrderBookService>();
+        var service = _container.GetInstance<GatherGroupedOrderBookService>();
         using var cts = new CancellationTokenSource(60 * 1000);
         IRegroupedOrderbookHandler handler = _container.GetInstance<SaveRegroupedOrderbookToParquetHandler>();
         await handler.Handle(new[] { regroupedOrderbook! }, cts.Token);
