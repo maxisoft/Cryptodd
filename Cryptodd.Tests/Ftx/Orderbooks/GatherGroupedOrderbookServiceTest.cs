@@ -31,7 +31,7 @@ public class GatherGroupedOrderbookServiceTest : IDisposable
     public GatherGroupedOrderbookServiceTest()
     {
         _tmpPath = Path.GetTempPath();
-        _tmpPath = Path.Combine(_tmpPath, new Guid().ToString());
+        _tmpPath = Path.Combine(_tmpPath, Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tmpPath);
         _pairFilterLoaderMock = new Mock<StaticPairFilterLoader> { CallBase = true };
         _groupedObHandlerMock = new Mock<GroupedOrderBookHandler> { CallBase = true };

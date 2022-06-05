@@ -26,7 +26,7 @@ public class TestCreateGroupedOrderbook
     public async Task TestCompressBids()
     {
         var content = await GetFileContents("grouped_orderbook_btcusd.json");
-        var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
+        using var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var bids = orderbookGroupedWrapper!.Data.Bids;
@@ -53,7 +53,7 @@ public class TestCreateGroupedOrderbook
     public async Task TestCompressBidsLessThan25()
     {
         var content = await GetFileContents("grouped_orderbook_less_than_25.json");
-        var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
+        using var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var bids = orderbookGroupedWrapper!.Data.Bids;
@@ -70,7 +70,7 @@ public class TestCreateGroupedOrderbook
     public async Task TestDefaultPriceSizePairSortOrder()
     {
         var content = await GetFileContents("grouped_orderbook_btcusd.json");
-        var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
+        using var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var bids = orderbookGroupedWrapper!.Data.Bids.ToArray();
@@ -83,7 +83,7 @@ public class TestCreateGroupedOrderbook
     public async Task TestCompressAsks()
     {
         var content = await GetFileContents("grouped_orderbook_btcusd.json");
-        var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
+        using var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var asks = orderbookGroupedWrapper!.Data.Asks.ToArray();
@@ -107,7 +107,7 @@ public class TestCreateGroupedOrderbook
     public async Task TestCompressAsksLessThan25()
     {
         var content = await GetFileContents("grouped_orderbook_less_than_25.json");
-        var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
+        using var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var asks = orderbookGroupedWrapper!.Data.Asks;
@@ -125,7 +125,7 @@ public class TestCreateGroupedOrderbook
     public async Task TestCreate()
     {
         var content = await GetFileContents("grouped_orderbook_btcusd.json");
-        var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
+        using var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(content,
             FtxGroupedOrderBookWebsocket.OrderBookJsonSerializerOptions);
         Assert.NotNull(orderbookGroupedWrapper);
         var regroupedOrderbook = RegroupedOrderbookAlgorithm.Create(orderbookGroupedWrapper);
@@ -133,7 +133,7 @@ public class TestCreateGroupedOrderbook
         Assert.Equal(DefaultSize, regroupedOrderbook.Asks.Length);
     }
 
-    private static Task<string> GetFileContents(string sampleFile)
+    internal static Task<string> GetFileContents(string sampleFile)
     {
         var asm = Assembly.GetExecutingAssembly();
         var resource = $"{asm.GetName().Name}.Ftx.Resources.{sampleFile}";
