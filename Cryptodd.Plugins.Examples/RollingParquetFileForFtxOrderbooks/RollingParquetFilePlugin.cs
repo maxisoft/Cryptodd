@@ -5,9 +5,14 @@
  * Note that it has to be in a subfolder to be loaded !
  */
 
+
+#nullable enable
+
 using System;
 using System.Globalization;
+using System.IO;
 using Cryptodd.FileSystem;
+using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Lamar;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,11 +20,11 @@ using Serilog;
 
 namespace Cryptodd.Plugins.Examples.RollingParquetFileForFtxOrderbooks;
 
-// Register a new plugin by inheriting Cryptodd.BasePlugin
+// Register a new plugin by inheriting Cryptodd.BasePlugin 
 public class RollingParquetFilePlugin : BasePlugin
 {
     // Create a public constructor with a Lamar.IContainer argument
-    // Note that ioc (inversion of control) may help one to inject any other service into the plugin
+    // ioc (inversion of control) may help one to inject any other service into the plugin
     public RollingParquetFilePlugin(IContainer container) : base(container)
     {
         // reconfigure ioc to use our PluginPathResolver
@@ -34,7 +39,7 @@ public class FtxRegroupedOrderbookPathResolver : IPluginPathResolver
 {
     private readonly ILogger _logger;
 
-    // Note that dependency injection works here too
+    // dependency injection works here too
     public FtxRegroupedOrderbookPathResolver(ILogger logger)
     {
         _logger = logger;
@@ -44,17 +49,35 @@ public class FtxRegroupedOrderbookPathResolver : IPluginPathResolver
     {
         // note that this plugin only handle DefaultFileName.
         // if user provide a custom path we don't handle it
-        if (path != SaveRegroupedOrderbookToParquetHandler.DefaultFileName ||
-            option.FileType != SaveRegroupedOrderbookToParquetHandler.FileType)
+        if (option.FileType != SaveRegroupedOrderbookToParquetHandler.FileType ||
+            (path != SaveRegroupedOrderbookToParquetHandler.DefaultFileName &&
+             path != SaveOrderbookToParquetHandler.DefaultFileName))
         {
             return path;
         }
 
-        var now = DateTimeOffset.UtcNow.ToString("yyyy_MM_dd_hh", DateTimeFormatInfo.InvariantInfo);
-        var result = $"ftx_regrouped_orderbook_{now}.parquet";
-        _logger.Verbose("Changing file {Original} to {File}", path, result);
-        return result;
+        // IPluginPathResolver must not throws or it may block the entire process
+        try
+        {
+            return ReplacePath(path);
+        }
+        catch (Exception e)
+        {
+            _logger.Error(e, "Unable to replace {Path}", path);
+            return path;
+        }
     }
 
     public int Priority { get; } = 0;
+
+    private string ReplacePath(string path)
+    {
+        var now = DateTimeOffset.UtcNow.ToString("yyyy_MM_dd_hh", DateTimeFormatInfo.InvariantInfo);
+        var ext = Path.GetExtension(path);
+        var fileName = ((ReadOnlySpan<char>)path)[..^ext.Length];
+        var result = $"{fileName}_{now}{ext}";
+        result = result.TrimStart('_');
+        _logger.Verbose("Changing file {Original} to {File}", path, result);
+        return result;
+    }
 }
