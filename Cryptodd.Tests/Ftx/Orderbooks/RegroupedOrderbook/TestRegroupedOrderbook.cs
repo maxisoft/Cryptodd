@@ -6,14 +6,13 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Xunit;
 using static Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks.RegroupedOrderbookAlgorithm;
 
-namespace Cryptodd.Tests.Ftx.RegroupedOrderbook;
+namespace Cryptodd.Tests.Ftx.Orderbooks.RegroupedOrderbook;
 
 public class TestCreateGroupedOrderbook
 {

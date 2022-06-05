@@ -6,7 +6,6 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
@@ -15,13 +14,12 @@ using Cryptodd.IoC.Registries.Customs;
 using Cryptodd.Pairs;
 using Lamar;
 using Maxisoft.Utils.Collections.Dictionaries;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using xRetry;
 using Xunit;
 
-namespace Cryptodd.Tests.Ftx;
+namespace Cryptodd.Tests.Ftx.Orderbooks;
 
 public class GatherGroupedOrderbookServiceTest : IDisposable
 {
