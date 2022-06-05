@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics;
-using Cryptodd.Ftx;
+using Cryptodd.Ftx.Orderbooks;
 using Lamar;
 using MathNet.Numerics.Statistics;
 using Microsoft.Extensions.Configuration;
@@ -12,8 +12,8 @@ public class FtxGroupedOrderbookTask : ScheduledTask
 {
     private readonly IContainer _container;
     private IDisposable? _configurationChangeDisposable;
-    private AsyncPolicy _retryPolicy;
     private double _prevExecutionStd;
+    private AsyncPolicy _retryPolicy;
 
     private double _rollingExecutionTimeMean = 10;
 
@@ -29,10 +29,13 @@ public class FtxGroupedOrderbookTask : ScheduledTask
         OnConfigurationChange(this);
     }
 
+    private TimeSpan PeriodOffset { get; set; } = TimeSpan.Zero;
+
     private void OnConfigurationChange(object obj)
     {
         var section = Configuration.GetSection("Ftx").GetSection("GroupedOrderBook").GetSection("Task");
         Period = TimeSpan.FromMilliseconds(section.GetValue("Period", 60 * 1000));
+        PeriodOffset = TimeSpan.FromMilliseconds(section.GetValue("PeriodOffset", 0));
         var maxRetry = section.GetValue("MaxRetry", 3);
         _retryPolicy = Policy.TimeoutAsync(TimeSpan.FromMilliseconds(Period.TotalMilliseconds / maxRetry))
             .WrapAsync(
@@ -46,7 +49,7 @@ public class FtxGroupedOrderbookTask : ScheduledTask
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, token);
             cts.CancelAfter(Period - sw.Elapsed);
-            using var orderBookService = _container.GetInstance<GatherGroupedOrderBookService>();
+            var orderBookService = _container.GetInstance<GatherGroupedOrderBookService>();
             return orderBookService.CollectOrderBooks(cts.Token);
         }, cancellationToken);
     }
@@ -65,7 +68,8 @@ public class FtxGroupedOrderbookTask : ScheduledTask
 
         for (var i = 0; i < 10; i++)
         {
-            var nextSchedule = Math.Ceiling(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / Period.TotalMilliseconds) +
+            var nextSchedule = Math.Ceiling((DateTimeOffset.UtcNow + PeriodOffset).ToUnixTimeMilliseconds() /
+                                            Period.TotalMilliseconds) +
                                i;
             nextSchedule *= (long)Period.TotalMilliseconds;
             nextSchedule -= Math.Min(mean + 0.5 * _prevExecutionStd, mean * 2);

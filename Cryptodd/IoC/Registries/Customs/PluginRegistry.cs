@@ -1,6 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Reflection;
 using Cryptodd.Ftx;
+using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Plugins;
 using Lamar;
 using Maxisoft.Plugins.Loader;
@@ -25,6 +26,10 @@ public class PluginRegistry : ServiceRegistry, IPluginRegistry
     {
         Log = logger.ForContext(GetType());
         PluginDirectory = Path.Combine(configuration.GetValue<string>("BasePath"), "plugins");
+        if (!Directory.Exists(PluginDirectory))
+        {
+            PluginDirectory = Path.Combine(configuration.GetValue<string>("BasePath"), "Plugins");
+        }
         _pluginCompiler = new PluginCompiler(_assemblyReferenceCollector);
         ForSingletonOf<IAssemblyReferenceCollector>().Use(_assemblyReferenceCollector);
         ForSingletonOf<IPluginCompiler>().Use(_pluginCompiler);

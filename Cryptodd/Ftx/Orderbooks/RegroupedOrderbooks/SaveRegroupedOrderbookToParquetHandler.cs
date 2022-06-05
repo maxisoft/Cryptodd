@@ -6,40 +6,72 @@ using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
 
-namespace Cryptodd.Ftx.RegroupedOrderbooks;
+namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
 /// <summary>
-/// Save raw orderbook into a parquet database
+///     Save raw orderbook into a parquet database
 /// </summary>
 public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
 {
+    public const string DefaultFileName = "ftx_regrouped_orderbook.parquet";
+    public const string FileType = "parquet";
     private readonly IConfiguration _configuration;
     private readonly IPathResolver _pathResolver;
+    private readonly IPairFilterLoader _pairFilterLoader;
+    private const int ChunkSize = 128;
 
-    public SaveRegroupedOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver)
+    public SaveRegroupedOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver, IPairFilterLoader pairFilterLoader)
     {
         _configuration = configuration;
         _pathResolver = pathResolver;
+        _pairFilterLoader = pairFilterLoader;
     }
 
-    public Task Handle(IReadOnlyCollection<RegroupedOrderbook> orderbooks, CancellationToken cancellationToken)
+    public async Task Handle(IReadOnlyCollection<RegroupedOrderbook> orderbooks, CancellationToken cancellationToken)
     {
-        Debug.Assert(!Disabled);
-        var section = _configuration.GetSection("Ftx").GetSection("RegroupedOrderBook").GetSection("Parquet");
-        if (!section.GetValue("Enable", true))
+        if (!orderbooks.Any())
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        var fileName = section.GetValue<string>("File", "ftx_regrouped_orderbook.parquet");
-        fileName = _pathResolver.Resolve(fileName, new ResolveOption()
+        Debug.Assert(!Disabled, "Disabled state must be checked externally");
+        if (Disabled)
         {
-            Namespace = GetType().Namespace!, FileType = "parquet",
+            return;
+        }
+        
+        var section = _configuration.GetSection("Ftx").GetSection("RegroupedOrderBook").GetSection("Parquet");
+        if (!section.GetValue("Enabled", true))
+        {
+            return;
+        }
+
+        var fileName = section.GetValue<string>("File", DefaultFileName);
+        
+        
+        fileName = _pathResolver.Resolve(fileName, new ResolveOption
+        {
+            Namespace = GetType().Namespace!, FileType = FileType,
             IntendedAction = FileIntendedAction.Append | FileIntendedAction.Read | FileIntendedAction.Create |
                              FileIntendedAction.Write
         });
         var gzip = section.GetValue("HighCompression", false); // use snappy else
-        return Task.Factory.StartNew(() => SaveToParquet(orderbooks, fileName, gzip), cancellationToken);
+        var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.RegroupedOrderBook.Parquet", cancellationToken)
+            
+            .ConfigureAwait(false);
+        foreach (var array in orderbooks
+                     .Where(ob => pairFilter.Match(ob.Market))
+                     .OrderBy(ob => ob.Market)
+                     .Chunk(section.GetValue("ChunkSize", ChunkSize)))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            await Task.Factory.StartNew(() => SaveToParquet(array, fileName, gzip), cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     public bool Disabled { get; set; }

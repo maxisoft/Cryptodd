@@ -22,6 +22,10 @@ fi
 cp --no-clobber "$APP_PATH/config.yaml" "${CRYPTOdd_BASEPATH}/config.yaml"
 chown "$PUID:$PGID" "${CRYPTOdd_BASEPATH}/config.yaml"
 cp --no-clobber "$APP_PATH/appsettings.json" "${CRYPTOdd_BASEPATH}/appsettings.json"
+mkdir -p "${CRYPTOdd_BASEPATH}/Plugins"
+if [ ! "$(stat -c %u "${CRYPTOdd_BASEPATH}/Plugins")" = "$PUID" ]; then
+	chown -R "$PUID:$PGID" -R "${CRYPTOdd_BASEPATH}/Plugins"
+fi
 rm -rf /tmp/*
 
 renice "+${NICE_ADJUSTEMENT:-3}" $$ >/dev/null 2>&1 || :

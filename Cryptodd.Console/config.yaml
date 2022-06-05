@@ -3,7 +3,15 @@
 Ftx:
   GroupedOrderBook:
     Parquet:
-      Enable: false
+      Enabled: true
+      PairFilter: 
+        - BTC-PERP
+        - ^BTC-MOVE.*
+        - ^BTC/USDT?$
+        - ETH-PERP
+        - ^ETH/USDT?$
+        - SOL-PERP
+        - ^SOL/USDT?$
     Task:
       Period: 60000
   RegroupedOrderBook:

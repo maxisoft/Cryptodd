@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.Ftx.RegroupedOrderbooks;
+﻿namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
 public interface IRegroupedOrderbookHandler
 {

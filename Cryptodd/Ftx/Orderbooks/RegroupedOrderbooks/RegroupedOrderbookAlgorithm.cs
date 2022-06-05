@@ -5,7 +5,7 @@ using Cryptodd.Ftx.Models;
 using Cryptodd.Utils;
 using Maxisoft.Utils.Empties;
 
-namespace Cryptodd.Ftx.RegroupedOrderbooks;
+namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
 public static class RegroupedOrderbookAlgorithm
 {
@@ -380,7 +380,7 @@ public static class RegroupedOrderbookAlgorithm
         using var d2 = (IDisposable?)newPriceSize?.prices ?? new EmptyDisposable();
         using var d3 = (IDisposable?)newPriceSize?.sizes ?? new EmptyDisposable();
 
-        prices = DoubleMemoryPool.Rent(pricesIndex.Length); // TODO try except dispose
+        prices = DoubleMemoryPool.Rent(pricesIndex.Length);
         try
         {
             sizes = DoubleMemoryPool.Rent(pricesIndex.Length);
@@ -407,6 +407,7 @@ public static class RegroupedOrderbookAlgorithm
                     {
                         break;
                     }
+
                     slice = new Range(slice.End, index + 1);
                     foreach (var s in obSize[slice])
                     {
@@ -567,6 +568,7 @@ public static class RegroupedOrderbookAlgorithm
                     {
                         break;
                     }
+
                     slice = new Range(index, slice.Start);
                     foreach (var s in obSize[slice])
                     {

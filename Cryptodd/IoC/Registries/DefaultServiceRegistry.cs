@@ -1,5 +1,6 @@
 ﻿using Cryptodd.Ftx;
-using Cryptodd.Ftx.RegroupedOrderbooks;
+using Cryptodd.Ftx.Orderbooks;
+using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Lamar;
 
 namespace Cryptodd.IoC.Registries;

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -13,7 +14,8 @@ namespace Maxisoft.Plugins.Loader
 
     public class AssemblyReferenceCollector : IAssemblyReferenceCollector
     {
-        private static IEnumerable<MetadataReference> CollectMetadataReferences(Assembly assembly, ISet<Assembly> dejaVu)
+        private static IEnumerable<MetadataReference> CollectMetadataReferences(Assembly assembly,
+            ISet<Assembly> dejaVu)
         {
             if (!dejaVu.Any() && assembly != typeof(object).Assembly)
             {
@@ -22,6 +24,7 @@ namespace Maxisoft.Plugins.Loader
                     yield return reference;
                 }
             }
+
             if (dejaVu.Add(assembly))
             {
                 yield return MetadataReference.CreateFromFile(assembly.Location);
@@ -37,15 +40,15 @@ namespace Maxisoft.Plugins.Loader
                     {
                         yield return reference;
                     }
+
                     Debug.Assert(dejaVu.Contains(ass));
                 }
             }
+
             Debug.Assert(dejaVu.Contains(typeof(object).Assembly));
         }
 
-        public IEnumerable<MetadataReference> CollectMetadataReferences(Assembly assembly)
-        {
-            return CollectMetadataReferences(assembly, new HashSet<Assembly>());
-        }
+        public IEnumerable<MetadataReference> CollectMetadataReferences(Assembly assembly) =>
+            CollectMetadataReferences(assembly, new HashSet<Assembly>());
     }
 }
