@@ -6,12 +6,12 @@ Ftx:
       Enable: true
       PairFilter: 
         - BTC-PERP
-        - BTC-MOVE.*
-        - ^BTC/USD*$
+        - ^BTC-MOVE.*
+        - ^BTC/USDT?$
         - ETH-PERP
-        - ^ETH/USD*$
+        - ^ETH/USDT?$
         - SOL-PERP
-        - ^SOL/USD*$
+        - ^SOL/USDT?$
     Task:
       Period: 60000
   RegroupedOrderBook:
