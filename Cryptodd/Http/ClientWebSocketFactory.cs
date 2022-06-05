@@ -15,8 +15,8 @@ public class ClientWebSocketFactory : IClientWebSocketFactory
         _uriRewriteService = uriRewriteService;
     }
 
-    public async ValueTask<ClientWebSocket> GetWebSocket(Uri uri, CancellationToken cancellationToken = default,
-        bool connect = true)
+    public async ValueTask<ClientWebSocket> GetWebSocket(Uri uri,
+        bool connect = true, CancellationToken cancellationToken = default)
     {
         var httpConfig = _configuration.GetSection("Http");
         var ws = new ClientWebSocket { Options = { Proxy = new WebProxy(httpConfig.GetValue<Uri>("Proxy")) } };

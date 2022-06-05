@@ -351,7 +351,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
                 Close();
 
-                _ws = await _webSocketFactory.GetWebSocket(new Uri("wss://ftx.com/ws/"), CancellationToken)
+                _ws = await _webSocketFactory.GetWebSocket(new Uri("wss://ftx.com/ws/"), cancellationToken: CancellationToken)
                     .ConfigureAwait(false);
                 _pingStopWatch = Stopwatch.StartNew();
                 res = true;
