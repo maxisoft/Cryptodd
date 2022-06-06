@@ -5,16 +5,14 @@ using Serilog;
 
 namespace Cryptodd.Scheduler.Tasks;
 
-public class RescheduleEventArgs { }
-
-public abstract class ScheduledTask : IDisposable
+public abstract class BaseScheduledTask : IDisposable
 {
     protected readonly SemaphoreSlim _semaphore = new(1, 1);
     protected readonly ILogger Logger;
 
     private readonly Subject<RescheduleEventArgs> rescheduleEventSubject = new();
 
-    public ScheduledTask(ILogger logger, IConfiguration configuration)
+    public BaseScheduledTask(ILogger logger, IConfiguration configuration)
     {
         Logger = logger;
         Name = GetType().FullName ?? GetType().Name;

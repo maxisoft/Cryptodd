@@ -7,6 +7,7 @@ using Cryptodd.Pairs;
 using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
+using Serilog;
 
 namespace Cryptodd.Ftx.Orderbooks;
 
@@ -21,13 +22,15 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
     private readonly IConfiguration _configuration;
     private readonly IPairFilterLoader _pairFilterLoader;
     private readonly IPathResolver _pathResolver;
+    private readonly ILogger _logger;
 
     public SaveOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,
-        IPairFilterLoader pairFilterLoader)
+        IPairFilterLoader pairFilterLoader, ILogger logger)
     {
         _configuration = configuration;
         _pathResolver = pathResolver;
         _pairFilterLoader = pairFilterLoader;
+        _logger = logger.ForContext(GetType());
     }
 
     public async Task Handle(IReadOnlyCollection<GroupedOrderbookDetails> orderbooks,
@@ -75,6 +78,8 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
             await Task.Factory.StartNew(() => SaveToParquet(array, fileName, gzip), cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        _logger.Debug("Saved {Count} Grouped Orderbooks to parquet", orderbooks.Count);
     }
 
     public bool Disabled { get; set; }

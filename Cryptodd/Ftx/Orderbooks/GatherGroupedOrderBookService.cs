@@ -24,7 +24,7 @@ public sealed class GatherGroupedOrderBookService : IService
     public GatherGroupedOrderBookService(IPairFilterLoader pairFilterLoader, ILogger logger,
         IConfiguration configuration, IContainer container)
     {
-        _logger = logger;
+        _logger = logger.ForContext<GatherGroupedOrderBookService>();
         _pairFilterLoader = pairFilterLoader;
         _configuration = configuration;
         _container = container;
@@ -209,7 +209,7 @@ public sealed class GatherGroupedOrderBookService : IService
 
         if (errorCount == 0)
         {
-            _logger.Information("Processed {Count} regrouped orderbooks in {Elapsed}", regroupedOrderbooks.Count,
+            _logger.Verbose("Processed {Count} regrouped orderbooks in {Elapsed}", regroupedOrderbooks.Count,
                 stopWatch.Elapsed);
         }
         else
@@ -256,7 +256,7 @@ public sealed class GatherGroupedOrderBookService : IService
 
         if (errorCount == 0)
         {
-            _logger.Information("Processed {Count} grouped orderbooks in {Elapsed}", processed, stopWatch.Elapsed);
+            _logger.Verbose("Processed {Count} grouped orderbooks in {Elapsed}", processed, stopWatch.Elapsed);
         }
         else
         {

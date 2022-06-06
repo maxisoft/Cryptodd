@@ -5,6 +5,7 @@ using Maxisoft.Utils.Collections.Lists;
 using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
+using Serilog;
 
 namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
@@ -15,16 +16,19 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
 {
     public const string DefaultFileName = "ftx_regrouped_orderbook.parquet";
     public const string FileType = "parquet";
-    private readonly IConfiguration _configuration;
-    private readonly IPathResolver _pathResolver;
-    private readonly IPairFilterLoader _pairFilterLoader;
     private const int ChunkSize = 128;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger _logger;
+    private readonly IPairFilterLoader _pairFilterLoader;
+    private readonly IPathResolver _pathResolver;
 
-    public SaveRegroupedOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver, IPairFilterLoader pairFilterLoader)
+    public SaveRegroupedOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,
+        IPairFilterLoader pairFilterLoader, ILogger logger)
     {
         _configuration = configuration;
         _pathResolver = pathResolver;
         _pairFilterLoader = pairFilterLoader;
+        _logger = logger.ForContext(GetType());
     }
 
     public async Task Handle(IReadOnlyCollection<RegroupedOrderbook> orderbooks, CancellationToken cancellationToken)
@@ -39,7 +43,7 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         {
             return;
         }
-        
+
         var section = _configuration.GetSection("Ftx").GetSection("RegroupedOrderBook").GetSection("Parquet");
         if (!section.GetValue("Enabled", true))
         {
@@ -47,8 +51,8 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         }
 
         var fileName = section.GetValue<string>("File", DefaultFileName);
-        
-        
+
+
         fileName = _pathResolver.Resolve(fileName, new ResolveOption
         {
             Namespace = GetType().Namespace!, FileType = FileType,
@@ -57,7 +61,6 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         });
         var gzip = section.GetValue("HighCompression", false); // use snappy else
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.RegroupedOrderBook.Parquet", cancellationToken)
-            
             .ConfigureAwait(false);
         foreach (var array in orderbooks
                      .Where(ob => pairFilter.Match(ob.Market))
@@ -72,6 +75,8 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
             await Task.Factory.StartNew(() => SaveToParquet(array, fileName, gzip), cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        _logger.Debug("Saved {Count} Regrouped Orderbooks to parquet", orderbooks.Count);
     }
 
     public bool Disabled { get; set; }

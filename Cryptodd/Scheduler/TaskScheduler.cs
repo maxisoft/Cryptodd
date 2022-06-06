@@ -16,7 +16,7 @@ public class TaskScheduler : IService
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     // TODO use a PriorityQueue ?
-    public PriorityQueue<ScheduledTask, ScheduledTask> Tasks = new(new TaskTimePriorityComparer<ScheduledTask>());
+    public PriorityQueue<BaseScheduledTask, BaseScheduledTask> Tasks = new(new TaskTimePriorityComparer<BaseScheduledTask>());
 
     public TaskScheduler(ILogger logger)
     {
@@ -25,7 +25,7 @@ public class TaskScheduler : IService
     }
 
 
-    internal void RegisterTask<TTask>(TTask task) where TTask : ScheduledTask
+    internal void RegisterTask<TTask>(TTask task) where TTask : BaseScheduledTask
     {
         lock (Tasks)
         {
@@ -44,7 +44,7 @@ public class TaskScheduler : IService
         }
     }
 
-    private void OnTaskRescheduleEvent<TTask>(TTask task, RescheduleEventArgs obj) where TTask : ScheduledTask
+    private void OnTaskRescheduleEvent<TTask>(TTask task, RescheduleEventArgs obj) where TTask : BaseScheduledTask
     {
         _logger.Verbose("Task {Task} reschedule", task);
 
@@ -54,12 +54,12 @@ public class TaskScheduler : IService
         }
     }
 
-    private void OnTaskRescheduleError<TTask>(TTask task, Exception e) where TTask : ScheduledTask
+    private void OnTaskRescheduleError<TTask>(TTask task, Exception e) where TTask : BaseScheduledTask
     {
         _logger.Error(e, "Task {Task} reschedule error", task);
     }
 
-    private void OnTaskRescheduleCompleted<TTask>(TTask task) where TTask : ScheduledTask
+    private void OnTaskRescheduleCompleted<TTask>(TTask task) where TTask : BaseScheduledTask
     {
         _logger.Debug("Task {Task} reschedule completed", task);
 
@@ -89,7 +89,7 @@ public class TaskScheduler : IService
         var processed = 0;
         using var runningTasks = new PooledList<Task>();
         var postExecutes = new ConcurrentBag<Task>();
-        using var toReschedule = new PooledList<ScheduledTask>();
+        using var toReschedule = new PooledList<BaseScheduledTask>();
 
         void Cleanup()
         {
@@ -106,7 +106,7 @@ public class TaskScheduler : IService
         {
             while (hasElement && !cancellationToken.IsCancellationRequested)
             {
-                ScheduledTask task;
+                BaseScheduledTask task;
                 lock (Tasks)
                 {
                     hasElement = Tasks.TryPeek(out task!, out _);
@@ -162,7 +162,7 @@ public class TaskScheduler : IService
                 var execTask = task.Execute(cancellationToken);
                 runningTasks.Add(execTask.ContinueWith((execTask, ctx) =>
                 {
-                    if (ctx is not (ScheduledTask task, Stopwatch sw))
+                    if (ctx is not (BaseScheduledTask task, Stopwatch sw))
                     {
                         throw new ArgumentException("", nameof(stats));
                     }
@@ -171,7 +171,7 @@ public class TaskScheduler : IService
 
                     if (execTask.IsFaulted)
                     {
-                        _logger.Verbose(execTask.Exception!, "{Task} faulted", execTask);
+                        _logger.Error(execTask.Exception!, "{Task} faulted", execTask);
                         s._exceptions.Add(execTask.Exception!);
                         Interlocked.Increment(ref s._errorCounter);
                     }
@@ -185,7 +185,7 @@ public class TaskScheduler : IService
                     }
 
                     postExecutes.Add(task.PostExecute(execTask.Exception, cancellationToken));
-                }, new Tuple<ScheduledTask, Stopwatch>(task, sw), cancellationToken));
+                }, new Tuple<BaseScheduledTask, Stopwatch>(task, sw), cancellationToken));
             }
         }
         finally
@@ -207,7 +207,7 @@ public class TaskScheduler : IService
             var runningTask = runningTasks[index];
             if (runningTask.IsFaulted)
             {
-                _logger.Warning(runningTask.Exception, "");
+                _logger.Error(runningTask.Exception, "A task continuation failed");
             }
         }
 

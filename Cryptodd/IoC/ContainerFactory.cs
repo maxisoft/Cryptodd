@@ -54,6 +54,19 @@ public class ContainerFactory : IContainerFactory
 
             x.IncludeRegistry(configurationRegistry);
             x.IncludeRegistry(loggerRegistry);
+            var hasPostgres = false;
+            if (configuration.GetSection("Postgres").GetValue<bool>("Enabled",
+                    !string.IsNullOrWhiteSpace(
+                        configuration.GetSection("Postgres").GetValue<string>("ConnectionString"))))
+            {
+                x.IncludeRegistry<PostgresDatabaseRegistry>();
+                hasPostgres = true;
+            }
+
+            if (configuration.GetSection("Sqlite").GetValue<bool>("Enabled", !hasPostgres))
+            {
+                x.IncludeRegistry<SqliteDatabaseRegistry>();
+            }
             //x.IncludeRegistry<MemoryCacheRegistry>();
             //x.IncludeRegistry<RedisServiceRegistry>();
             //x.IncludeRegistry<HandlerRegistry>();
