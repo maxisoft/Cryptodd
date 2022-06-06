@@ -56,7 +56,7 @@ public class ContainerFactory : IContainerFactory
             x.IncludeRegistry(loggerRegistry);
             if (configuration.GetSection("Postgres").GetValue<bool>("Enabled",
                     !string.IsNullOrWhiteSpace(
-                        configuration.GetSection("Postgres").GetValue<string>("ConnectionString"))))
+                        configuration.GetSection("Postgres").GetValue<string>("ConnectionString", ""))))
             {
                 x.IncludeRegistry<PostgresDatabaseRegistry>();
             }

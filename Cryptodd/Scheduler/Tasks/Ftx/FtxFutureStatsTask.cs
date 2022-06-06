@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using Cryptodd.Ftx;
 using Cryptodd.Ftx.Futures;
@@ -8,13 +7,7 @@ using Cryptodd.Ftx.Models.DatabasePoco;
 using Cryptodd.Pairs;
 using Lamar;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
-using NpgsqlTypes;
-using PetaPoco;
-using PetaPoco.SqlKata;
 using Serilog;
-using SqlKata;
-using FutureStats = Cryptodd.Ftx.Models.DatabasePoco.FutureStats;
 
 namespace Cryptodd.Scheduler.Tasks.Ftx;
 
@@ -43,7 +36,7 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.FutureStats", cancellationToken)
             .ConfigureAwait(false);
-        
+
         var additionalStats = new Dictionary<string, ApiFutureStats>();
         await Parallel.ForEachAsync(futures.Select(stats => stats.Name), cancellationToken, async (market, token) =>
         {
@@ -56,12 +49,13 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
             {
                 Logger.Error(e, "Getting futures stats for {Market}", market);
             }
-            
+
             if (stats is null)
             {
                 Logger.Warning("FuturesStats for {Market} is null", market);
                 return;
             }
+
             lock (additionalStats)
             {
                 additionalStats[market] = stats;
@@ -116,7 +110,7 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
                 }
                 catch (Exception e)
                 {
-                    Logger.Error(e, "{Type} failed to handle #{Count} ", handler.GetType(), futureStats.Length);
+                    Logger.Error(e, "{Type} failed to handle #{Count}", handler.GetType(), futureStats.Length);
                 }
             });
         }
