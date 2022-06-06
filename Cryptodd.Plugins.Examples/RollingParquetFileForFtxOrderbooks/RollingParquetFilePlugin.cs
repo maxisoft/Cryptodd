@@ -12,6 +12,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using Cryptodd.FileSystem;
+using Cryptodd.Ftx.Futures;
 using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Lamar;
@@ -51,7 +52,8 @@ public class FtxRegroupedOrderbookPathResolver : IPluginPathResolver
         // if user provide a custom path we don't handle it
         if (option.FileType != SaveRegroupedOrderbookToParquetHandler.FileType ||
             (path != SaveRegroupedOrderbookToParquetHandler.DefaultFileName &&
-             path != SaveOrderbookToParquetHandler.DefaultFileName))
+             path != SaveOrderbookToParquetHandler.DefaultFileName && 
+             path != SaveFuturesStatsToParquetHandler.DefaultFileName))
         {
             return path;
         }

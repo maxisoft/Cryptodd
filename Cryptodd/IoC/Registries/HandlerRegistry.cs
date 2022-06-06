@@ -1,4 +1,5 @@
 ﻿using Cryptodd.Ftx;
+using Cryptodd.Ftx.Futures;
 using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Lamar;
@@ -15,13 +16,8 @@ public class HandlerRegistry : ServiceRegistry
             scanner.ExcludeType<INoAutoRegister>();
             scanner.TheCallingAssembly();
             scanner.AddAllTypesOf<IGroupedOrderbookHandler>(ServiceLifetime.Transient);
-        });
-        
-        Scan(scanner =>
-        {
-            scanner.ExcludeType<INoAutoRegister>();
-            scanner.TheCallingAssembly();
             scanner.AddAllTypesOf<IRegroupedOrderbookHandler>(ServiceLifetime.Transient);
+            scanner.AddAllTypesOf<IFuturesStatsHandler>(ServiceLifetime.Transient);
         });
     }
 }

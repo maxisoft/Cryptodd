@@ -13,6 +13,8 @@ public interface IFtxPublicHttpApi
 
     Task<ArrayList<FundingRate>> GetAllFundingRatesAsync(DateTimeOffset? startTime = null,
         DateTimeOffset? endTime = null, CancellationToken cancellationToken = default);
+
+    Task<ApiFutureStats?> GetFuturesStatsAsync(string futureName, CancellationToken cancellationToken = default);
 }
 
 public class FtxPublicHttpApi : IFtxPublicHttpApi
@@ -71,6 +73,16 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
         return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<ArrayList<FundingRate>>>(uri,
             JsonSerializerOptions,
             cancellationToken)).Result ?? new ArrayList<FundingRate>();
+    }
+
+    public async Task<ApiFutureStats?> GetFuturesStatsAsync(string futureName,
+        CancellationToken cancellationToken = default)
+    {
+        var uri = new UriBuilder($"{_httpClient.BaseAddress}futures/{futureName}/stats").Uri;
+        uri = await _uriRewriteService.Rewrite(uri);
+        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<ApiFutureStats>>(uri,
+            JsonSerializerOptions,
+            cancellationToken)).Result;
     }
 
     private static JsonSerializerOptions CreateJsonSerializerOptions()

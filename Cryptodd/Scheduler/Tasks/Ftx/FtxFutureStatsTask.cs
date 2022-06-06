@@ -1,6 +1,9 @@
-﻿using System.Collections.Immutable;
+﻿using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using Cryptodd.Ftx;
+using Cryptodd.Ftx.Futures;
+using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.DatabasePoco;
 using Cryptodd.Pairs;
 using Lamar;
@@ -11,6 +14,7 @@ using PetaPoco;
 using PetaPoco.SqlKata;
 using Serilog;
 using SqlKata;
+using FutureStats = Cryptodd.Ftx.Models.DatabasePoco.FutureStats;
 
 namespace Cryptodd.Scheduler.Tasks.Ftx;
 
@@ -39,87 +43,85 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.FutureStats", cancellationToken)
             .ConfigureAwait(false);
-        var pocos = futures
+        
+        var additionalStats = new Dictionary<string, ApiFutureStats>();
+        await Parallel.ForEachAsync(futures.Select(stats => stats.Name), cancellationToken, async (market, token) =>
+        {
+            ApiFutureStats? stats = null;
+            try
+            {
+                stats = await http.GetFuturesStatsAsync(market, token).ConfigureAwait(false);
+            }
+            catch (HttpRequestException e)
+            {
+                Logger.Error(e, "Getting futures stats for {Market}", market);
+            }
+            
+            if (stats is null)
+            {
+                Logger.Warning("FuturesStats for {Market} is null", market);
+                return;
+            }
+            lock (additionalStats)
+            {
+                additionalStats[market] = stats;
+            }
+        }).ConfigureAwait(false);
+
+        FutureStats FutureToFutureStats(Future future)
+        {
+            var spread = 0f;
+            if (future.Bid.GetValueOrDefault() > 0)
+            {
+                spread = (float)(future.Ask.GetValueOrDefault() / future.Bid.GetValueOrDefault() - 1);
+            }
+
+            var nextFundingRate = 0.0f;
+            if (additionalStats.TryGetValue(future.Name, out var moreStats))
+            {
+                nextFundingRate = moreStats.NextFundingRate;
+            }
+
+            return new FutureStats
+            {
+                Spread = spread,
+                Time = now,
+                MarketHash = PairHasher.Hash(future.Name),
+                OpenInterest = future.OpenInterest.GetValueOrDefault(),
+                OpenInterestUsd = future.OpenInterestUsd.GetValueOrDefault(),
+                Mark = (float)(future.Mark ?? future.Ask ?? future.Bid).GetValueOrDefault(),
+                NextFundingRate = nextFundingRate
+            };
+        }
+
+        var futureStats = futures
             .Where(future => pairFilter.Match(future.Name))
-            .Select(future =>
+            .Select(FutureToFutureStats).ToImmutableArray();
+
+
+        var handlers = Container.GetAllInstances<IFuturesStatsHandler>();
+
+        if (futureStats.Any() && handlers.Any())
+        {
+            await Parallel.ForEachAsync(handlers, cancellationToken, async (handler, token) =>
             {
-                var spread = 0f;
-                if (future.Bid.GetValueOrDefault() > 0)
+                if (handler.Disabled)
                 {
-                    spread = (float)(future.Ask.GetValueOrDefault() / future.Bid.GetValueOrDefault() - 1);
+                    return;
                 }
 
-                return new FutureStats
+                try
                 {
-                    Spread = spread,
-                    Time = now,
-                    MarketHash = PairHasher.Hash(future.Name),
-                    OpenInterest = future.OpenInterest.GetValueOrDefault(),
-                    OpenInterestUsd = future.OpenInterestUsd.GetValueOrDefault(),
-                    Mark = (float)(future.Mark ?? future.Ask ?? future.Bid).GetValueOrDefault()
-                };
-            }).ToImmutableArray();
-
-        var databases = Container.GetAllInstances<IDatabase>();
-
-        foreach (var db in databases)
-        {
-            using var tr = db.GetTransaction();
-            if (db.Connection is NpgsqlConnection pgconn)
-            {
-                await InsertPostgresFast(pocos, db, pgconn, cancellationToken);
-            }
-            else
-            {
-                foreach (var poco in pocos)
-                {
-                    await db.InsertAsync(cancellationToken, poco);
+                    await handler.Handle(futureStats, token).ConfigureAwait(false);
                 }
-            }
-
-            tr.Complete();
+                catch (Exception e)
+                {
+                    Logger.Error(e, "{Type} failed to handle #{Count} ", handler.GetType(), futureStats.Length);
+                }
+            });
         }
 
-        Logger.Debug("Inserted {Count} FutureStats in {Elapsed}", pocos.Length, sw.Elapsed);
-    }
 
-    private static async Task InsertPostgresFast(ImmutableArray<FutureStats> futureStatsList, IDatabase db,
-        NpgsqlConnection connection, CancellationToken cancellationToken)
-    {
-        using var tr = db.GetTransaction();
-        await db.ExecuteAsync(cancellationToken,
-            $"LOCK TABLE \"{FutureStats.Naming.TableName}\" IN SHARE ROW EXCLUSIVE MODE NOWAIT;");
-
-        var query = new Query(FutureStats.Naming.TableName).SelectRaw("COALESCE(MAX(id), 0)").Limit(1)
-            .ToSql(CompilerType.Postgres);
-        var lastId = await db.FirstOrDefaultAsync<long>(cancellationToken, query);
-
-        await using (var writer =
-                     await connection.BeginBinaryImportAsync(
-                         $"COPY \"{FutureStats.Naming.TableName}\" FROM STDIN (FORMAT BINARY)", cancellationToken))
-        {
-            foreach (var futures in futureStatsList)
-            {
-                await writer.StartRowAsync(cancellationToken).ConfigureAwait(false);
-#pragma warning disable CA2016
-                // ReSharper disable MethodSupportsCancellation
-                await writer.WriteAsync(++lastId, NpgsqlDbType.Bigint);
-                await writer.WriteAsync(futures.MarketHash, NpgsqlDbType.Bigint);
-                await writer.WriteAsync(futures.Time, NpgsqlDbType.Bigint);
-                await writer.WriteAsync(futures.OpenInterest, NpgsqlDbType.Double);
-                await writer.WriteAsync(futures.OpenInterestUsd, NpgsqlDbType.Double);
-                await writer.WriteAsync(futures.NextFundingRate, NpgsqlDbType.Real);
-                await writer.WriteAsync(futures.Spread, NpgsqlDbType.Real);
-                await writer.WriteAsync(futures.Mark, NpgsqlDbType.Real);
-                // ReSharper restore MethodSupportsCancellation
-#pragma warning restore CA2016
-            }
-
-            await writer.CompleteAsync(cancellationToken);
-        }
-
-        await db.ExecuteAsync(cancellationToken, @"SELECT setval('ftx_futures_stats_id_seq', @0, true);", lastId + 1);
-
-        tr.Complete();
+        Logger.Debug("Collected {Count} FutureStats in {Elapsed}", futureStats.Length, sw.Elapsed);
     }
 }

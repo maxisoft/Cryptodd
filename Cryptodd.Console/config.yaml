@@ -16,7 +16,12 @@ Ftx:
       Period: 60000
   RegroupedOrderBook:
     Parquet:
+      Enabled: true
       HighCompression: true
+      
+  FutureStats:
+    Parquet:
+      Enabled: true
       
 Postgres:
   ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432"
