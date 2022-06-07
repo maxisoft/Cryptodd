@@ -83,7 +83,7 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
             await writer.CompleteAsync(cancellationToken);
         }
 
-        await db.ExecuteAsync(cancellationToken, @"SELECT setval('ftx_futures_stats_id_seq', @0, true);", lastId + 1);
+        await db.ExecuteAsync(cancellationToken, @"SELECT setval('ftx_futures_stats_id_seq', @0, true);", lastId);
 
         tr.Complete();
     }
