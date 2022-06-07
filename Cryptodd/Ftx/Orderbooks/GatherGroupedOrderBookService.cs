@@ -35,7 +35,7 @@ public sealed class GatherGroupedOrderBookService : IService
     public async Task CollectOrderBooks(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
-        var markets = await FtxPublicHttpApi.GetAllMarketsAsync(cancellationToken);
+        using var markets = await FtxPublicHttpApi.GetAllMarketsAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var ftxConfig = _configuration.GetSection("Ftx");
         var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 10);
@@ -59,29 +59,35 @@ public sealed class GatherGroupedOrderBookService : IService
 
             var taskNum = 0;
 
-            foreach (var market in markets)
+            void DispatchTasks()
             {
-                if (market.Enabled && !market.PostOnly && market.Ask is > 0 && market.Bid is > 0 &&
-                    pairFilter.Match(market.Name) && !requests.Contains(market.Name))
+                foreach (var market in markets)
                 {
-                    var markPrice = 0.5 * (market.Ask.Value + market.Bid.Value);
-                    var grouping = ComputeGrouping(market, percent, markPrice);
-                    Debug.Assert(grouping > 0);
-                    if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(market.Name, grouping))
+                    if (market.Enabled && !market.PostOnly && market.Ask is > 0 && market.Bid is > 0 &&
+                        pairFilter.Match(market.Name) && !requests.Contains(market.Name))
                     {
-                        continue;
-                    }
+                        var markPrice = 0.5 * (market.Ask.Value + market.Bid.Value);
+                        var grouping = ComputeGrouping(market, percent, markPrice);
+                        Debug.Assert(grouping > 0);
+                        if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(market.Name, grouping))
+                        {
+                            continue;
+                        }
 
-                    requests.Add(market.Name);
-                    if (taskNum < webSockets.Count)
-                    {
-                        tasks.Add(webSockets[taskNum % maxNumWs].RecvLoop()
-                            .ContinueWith(_ => { Interlocked.Increment(ref recvDone); }, cancellationToken));
-                    }
+                        requests.Add(market.Name);
+                        if (taskNum < webSockets.Count)
+                        {
+                            tasks.Add(webSockets[taskNum % maxNumWs].RecvLoop()
+                                .ContinueWith(_ => { Interlocked.Increment(ref recvDone); }, cancellationToken));
+                        }
 
-                    taskNum++;
+                        taskNum++;
+                    }
                 }
             }
+
+            DispatchTasks();
+            
 
             using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cancellationTokenSource.CancelAfter(groupedOrderBookSection.GetValue("GatherTimeout", 60 * 1000));

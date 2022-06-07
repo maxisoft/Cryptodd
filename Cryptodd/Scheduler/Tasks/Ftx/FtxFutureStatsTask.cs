@@ -32,7 +32,7 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
     {
         var sw = Stopwatch.StartNew();
         var http = Container.GetInstance<IFtxPublicHttpApi>();
-        var futures = await http.GetAllFuturesAsync(cancellationToken).ConfigureAwait(false);
+        using var futures = await http.GetAllFuturesAsync(cancellationToken).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.FutureStats", cancellationToken)
             .ConfigureAwait(false);

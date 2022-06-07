@@ -46,7 +46,7 @@ public class PairHasherTest
     public async Task TestRealHash()
     {
         using var httpclient = new HttpClient();
-        var markets = await new FtxPublicHttpApi(httpclient, new UriRewriteService()).GetAllMarketsAsync();
+        using var markets = await new FtxPublicHttpApi(httpclient, new UriRewriteService()).GetAllMarketsAsync();
         Assert.NotEmpty(markets);
         var marketsUnique = markets.Select(market => market.Name).Where(s => !string.IsNullOrEmpty(s)).ToImmutableHashSet();
 
