@@ -6,8 +6,8 @@ namespace Cryptodd.Ftx.Models.Json;
 
 public class FtxTradeConverter : JsonConverter<FtxTrade>
 {
-    public static readonly byte[] BuyBytes = Encoding.UTF8.GetBytes("buy");
-    public static readonly byte[] SellBytes = Encoding.UTF8.GetBytes("sell");
+    private static readonly byte[] BuyBytes = Encoding.UTF8.GetBytes("buy");
+    private static readonly byte[] SellBytes = Encoding.UTF8.GetBytes("sell");
     
     public override FtxTrade Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
