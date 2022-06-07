@@ -30,6 +30,10 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
         var section = Section;
         Period = TimeSpan.FromMilliseconds(section.GetValue("Period", Period.TotalMilliseconds));
         PeriodOffset = TimeSpan.FromMilliseconds(section.GetValue("PeriodOffset", 0));
+        if (!section.GetValue<bool>("Enabled", !section.GetValue<bool>("Disabled", false)))
+        {
+            NextSchedule = DateTimeOffset.MaxValue;
+        }
     }
 
     protected virtual void OnConfigurationChange(object obj)

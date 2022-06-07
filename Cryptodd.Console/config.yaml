@@ -14,6 +14,7 @@ Ftx:
         - ^SOL/USDT?$
     Task:
       Period: 60000
+      Enabled: false
   RegroupedOrderBook:
     Parquet:
       Enabled: true
@@ -21,7 +22,7 @@ Ftx:
       
   FutureStats:
     Parquet:
-      Enabled: true
+      Enabled: false
       
 Postgres:
   ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432"
