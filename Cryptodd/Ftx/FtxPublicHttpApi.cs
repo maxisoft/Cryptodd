@@ -115,6 +115,10 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
 
     public async Task<PooledList<FtxTrade>> GetTradesAsync(string market, CancellationToken cancellationToken = default)
     {
+        // Duno if Escaping is right in the long term as both
+        // BTC/USDT
+        // BTC%2FUSDT
+        // works
         var uri = new UriBuilder($"{_httpClient.BaseAddress}markets/{Uri.EscapeDataString(market)}/trades").Uri;
         uri = await _uriRewriteService.Rewrite(uri);
         return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<FtxTrade>>>(uri,

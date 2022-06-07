@@ -45,10 +45,10 @@ public class FtxPublicHttpApiRealTest
     public async void TestGetTradesAsync()
     {
         using var httpclient = new HttpClient();
-        using var res = await new FtxPublicHttpApi(httpclient, new UriRewriteService()).GetTradesAsync("BTC-PERP");
+        using var res = await new FtxPublicHttpApi(httpclient, new UriRewriteService()).GetTradesAsync("BTC/USDT");
         Assert.NotEmpty(res);
         Assert.Empty(res.Where(trade => trade.Flag == FtxTradeFlag.None));
         Assert.Empty(res.Where(trade => trade.IsBuy & trade.IsSell));
-        Assert.True(res.Capacity == FtxPublicHttpApi.TradeDefaultCapacity); // test doesn't reallocate
+        Assert.True(res.Capacity == FtxPublicHttpApi.TradeDefaultCapacity); // test doesn't reallocate array
     }
 }
