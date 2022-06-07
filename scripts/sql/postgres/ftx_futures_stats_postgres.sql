@@ -18,7 +18,7 @@ ALTER TABLE IF EXISTS ftx_futures_stats
    OWNER TO cryptodduser;
 
 CREATE UNIQUE INDEX ftx_futures_stats_time_market_unique
-    ON public.ftx_futures_stats USING btree
+    ON ftx_futures_stats USING btree
     ("time" DESC NULLS LAST, market_hash ASC NULLS LAST)
 ;
 
