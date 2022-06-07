@@ -18,7 +18,9 @@ public interface IFtxPublicHttpApi
 
     Task<ApiFutureStats?> GetFuturesStatsAsync(string futureName, CancellationToken cancellationToken = default);
 
+    Task<PooledList<Market>> GetAllMarketsAsync(CancellationToken cancellationToken = default);
     Task<PooledList<FtxTrade>> GetTradesAsync(string market, CancellationToken cancellationToken = default);
+    Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime, long endTime, CancellationToken cancellationToken = default);
 }
 
 public class FtxPublicHttpApi : IFtxPublicHttpApi
@@ -114,6 +116,19 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
     public async Task<PooledList<FtxTrade>> GetTradesAsync(string market, CancellationToken cancellationToken = default)
     {
         var uri = new UriBuilder($"{_httpClient.BaseAddress}markets/{Uri.EscapeDataString(market)}/trades").Uri;
+        uri = await _uriRewriteService.Rewrite(uri);
+        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<FtxTrade>>>(uri,
+            JsonSerializerOptions,
+            cancellationToken)).Result ?? new PooledList<FtxTrade>();
+    }
+
+    public async Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime, long endTime,
+        CancellationToken cancellationToken = default)
+    {
+        var uri = new UriBuilder($"{_httpClient.BaseAddress}markets/{Uri.EscapeDataString(market)}/trades")
+            .WithParameter("start_time", startTime.ToString(CultureInfo.InvariantCulture))
+            .WithParameter("end_time", endTime.ToString(CultureInfo.InvariantCulture))
+            .Uri;
         uri = await _uriRewriteService.Rewrite(uri);
         return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<FtxTrade>>>(uri,
             JsonSerializerOptions,

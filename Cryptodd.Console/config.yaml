@@ -15,6 +15,7 @@ Ftx:
     Task:
       Period: 60000
       Enabled: false
+      
   RegroupedOrderBook:
     Parquet:
       Enabled: true
@@ -24,6 +25,10 @@ Ftx:
     Parquet:
       Enabled: false
       
+  TradeCollector:
+    PairFilter:
+      - BTC/USD
+
 Postgres:
   ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432"
   
