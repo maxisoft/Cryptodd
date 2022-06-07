@@ -24,18 +24,18 @@ public class PostgresDatabaseRegistry : ServiceRegistry
     {
         For<IDatabase>().Add(context =>
         {
-            var database = Database;
-            if (database is not null)
+            var databaseBuilder = DatabaseBuilder;
+            if (databaseBuilder is not null)
             {
-                return database;
+                return databaseBuilder.Create();
             }
 
             lock (_lockObject)
             {
-                database = Database;
-                if (database is not null)
+                databaseBuilder = DatabaseBuilder;
+                if (databaseBuilder is not null)
                 {
-                    return database;
+                    return databaseBuilder.Create();
                 }
 
                 _logger = context.GetInstance<ILogger>().ForContext(GetType());
@@ -43,18 +43,26 @@ public class PostgresDatabaseRegistry : ServiceRegistry
                 RegisterChangeCallback(configuration);
                 var postgresSection = configuration.GetSection("Postgres");
                 _logger.Verbose("Creating a new Postgres database object");
-                Database = DatabaseConfiguration.Build()
+                DatabaseBuilder = DatabaseConfiguration.Build()
                     .UsingConnectionString(
                         postgresSection.GetValue<string>("ConnectionString", DefaultConnectionString))
-                    .UsingProvider<PostgreSQLDatabaseProvider>()
-                    .Create();
-                _disposableManager.LinkDisposableAsWeak(Database);
-                return Database;
+                    .UsingProvider<PostgreSQLDatabaseProvider>();
+                var database = DatabaseBuilder.Create();
+                try
+                {
+                    _disposableManager.LinkDisposableAsWeak(database);
+                    return database;
+                }
+                catch (Exception)
+                {
+                    database.Dispose();
+                    throw;
+                }
             }
         });
     }
 
-    internal IDatabase? Database { get; set; }
+    internal IDatabaseBuildConfiguration? DatabaseBuilder { get; set; }
 
     private void RegisterChangeCallback(IConfiguration configuration)
     {
@@ -62,7 +70,7 @@ public class PostgresDatabaseRegistry : ServiceRegistry
         disposable.Ref() = configuration.GetReloadToken().RegisterChangeCallback(disposable =>
         {
             _logger.Debug("Reloading database configurations ...");
-            Database = null;
+            DatabaseBuilder = null;
             if (disposable is not Boxed<IDisposable> d || d.IsNull())
             {
                 return;
