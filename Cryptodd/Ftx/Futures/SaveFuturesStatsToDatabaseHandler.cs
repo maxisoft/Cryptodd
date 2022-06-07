@@ -1,6 +1,7 @@
 ﻿using System.Collections.Immutable;
 using Cryptodd.Ftx.Models.DatabasePoco;
 using Lamar;
+using Maxisoft.Utils.Disposables;
 using Npgsql;
 using NpgsqlTypes;
 using PetaPoco;
@@ -26,7 +27,8 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
     public async Task Handle(IReadOnlyCollection<FutureStats> futureStats, CancellationToken cancellationToken)
     {
         var databases = _container.GetAllInstances<IDatabase>();
-
+        using var dm = new DisposableManager(databases);
+        
         foreach (var db in databases)
         {
             using var tr = db.GetTransaction();
