@@ -4,6 +4,7 @@ using Cryptodd.IoC;
 using Cryptodd.Plugins;
 using Cryptodd.Scheduler;
 using Cryptodd.Scheduler.Tasks;
+using Cryptodd.TradeAggregates;
 using Lamar;
 using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
@@ -32,6 +33,9 @@ internal class Program
         }
         
         var cancellationToken = container.GetInstance<Boxed<CancellationToken>>();
+
+        var tradeCollector = container.GetInstance<TradeCollector>();
+        await tradeCollector.Collect(cancellationToken);
         
         var sched = container.GetInstance<TaskScheduler>();
         var schedTasks = container.GetAllInstances<BaseScheduledTask>();

@@ -52,23 +52,28 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="..\scripts\sql\postgres\0_create_user.sql">
-        <Link>postgres\0_create_user.sql</Link>
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </Content>
-      <Content Include="..\scripts\sql\postgres\1_create_database.sql">
-        <Link>postgres\1_create_database.sql</Link>
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </Content>
+      <EmbeddedResource Include="..\scripts\sql\postgres\ftx_trades.sql">
+        <Link>sql\postgres\ftx_trades.sql</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </EmbeddedResource>
+      <EmbeddedResource Include="..\scripts\sql\postgres\0_create_user.sql">
+        <Link>sql\postgres\0_create_user.sql</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </EmbeddedResource>
+      <EmbeddedResource Include="..\scripts\sql\postgres\1_create_database.sql">
+        <Link>sql\postgres\1_create_database.sql</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </EmbeddedResource>
+      <EmbeddedResource Include="..\scripts\sql\postgres\ftx_futures_stats_postgres.sql">
+        <Link>sql\postgres\ftx_futures_stats_postgres.sql</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </EmbeddedResource>
       <Content Include="..\scripts\sql\postgres\timescaledb\current_time_millisecond.sql">
-        <Link>postgres\timescaledb\current_time_millisecond.sql</Link>
+        <Link>sql\postgres\timescaledb\current_time_millisecond.sql</Link>
       </Content>
       <Content Include="..\scripts\sql\postgres\timescaledb\hyper_tables.sql">
-        <Link>postgres\timescaledb\hyper_tables.sql</Link>
+        <Link>sql\postgres\timescaledb\hyper_tables.sql</Link>
       </Content>
-      <Resource Include="..\scripts\sql\postgres\ftx_futures_stats_postgres.sql">
-        <Link>postgres\ftx_futures_stats_postgres.sql</Link>
-      </Resource>
     </ItemGroup>
 
 </Project>
