@@ -1,7 +1,7 @@
 ﻿namespace Cryptodd.Ftx.Models;
 
 [Flags]
-public enum FtxTradeFlag : byte
+public enum FtxTradeFlag : short
 {
     None = 0,
     Buy = 1,
