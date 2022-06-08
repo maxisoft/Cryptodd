@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.Json;
@@ -20,7 +21,8 @@ public interface IFtxPublicHttpApi
 
     Task<PooledList<Market>> GetAllMarketsAsync(CancellationToken cancellationToken = default);
     Task<PooledList<FtxTrade>> GetTradesAsync(string market, CancellationToken cancellationToken = default);
-    Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime, long endTime, CancellationToken cancellationToken = default);
+    Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime, long endTime,
+        CancellationToken cancellationToken = default);
 }
 
 public class FtxPublicHttpApi : IFtxPublicHttpApi
@@ -126,7 +128,8 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
             cancellationToken)).Result ?? new PooledList<FtxTrade>();
     }
 
-    public async Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime, long endTime,
+    public async Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime,
+        long endTime,
         CancellationToken cancellationToken = default)
     {
         var uri = new UriBuilder($"{_httpClient.BaseAddress}markets/{Uri.EscapeDataString(market)}/trades")

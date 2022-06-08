@@ -39,6 +39,7 @@
         <PackageReference Include="System.Reactive" Version="5.0.0" />
         <PackageReference Include="System.Reactive.Linq" Version="5.0.0" />
         <PackageReference Include="System.Text.Json" Version="6.0.4" />
+        <PackageReference Include="T-Digest" Version="1.0.0" />
         <PackageReference Include="UriBuilder.Fluent" Version="1.5.2" />
     </ItemGroup>
 
@@ -52,6 +53,12 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Content Include="..\scripts\sql\postgres\tablesize2.sql">
+        <Link>sql\postgres\tablesize2.sql</Link>
+      </Content>
+      <Content Include="..\scripts\sql\postgres\timescaledb\trades_hyper_tables.sql">
+        <Link>sql\postgres\timescaledb\trades_hyper_tables.sql</Link>
+      </Content>
       <EmbeddedResource Include="..\scripts\sql\postgres\ftx_trades.sql">
         <Link>sql\postgres\ftx_trades.sql</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -74,6 +81,10 @@
       <Content Include="..\scripts\sql\postgres\timescaledb\hyper_tables.sql">
         <Link>sql\postgres\timescaledb\hyper_tables.sql</Link>
       </Content>
+      <EmbeddedResource Include="..\scripts\sql\postgres\ftx_trade_agg.sql">
+        <Link>sql\postgres\ftx_trade_agg.sql</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </EmbeddedResource>
     </ItemGroup>
 
 </Project>
