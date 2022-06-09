@@ -24,11 +24,17 @@ Ftx:
   FutureStats:
     Parquet:
       Enabled: false
-      
-  TradeCollector:
-    PairFilter:
-      - BTC/USD
+
+Trade:
+  Collector:
+    LockTable: false
+  PairFilter:
+    - BTC/USD
+    - BTC-PERP
+    - ETH/USD
+    - ETH-PERP
+    
 
 Postgres:
-  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432"
+  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;Enlist=false"
   

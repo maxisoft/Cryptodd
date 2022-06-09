@@ -28,7 +28,7 @@ ALTER TABLE IF EXISTS ftx.ftx_trade_template
     ADD CONSTRAINT ftx_trade_template_time_positive CHECK (time > 0);
 
 ALTER TABLE IF EXISTS ftx.ftx_trade_template
-    ADD CONSTRAINT ftx_trade_template_price_positive CHECK (price >= 0 AND price != double precision 'Nan' AND price < double precision '+infinity');
+    ADD CONSTRAINT ftx_trade_template_price_positive CHECK (price > 0 AND price != double precision 'Nan' AND price < double precision '+infinity');
 
 ALTER TABLE IF EXISTS ftx.ftx_trade_template
     ADD CONSTRAINT ftx_trade_template_volume_positive CHECK (volume >= 0 AND volume != double precision 'Nan' AND volume < double precision '+infinity');

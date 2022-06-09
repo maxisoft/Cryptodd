@@ -1,4 +1,6 @@
-﻿using System.Collections.Immutable;
+﻿using System.Collections.Concurrent;
+using System.Collections.Immutable;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cryptodd.Ftx;
@@ -8,6 +10,7 @@ using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Lamar;
 using Maxisoft.Utils.Collections.Lists.Specialized;
+using Microsoft.Extensions.Configuration;
 using Npgsql;
 using NpgsqlTypes;
 using PetaPoco;
@@ -18,67 +21,70 @@ using SqlKata;
 
 namespace Cryptodd.TradeAggregates;
 
-public class TradeCollector : IService
+public class TradeCollector : ITradeCollector
 {
     private const string LockErrorSqlState = "55P03";
     private readonly IContainer _container;
     private readonly ILogger _logger;
     private readonly IPairFilterLoader _pairFilterLoader;
-    internal TimeSpan ApiPeriod { get; set; } = TimeSpan.FromHours(1);
-    private readonly TimeSpan MaxApiPeriod = TimeSpan.FromDays(1);
-    private readonly TimeSpan MinApiPeriod = TimeSpan.FromMinutes(1);
+    private readonly ITradePeriodOptimizer _periodOptimizer;
     private readonly ITradeDatabaseService _tradeDatabaseService;
+    private readonly IConfiguration _configuration;
+    private readonly IConfigurationSection _section;
+    private readonly TradeCollectorOptions _options = new ();
 
-    public TradeCollector(IContainer container, ILogger logger, IPairFilterLoader pairFilterLoader, ITradeDatabaseService tradeDatabaseService)
+    public TradeCollector(IContainer container, ILogger logger, IPairFilterLoader pairFilterLoader,
+        ITradeDatabaseService tradeDatabaseService, IConfiguration configuration, ITradePeriodOptimizer periodOptimizer)
     {
         _container = container;
         _logger = logger.ForContext(GetType());
         _pairFilterLoader = pairFilterLoader;
         _tradeDatabaseService = tradeDatabaseService;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-    private static TimeSpan Clip(TimeSpan value, TimeSpan minimum, TimeSpan maximum)
-    {
-        if (value > maximum)
-        {
-            value = maximum;
-        }
-
-        if (value < minimum)
-        {
-            value = minimum;
-        }
-
-        return value;
+        _configuration = configuration;
+        _periodOptimizer = periodOptimizer;
+        _section = configuration.GetSection("Trade:Collector");
+        _section.Bind(_options, options => options.ErrorOnUnknownConfiguration = true);
     }
 
     public async Task Collect(CancellationToken cancellationToken)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(_options.Timeout);
+        var token = cts.Token;
         var http = _container.GetInstance<IFtxPublicHttpApi>();
-        var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.TradeCollector", cancellationToken)
+        var pairFilter = await _pairFilterLoader.GetPairFilterAsync(_options.PairFilterName, cancellationToken)
             .ConfigureAwait(false);
-        using var markets = await http.GetAllMarketsAsync(cancellationToken);
+        using var markets = await http.GetAllMarketsAsync(token);
 
         var marketNames = markets.Select(market => market.Name).Where(name => pairFilter.Match(name)).ToImmutableList();
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(10 * 60_000);
-        var token = cts.Token;
+        
+        using var semaphore = new SemaphoreSlim(_options.MaxParallelism, _options.MaxParallelism);
         while (!token.IsCancellationRequested)
         {
             try
             {
-                foreach (var marketName in marketNames)
+                await Parallel.ForEachAsync(marketNames, token, async (marketName, token) =>
                 {
-                    var savedTime = await _tradeDatabaseService.GetSavedTime(marketName, cts.Token).ConfigureAwait(false);
+                    var savedTime = await _tradeDatabaseService.GetLastTime(marketName, cancellationToken: token).ConfigureAwait(false);
                     if (savedTime < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                     {
-                        await Policy.Handle<PostgresException>(exception => exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested)
-                            .WaitAndRetryAsync(10, i => TimeSpan.FromSeconds(0.5 + i))
-                            .ExecuteAsync(() => DownloadAndInsert(http, marketName, savedTime, token));
+                        // ReSharper disable once AccessToDisposedClosure
+                        await semaphore.WaitAsync(token).ConfigureAwait(false);
+                        try
+                        {
+                            await Policy.Handle<PostgresException>(exception =>
+                                    exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested && _options.LockTable)
+                                .WaitAndRetryAsync(10, i => TimeSpan.FromSeconds(0.5 + i))
+                                .ExecuteAsync(() => DownloadAndInsert(http, marketName, savedTime, token))
+                                .ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            // ReSharper disable once AccessToDisposedClosure
+                            semaphore.Release();
+                        }
                     }
-                }
+                }).ConfigureAwait(true);
             }
             catch (Exception e) when (e is (OperationCanceledException or TaskCanceledException))
             {
@@ -96,8 +102,14 @@ public class TradeCollector : IService
         var wasZero = prevTime == 0;
         if (wasZero)
         {
-            prevTime = (await new FtxTradeRemoteStartTimeSearch(api, marketName)
-                    { MinimumDate = DateTimeOffset.UnixEpoch }.Search(cancellationToken).ConfigureAwait(false))
+            var ftxTradeRemoteStartTimeSearch = new FtxTradeRemoteStartTimeSearch(api, marketName);
+            if (_options.MinimumDate > 0)
+            {
+                ftxTradeRemoteStartTimeSearch.MinimumDate = DateTimeOffset.FromUnixTimeMilliseconds(_options.MinimumDate);
+            }
+            
+            prevTime = (await ftxTradeRemoteStartTimeSearch.Search(cancellationToken)
+                    .ConfigureAwait(false))
                 .ToUnixTimeMilliseconds();
             _logger.Information("Found start date {Date} for {Market}",
                 DateTimeOffset.FromUnixTimeMilliseconds(prevTime), marketName);
@@ -110,7 +122,8 @@ public class TradeCollector : IService
                 cancellationToken);
         }
 
-        using var trades = await GetTradesAsync(prevTime, (long)(prevTime + ApiPeriod.TotalMilliseconds))
+        var apiPeriod = _periodOptimizer.GetPeriod(marketName);
+        using var trades = await GetTradesAsync(prevTime, (long)(prevTime + apiPeriod.TotalMilliseconds))
             .ConfigureAwait(false);
 
         static void SortTrades(PooledList<FtxTrade> pooledList)
@@ -128,7 +141,7 @@ public class TradeCollector : IService
         using var tr = db.GetTransaction();
         var prevIds = await _tradeDatabaseService.GetLatestIds(marketName, trades.Count, db, cancellationToken);
 
-        
+
         var mergeCounter = 0;
         var commonIdFound = wasZero;
         while (!commonIdFound && mergeCounter < 256)
@@ -150,18 +163,19 @@ public class TradeCollector : IService
             }
 
             mergeCounter += 1;
-            using var tmp = await GetTradesAsync(prevTime, trades.First().Time.ToUnixTimeMilliseconds()).ConfigureAwait(false);
+            using var tmp = await GetTradesAsync(prevTime, trades.First().Time.ToUnixTimeMilliseconds())
+                .ConfigureAwait(false);
             if (!tmp.Any())
             {
                 break;
             }
-            
+
             trades.InsertRange(0, tmp);
             SortTrades(trades);
         }
 
-        AdaptApiPeriod(mergeCounter + (trades.Count >= FtxPublicHttpApi.TradeDefaultCapacity ? 1 : 0));
-        
+        _periodOptimizer.AdaptApiPeriod(marketName, mergeCounter, trades.Count);
+
         if (!await BulkInsert(marketName, trades, prevTime, db, wasZero, prevIds, cancellationToken))
         {
             return;
@@ -170,12 +184,17 @@ public class TradeCollector : IService
         tr.Complete();
     }
 
-    private async Task<bool> BulkInsert(string marketName, PooledList<FtxTrade> trades, long startTime, IDatabase database, bool freshStart,
+    private async Task<bool> BulkInsert(string marketName, PooledList<FtxTrade> trades, long startTime,
+        IDatabase database, bool freshStart,
         List<long> excludedIds, CancellationToken cancellationToken)
     {
         var tableName = _tradeDatabaseService.TradeTableName(marketName);
-        await database.ExecuteAsync(cancellationToken,
-            $"LOCK TABLE ftx.\"{tableName}\" IN SHARE ROW EXCLUSIVE MODE NOWAIT;");
+        if (_options.LockTable)
+        {
+            await database.ExecuteAsync(cancellationToken,
+                $"LOCK TABLE ftx.\"{tableName}\" IN SHARE ROW EXCLUSIVE MODE NOWAIT;");
+        }
+
 
         var query = new Query($"ftx.{tableName}").SelectRaw("COALESCE(MAX(\"time\"), 0)").Limit(1)
             .ToSql(CompilerType.Postgres);
@@ -189,6 +208,7 @@ public class TradeCollector : IService
         var maxId = excludedIds.LastOrDefault();
         var saveCount = 0;
         var connection = (NpgsqlConnection)database.Connection;
+        var maxTime = DateTimeOffset.FromUnixTimeMilliseconds(lastTime);
         await using (var writer =
                      await connection.BeginBinaryImportAsync(
                          $"COPY ftx.\"{tableName}\" FROM STDIN (FORMAT BINARY)", cancellationToken))
@@ -218,6 +238,7 @@ public class TradeCollector : IService
                 // ReSharper restore MethodSupportsCancellation RedundantCast
 #pragma warning restore CA2016
                 saveCount += 1;
+                maxTime = TradeAggregatesUtils.Max(maxTime, trade.Time);
             }
 
             await writer.CompleteAsync(cancellationToken);
@@ -229,20 +250,8 @@ public class TradeCollector : IService
                 maxId);
         }
 
-        _logger.Debug("Saved {Count} Trades for {MarketName} @ {Date}", saveCount, marketName,
-            DateTimeOffset.FromUnixTimeMilliseconds(startTime));
+        _logger.Debug("Saved {Count} Trades for {MarketName} @ {Date:u}", saveCount, marketName,
+            maxTime);
         return true;
-    }
-
-    private void AdaptApiPeriod(int mergeCounter)
-    {
-        if (mergeCounter > 0)
-        {
-            ApiPeriod = Clip(ApiPeriod * Math.Pow(0.9, mergeCounter), MinApiPeriod, MaxApiPeriod);
-        }
-        else
-        {
-            ApiPeriod = Clip(ApiPeriod * 1.1, MinApiPeriod, MaxApiPeriod);
-        }
     }
 }

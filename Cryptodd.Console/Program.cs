@@ -34,8 +34,11 @@ internal class Program
         
         var cancellationToken = container.GetInstance<Boxed<CancellationToken>>();
 
-        var tradeCollector = container.GetInstance<TradeCollector>();
-        await tradeCollector.Collect(cancellationToken);
+        //var aggService = container.GetInstance<TradeAggregateService>();
+        //await aggService.Update(cancellationToken);
+        
+        //var tradeCollector = container.GetInstance<TradeCollector>();
+        //await tradeCollector.Collect(cancellationToken);
         
         var sched = container.GetInstance<TaskScheduler>();
         var schedTasks = container.GetAllInstances<BaseScheduledTask>();

@@ -8,7 +8,10 @@ public interface ITradeDatabaseService : IService
     ValueTask<List<long>> GetLatestIds(string market, int limit, IDatabase? database,
         CancellationToken cancellationToken = default);
 
-    ValueTask<long> GetSavedTime(string name, CancellationToken cancellationToken,
+    ValueTask<long> GetLastTime(string name,
+        bool allowTableCreation = true, CancellationToken cancellationToken = default);
+    
+    ValueTask<long> GetFirstTime(string name, CancellationToken cancellationToken,
         bool allowTableCreation = true);
 
     string EscapeMarket(string market);

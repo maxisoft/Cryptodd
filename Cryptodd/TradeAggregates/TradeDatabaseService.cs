@@ -29,17 +29,17 @@ public class TradeDatabaseService : ITradeDatabaseService
         var tableName = TradeTableName(market);
         if (database is not null)
         {
-            return await QueryLatestIds(tableName, limit, database, cancellationToken).ConfigureAwait(false);
+            return await QueryLatestIds(tableName, limit, database, cancellationToken).ConfigureAwait(true);
         }
 
         using (database = _container.GetInstance<IDatabase>())
         {
             using var tr = database.GetTransaction();
-            return await QueryLatestIds(tableName, limit, database, cancellationToken);
+            return await QueryLatestIds(tableName, limit, database, cancellationToken).ConfigureAwait(true);
         }
     }
 
-    private async Task<List<long>> QueryLatestIds(string tableName, int limit, IDatabase database,
+    private Task<List<long>> QueryLatestIds(string tableName, int limit, IDatabase database,
         CancellationToken cancellationToken)
     {
         var query = new Query("ids")
@@ -51,11 +51,20 @@ public class TradeDatabaseService : ITradeDatabaseService
             .Select("id")
             .OrderBy("id")
             .ToSql(CompilerType.Postgres);
-        return await database.FetchAsync<long>(cancellationToken, query);
+        return database.FetchAsync<long>(cancellationToken, query);
     }
 
-    public async ValueTask<long> GetSavedTime(string name, CancellationToken cancellationToken,
-        bool allowTableCreation = true)
+
+    public ValueTask<long> GetFirstTime(string name, CancellationToken cancellationToken,
+        bool allowTableCreation = true) =>
+        QueryTime(name, false, allowTableCreation, cancellationToken);
+
+    public ValueTask<long> GetLastTime(string name,
+        bool allowTableCreation = true, CancellationToken cancellationToken = default) =>
+        QueryTime(name, true, allowTableCreation, cancellationToken);
+
+    private async ValueTask<long> QueryTime(string name, bool max, bool allowTableCreation,
+        CancellationToken cancellationToken)
     {
         using var database = _container.GetInstance<IDatabase>();
         using var tr = database.GetTransaction();
@@ -66,7 +75,7 @@ public class TradeDatabaseService : ITradeDatabaseService
         }
 
         var tableName = TradeTableName(name);
-        var query = new Query($"ftx.{tableName}").SelectRaw("coalesce(MAX(\"time\"), 0)").Limit(1)
+        var query = new Query($"ftx.{tableName}").SelectRaw($"coalesce({(max ? "MAX" : "MIN")}(\"time\"), 0)").Limit(1)
             .ToSql(CompilerType.Postgres);
         long maxTime;
         try
@@ -99,7 +108,7 @@ public class TradeDatabaseService : ITradeDatabaseService
                 }
             }
 
-            return await GetSavedTime(name, cancellationToken, allowTableCreation: false);
+            return await GetLastTime(name, allowTableCreation: false, cancellationToken: cancellationToken);
         }
 
         return maxTime;
@@ -128,9 +137,10 @@ public class TradeDatabaseService : ITradeDatabaseService
 
         return Task.FromResult(string.Empty);
     }
-    
+
     public string EscapeMarket(string market) => market.Replace('/', '_').Replace('-', '_').Replace(' ', '_')
         .Replace('.', '_').ToLowerInvariant();
 
-    public string TradeTableName(string market) => "ftx_trade_template".Replace("_template", $"_{EscapeMarket(market)}");
+    public string TradeTableName(string market) =>
+        "ftx_trade_template".Replace("_template", $"_{EscapeMarket(market)}");
 }

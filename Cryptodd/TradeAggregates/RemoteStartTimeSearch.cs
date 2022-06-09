@@ -1,12 +1,13 @@
 ﻿namespace Cryptodd.TradeAggregates;
 
+
 /// <summary>
-/// Base class to search for a start time point.
+/// Base class to search for a starting time point.
 /// inner algorithm behavior is to http call api endpoints using a kind of time based binary search. 
 /// </summary>
 public abstract class RemoteStartTimeSearch
 {
-    public DateTimeOffset MinimumDate { get; set; } = new DateTimeOffset(2008, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    public DateTimeOffset MinimumDate { get; set; } = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
     public DateTimeOffset MaximumDate { get; set; } = DateTimeOffset.Now;
 
     public int MaxApiCall { get; set; } = 128;

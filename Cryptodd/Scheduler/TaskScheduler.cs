@@ -1,12 +1,27 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Collections;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Cryptodd.IoC;
 using Cryptodd.Scheduler.Tasks;
+using Maxisoft.Utils.Algorithms;
+using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Collections.Lists.Specialized;
+using Maxisoft.Utils.Collections.Queues.Specialized;
 using Maxisoft.Utils.Disposables;
+using Microsoft.Extensions.Configuration;
 using Serilog;
 
 namespace Cryptodd.Scheduler;
+
+public class TaskSchedulerOptions
+{
+    public int MaxTickQueue { get; set; }
+
+    public TaskSchedulerOptions()
+    {
+        MaxTickQueue = Environment.ProcessorCount.Clamp(2, 32);
+    }
+}
 
 public class TaskScheduler : IService
 {
@@ -15,15 +30,20 @@ public class TaskScheduler : IService
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
-    // TODO use a PriorityQueue ?
-    public PriorityQueue<BaseScheduledTask, BaseScheduledTask> Tasks = new(new TaskTimePriorityComparer<BaseScheduledTask>());
+    internal PriorityQueue<BaseScheduledTask, BaseScheduledTask> Tasks =
+        new(new TaskTimePriorityComparer<BaseScheduledTask>());
 
-    public TaskScheduler(ILogger logger)
+    public TaskSchedulerOptions Options = new();
+    internal BoundedDeque<Task> TickQueue { get; private set; }
+    private readonly object _TickQueueLock = new object();
+
+    public TaskScheduler(ILogger logger, IConfiguration configuration)
     {
         _logger = logger;
+        configuration.GetSection("TaskScheduler").Bind(Options);
+        TickQueue = new BoundedDeque<Task>(Options.MaxTickQueue);
         _disposableManager.LinkDisposableAsWeak(_semaphoreSlim);
     }
-
 
     internal void RegisterTask<TTask>(TTask task) where TTask : BaseScheduledTask
     {
@@ -66,14 +86,90 @@ public class TaskScheduler : IService
         Debug.Assert(!Tasks.TryPeek(out var head, out _) || !ReferenceEquals(head, task));
     }
 
+    private ReadOnlyMemory<Task> Maintain()
+    {
+        if (TickQueue.Count == 0 && Options.MaxTickQueue == TickQueue.CappedSize)
+        {
+            return Memory<Task>.Empty;
+        }
+
+        var res = new ArrayList<Task>();
+
+        lock (_TickQueueLock)
+        {
+            while (TickQueue.TryPeekFront(out var task) && task.IsCompleted)
+            {
+                TickQueue.PopFront();
+                res.Add(task);
+            }
+
+            while (TickQueue.TryPeekBack(out var task) && task.IsCompleted)
+            {
+                TickQueue.PopBack();
+                res.Add(task);
+            }
+        }
+
+        if (Options.MaxTickQueue != TickQueue.CappedSize && TickQueue.Count < Options.MaxTickQueue)
+        {
+            lock (_TickQueueLock)
+            {
+                if (Options.MaxTickQueue != TickQueue.CappedSize && TickQueue.Count < Options.MaxTickQueue)
+                {
+                    var old = TickQueue;
+                    TickQueue = new BoundedDeque<Task>(Options.MaxTickQueue);
+                    while (old.TryPopFront(out var task))
+                    {
+                        TickQueue.PushBack(task);
+                    }
+                }
+            }
+        }
+
+        return ((ReadOnlyMemory<Task>)res.Data())[..res.Count];
+    }
 
     public async ValueTask<int> Tick(CancellationToken cancellationToken)
     {
         _logger.Verbose("Tick()");
+
         await _semaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await DoTick(cancellationToken).ConfigureAwait(false);
+            if (TickQueue.IsFull)
+            {
+                static void DoMaintain(in TaskScheduler sched)
+                {
+                    var memory = sched.Maintain();
+                    foreach (var task in memory.Span)
+                    {
+                        if (!task.IsFaulted)
+                        {
+                            continue;
+                        }
+
+                        sched._logger.Error(task.Exception, "DoTick() Error. This isn't normal");
+#if DEBUG
+                        throw task.Exception!;
+#endif
+                    }
+                }
+
+                DoMaintain(this);
+            }
+
+            if (TickQueue.IsFull)
+            {
+                return 0;
+            }
+
+            var tickTask = DoTick(cancellationToken);
+            lock (_TickQueueLock)
+            {
+                TickQueue.PushBack(tickTask);
+            }
+
+            return 1;
         }
         finally
         {
@@ -81,7 +177,7 @@ public class TaskScheduler : IService
         }
     }
 
-    public async ValueTask<int> DoTick(CancellationToken cancellationToken)
+    internal async Task<int> DoTick(CancellationToken cancellationToken)
     {
         // ReSharper disable once InconsistentlySynchronizedField
         var hasElement = Tasks.Count > 0;
@@ -149,7 +245,7 @@ public class TaskScheduler : IService
                     continue;
                 }
 
-                if (sw.ElapsedMilliseconds > 3_000)
+                if (sw.ElapsedMilliseconds > 1_000)
                 {
                     _logger.Warning("{Task} Task.PreExecute() should be faster", task);
                 }
@@ -169,22 +265,28 @@ public class TaskScheduler : IService
 
                     var s = task.ExecutionStatistics;
 
+                    Exception? exception = execTask.Exception;
                     if (execTask.IsFaulted)
                     {
-                        _logger.Error(execTask.Exception!, "{Task} faulted", execTask);
-                        s._exceptions.Add(execTask.Exception!);
+                        if (execTask.Exception!.InnerExceptions.Count == 1)
+                        {
+                            exception = execTask.Exception.InnerExceptions.First();
+                        }
+
+                        _logger.Error(exception, "{Task} faulted", execTask);
+                        s._exceptions.Add(exception!);
                         Interlocked.Increment(ref s._errorCounter);
                     }
                     else
                     {
                         Debug.Assert(execTask.IsCompletedSuccessfully);
-                        _logger.Verbose(execTask.Exception!, "{Task} done", execTask);
+                        _logger.Verbose("{Task} done", execTask);
                         s._executionTimes.Add(sw.Elapsed);
                         Interlocked.Increment(ref s._successCounter);
                         Interlocked.Increment(ref processed);
                     }
 
-                    postExecutes.Add(task.PostExecute(execTask.Exception, cancellationToken));
+                    postExecutes.Add(task.PostExecute(exception, cancellationToken));
                 }, new Tuple<BaseScheduledTask, Stopwatch>(task, sw), cancellationToken));
             }
         }
