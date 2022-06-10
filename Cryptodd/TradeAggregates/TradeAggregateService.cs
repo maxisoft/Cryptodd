@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Npgsql;
 using NpgsqlTypes;
 using PetaPoco;
+using PetaPoco.Extensions;
 using PetaPoco.SqlKata;
 using Serilog;
 using SqlKata;
@@ -130,11 +131,15 @@ public class TradeAggregateService : IService
         using var tr = database.GetTransaction();
         var connection = (NpgsqlConnection)database.Connection;
         Sql sql;
-        long? tradeId;
+        long tradeId;
+        long prevnum_trades;
         do
         {
+            tradeId = -1;
+            prevnum_trades = -1;
             sql = new Query($"ftx.{tableName}")
-                .SelectRaw("COALESCE(trade_id, -1)")
+                .SelectRaw("COALESCE(trade_id, -1)::bigint as trade_id")
+                .SelectRaw("COALESCE(num_trades, -1)::bigint as num_trades")
                 .Where("time", "=", roundedPrevTime)
                 .Where("trade_id", "=", new Query($"ftx.{_tradeDatabaseService.TradeTableName(marketName)} as t")
                     .Select("t.id")
@@ -144,7 +149,14 @@ public class TradeAggregateService : IService
                     .Limit(1))
                 .Limit(1)
                 .ToSql(CompilerType.Postgres);
-            tradeId = await database.FirstOrDefaultAsync<long?>(cancellationToken, sql);
+            using var reader =await database.QueryAsync<dynamic>(cancellationToken, sql);
+            if (await reader.ReadAsync())
+            {
+                tradeId = reader.Poco.trade_id;
+                prevnum_trades = reader.Poco.num_trades;
+            }
+
+            
 
             if (tradeId > 0)
             {
@@ -166,6 +178,7 @@ public class TradeAggregateService : IService
         var volumeStats = new RunningStatistics();
         var priceRegression = new RunningWeightedRegression();
         var priceLogRegression = new RunningWeightedRegression();
+        var priceEma = ExponentialMovingAverage.FromSpan(prevnum_trades > 0 ? prevnum_trades: 23);
         MergingDigest digest;
         digest = new MergingDigest(100);
 
@@ -231,6 +244,7 @@ public class TradeAggregateService : IService
                         // highly biased due to only account 1st price
                         priceScale = Math.Exp(Math.Round(Math.Log(price)) - 10);
                         regressionStartTime = time;
+                        priceEma.Value = price;
                     }
                     else if (time >= maxTime)
                     {
@@ -244,6 +258,7 @@ public class TradeAggregateService : IService
                     volumeStats.Push(volume);
                     priceRegression.Push((time - regressionStartTime) / 1000.0, price - open, 1);
                     priceLogRegression.Push((time - regressionStartTime) / 1000.0, MathF.Log2(price), volume);
+                    priceEma.Push(price);
                     counter += 1;
                     high = Math.Max(high, price);
                     low = Math.Min(low, price);
@@ -290,6 +305,17 @@ public class TradeAggregateService : IService
         {
             return double.IsFinite(x) ? x : replacement;
         }
+        
+        if (price > 0 && counter > 0)
+        {
+            // TODO adapt https://en.wikipedia.org/wiki/Moving_average#Approximating_the_EMA_with_a_limited_number_of_terms
+            // to remove loop
+            for (var i = counter; i < prevnum_trades; i++)
+            {
+                priceEma.Push(price);
+            }
+        }
+        
 
         sql = new Query($"ftx.{tableName}").AsInsert(new
         {
@@ -304,6 +330,7 @@ public class TradeAggregateService : IService
             std_price = NanToNum(priceStats.StandardDeviation),
             kurtosis_price = NanToNum(priceStats.Kurtosis),
             skewness_price = NanToNum(priceStats.Skewness),
+            ema_price = NanToNum(priceEma.Value),
 
             mean_volume = NanToNum(volumeStats.Mean),
             std_volume = NanToNum(volumeStats.StandardDeviation),

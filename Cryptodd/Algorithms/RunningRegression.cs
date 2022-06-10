@@ -8,7 +8,7 @@ namespace Cryptodd.Algorithms;
 /// based on <a href="https://www.johndcook.com/blog/running_regression/">johndcook code</a>
 /// </summary>
 /// 
-public class RunningWeightedRegression
+public struct RunningWeightedRegression
 {
     private RunningWeightedStatistics _xStats = null!;
     private RunningWeightedStatistics _yStats = null!;
@@ -17,10 +17,14 @@ public class RunningWeightedRegression
     public long NumDataValues { get; private set; }
     public double SumWeight { get; private set; }
 
-    private double lastWeigth;
+    private double _lastWeigth;
 
     public RunningWeightedRegression()
     {
+        _sXy = 0;
+        NumDataValues = 0;
+        SumWeight = 0;
+        _lastWeigth = 0;
         Clear();
     }
 
@@ -31,7 +35,7 @@ public class RunningWeightedRegression
         _sXy = 0;
         NumDataValues = 0;
         SumWeight = 0;
-        lastWeigth = 0;
+        _lastWeigth = 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -47,13 +51,13 @@ public class RunningWeightedRegression
         _yStats.Push(weight: weight, value: y);
         NumDataValues++;
         SumWeight += weight;
-        lastWeigth = weight;
+        _lastWeigth = weight;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public double Slope()
     {
-        var sXx = _xStats.Variance * (SumWeight - lastWeigth);
+        var sXx = _xStats.Variance * (SumWeight - _lastWeigth);
         if (sXx == 0)
         {
             return 0;

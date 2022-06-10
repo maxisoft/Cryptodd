@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS ftx.ftx_trade_agg_template
     "std_price" real NOT NULL,
     "kurtosis_price" real NOT NULL,
     "skewness_price" real NOT NULL,
+    "ema_price" real NOT NULL,
     
     "mean_volume" real NOT NULL,
     "std_volume" real NOT NULL,
