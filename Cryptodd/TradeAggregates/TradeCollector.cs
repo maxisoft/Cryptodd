@@ -139,7 +139,7 @@ public class TradeCollector : ITradeCollector
 
         using var db = _container.GetInstance<IDatabase>();
         using var tr = db.GetTransaction();
-        var prevIds = await _tradeDatabaseService.GetLatestIds(marketName, trades.Count, db, cancellationToken);
+        var prevIds = await _tradeDatabaseService.GetLatestIds(marketName, Math.Max(trades.Count, 64), db, cancellationToken);
 
 
         var mergeCounter = 0;
