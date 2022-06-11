@@ -141,6 +141,11 @@ public class TradeCollector : ITradeCollector
         using var trades = await GetTradesAsync(prevTime, (long)(prevTime + apiPeriod.TotalMilliseconds))
             .ConfigureAwait(false);
 
+        if (!trades.Any())
+        {
+            return;
+        }
+
         static void SortTrades(PooledList<FtxTrade> pooledList)
         {
             pooledList.AsSpan().Sort(static (left, right) =>
