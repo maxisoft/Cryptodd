@@ -31,7 +31,8 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
     public override async Task Execute(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
-        var http = Container.GetInstance<IFtxPublicHttpApi>();
+        await using var container = Container.GetNestedContainer();
+        var http = container.GetInstance<IFtxPublicHttpApi>();
         using var futures = await http.GetAllFuturesAsync(cancellationToken).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.FutureStats", cancellationToken)
@@ -93,7 +94,7 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
             .Select(FutureToFutureStats).ToImmutableArray();
 
 
-        var handlers = Container.GetAllInstances<IFuturesStatsHandler>();
+        var handlers = container.GetAllInstances<IFuturesStatsHandler>();
 
         if (futureStats.Any() && handlers.Any())
         {

@@ -1,12 +1,11 @@
-﻿using System.Reflection;
-using Cryptodd.IoC;
-using Cryptodd.Pairs;
+﻿using System.Data;
+using System.Reflection;
 using Lamar;
 using Npgsql;
-using PetaPoco;
-using PetaPoco.SqlKata;
 using Serilog;
 using SqlKata;
+using SqlKata.Compilers;
+using SqlKata.Execution;
 
 namespace Cryptodd.TradeAggregates;
 
@@ -23,64 +22,61 @@ public class TradeDatabaseService : ITradeDatabaseService
         _logger = logger.ForContext(GetType());
     }
 
-    public async ValueTask<List<long>> GetLatestIds(string market, int limit, IDatabase? database,
-        CancellationToken cancellationToken = default)
+    public async ValueTask<List<long>> GetLatestIds<TDbTransaction>(TDbTransaction transaction, string market,
+        int limit,
+        CancellationToken cancellationToken = default) where TDbTransaction : IDbTransaction
     {
         var tableName = TradeTableName(market);
-        if (database is not null)
-        {
-            return await QueryLatestIds(tableName, limit, database, cancellationToken).ConfigureAwait(true);
-        }
-
-        using (database = _container.GetInstance<IDatabase>())
-        {
-            using var tr = database.GetTransaction();
-            return await QueryLatestIds(tableName, limit, database, cancellationToken).ConfigureAwait(true);
-        }
-    }
-
-    private Task<List<long>> QueryLatestIds(string tableName, int limit, IDatabase database,
-        CancellationToken cancellationToken)
-    {
-        var query = new Query("ids")
+        var query = new XQuery(transaction.Connection, _container.GetInstance<Compiler>())
+            .From("ids")
             .With("ids",
                 new Query($"ftx.{tableName}")
                     .Select("id")
                     .OrderByDesc("time")
                     .Limit(limit))
             .Select("id")
-            .OrderBy("id")
-            .ToSql(CompilerType.Postgres);
-        return database.FetchAsync<long>(cancellationToken, query);
+            .OrderBy("id");
+        return (await query
+            .GetAsync<long>(transaction, cancellationToken: cancellationToken)).ToList();
     }
 
+    public ValueTask<long> GetLastTime<TDbTransaction>(TDbTransaction transaction, string name,
+        bool allowTableCreation = true,
+        CancellationToken cancellationToken = default) where TDbTransaction : IDbTransaction =>
+        QueryTime(transaction, name, true, allowTableCreation, cancellationToken);
 
-    public ValueTask<long> GetFirstTime(string name, CancellationToken cancellationToken,
-        bool allowTableCreation = true) =>
-        QueryTime(name, false, allowTableCreation, cancellationToken);
+    public ValueTask<long> GetFirstTime<TDbTransaction>(TDbTransaction transaction, string name,
+        CancellationToken cancellationToken,
+        bool allowTableCreation = true) where TDbTransaction : IDbTransaction =>
+        QueryTime(transaction, name, false, allowTableCreation, cancellationToken);
 
-    public ValueTask<long> GetLastTime(string name,
-        bool allowTableCreation = true, CancellationToken cancellationToken = default) =>
-        QueryTime(name, true, allowTableCreation, cancellationToken);
+    public string EscapeMarket(string market) => market.Replace('/', '_').Replace('-', '_').Replace(' ', '_')
+        .Replace('.', '_').ToLowerInvariant();
 
-    private async ValueTask<long> QueryTime(string name, bool max, bool allowTableCreation,
-        CancellationToken cancellationToken)
+    public string TradeTableName(string market) =>
+        "ftx_trade_template".Replace("_template", $"_{EscapeMarket(market)}");
+
+    private async ValueTask<long> QueryTime<TDbTransaction>(TDbTransaction transaction, string name, bool max,
+        bool allowTableCreation,
+        CancellationToken cancellationToken) where TDbTransaction : IDbTransaction
     {
-        using var database = _container.GetInstance<IDatabase>();
-        using var tr = database.GetTransaction();
-        if (database.Connection is not NpgsqlConnection pgconn)
+        if (transaction is not NpgsqlTransaction pgconnTransaction)
         {
             _logger.Error("Only postgres supported for now");
             return 0;
         }
 
         var tableName = TradeTableName(name);
-        var query = new Query($"ftx.{tableName}").SelectRaw($"coalesce({(max ? "MAX" : "MIN")}(\"time\"), 0)").Limit(1)
-            .ToSql(CompilerType.Postgres);
         long maxTime;
+        var spName = Guid.NewGuid();
+        await pgconnTransaction.SaveAsync(spName.ToString(), cancellationToken);
         try
         {
-            maxTime = await database.SingleOrDefaultAsync<long>(cancellationToken, query).ConfigureAwait(false);
+            maxTime = await new XQuery(pgconnTransaction.Connection, _container.GetInstance<Compiler>())
+                .From($"ftx.{tableName}")
+                .SelectRaw($"coalesce({(max ? "MAX" : "MIN")}(\"time\"), 0)")
+                .Limit(1)
+                .FirstOrDefaultAsync<long>(transaction, cancellationToken: cancellationToken);
         }
         catch (PostgresException e)
         {
@@ -94,31 +90,22 @@ public class TradeDatabaseService : ITradeDatabaseService
                 throw;
             }
 
-            await using (var newConn = pgconn.CloneWith(pgconn.ConnectionString))
-            {
-                tr.Complete();
-                await newConn.OpenAsync(cancellationToken);
-                try
-                {
-                    await CreateTradeTable(tableName, newConn, cancellationToken);
-                }
-                finally
-                {
-                    await newConn.CloseAsync();
-                }
-            }
+            await pgconnTransaction.RollbackAsync(spName.ToString(), cancellationToken);
+            await CreateTradeTable(pgconnTransaction, tableName, cancellationToken);
 
-            return await GetLastTime(name, allowTableCreation: false, cancellationToken: cancellationToken);
+            maxTime = await QueryTime(transaction, name, max, false,
+                cancellationToken);
         }
 
         return maxTime;
     }
 
-    private async Task CreateTradeTable(string tableName, NpgsqlConnection pgconn, CancellationToken cancellationToken)
+    private async Task CreateTradeTable(NpgsqlTransaction transaction, string tableName,
+        CancellationToken cancellationToken)
     {
         var query = await GetFileContents("ftx_trades.sql");
         query = query.Replace("ftx_trade_template", tableName);
-        await using var cmd = new NpgsqlCommand(query, pgconn);
+        await using var cmd = new NpgsqlCommand(query, transaction.Connection, transaction);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -137,10 +124,4 @@ public class TradeDatabaseService : ITradeDatabaseService
 
         return Task.FromResult(string.Empty);
     }
-
-    public string EscapeMarket(string market) => market.Replace('/', '_').Replace('-', '_').Replace(' ', '_')
-        .Replace('.', '_').ToLowerInvariant();
-
-    public string TradeTableName(string market) =>
-        "ftx_trade_template".Replace("_template", $"_{EscapeMarket(market)}");
 }

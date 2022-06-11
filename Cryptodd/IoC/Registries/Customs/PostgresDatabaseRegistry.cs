@@ -1,12 +1,17 @@
-﻿using Lamar;
+﻿using System.Data;
+using System.Data.Common;
+using Lamar;
 using Maxisoft.Utils.Disposables;
 using Maxisoft.Utils.Empties;
 using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using PetaPoco;
 using PetaPoco.Providers;
 using Serilog;
 using Serilog.Core;
+using SqlKata.Compilers;
+using SqlKata.Execution;
 
 namespace Cryptodd.IoC.Registries.Customs;
 
@@ -19,73 +24,37 @@ public class PostgresDatabaseRegistry : ServiceRegistry
 
     private readonly object _lockObject = new();
     private ILogger _logger = Logger.None;
+    private Lazy<PostgresCompiler> compiler = new Lazy<PostgresCompiler>(() => new PostgresCompiler());
 
     public PostgresDatabaseRegistry()
     {
+        static string GetConnectionString(IConfiguration configuration)
+        {
+            var postgresSection = configuration.GetSection("Postgres");
+            return postgresSection.GetValue<string>("ConnectionString", DefaultConnectionString);
+        }
+
         For<IDatabase>().Add(context =>
         {
-            var databaseBuilder = DatabaseBuilder;
-            if (databaseBuilder is not null)
-            {
-                return databaseBuilder.Create();
-            }
-
-            lock (_lockObject)
-            {
-                databaseBuilder = DatabaseBuilder;
-                if (databaseBuilder is not null)
-                {
-                    return databaseBuilder.Create();
-                }
-
-                _logger = context.GetInstance<ILogger>().ForContext(GetType());
-                var configuration = context.GetInstance<IConfiguration>();
-                RegisterChangeCallback(configuration);
-                var postgresSection = configuration.GetSection("Postgres");
-                _logger.Verbose("Creating a new Postgres database object");
-                DatabaseBuilder = DatabaseConfiguration.Build()
-                    .UsingConnectionString(
-                        postgresSection.GetValue<string>("ConnectionString", DefaultConnectionString))
-                    .UsingProvider<PostgreSQLDatabaseProvider>();
-                var database = DatabaseBuilder.Create();
-                try
-                {
-                    _disposableManager.LinkDisposableAsWeak(database);
-                    return database;
-                }
-                catch (Exception)
-                {
-                    database.Dispose();
-                    throw;
-                }
-            }
+            _logger.Warning("Creating a new Poco Postgres database object => memory leak");
+            return DatabaseConfiguration.Build()
+                .UsingConnectionString(GetConnectionString(context.GetInstance<IConfiguration>()))
+                .UsingProvider<PostgreSQLDatabaseProvider>().Create();
         });
-    }
 
-    internal IDatabaseBuildConfiguration? DatabaseBuilder { get; set; }
+        For<NpgsqlConnection>().Use(static context =>
+            new NpgsqlConnection(GetConnectionString(context.GetInstance<IConfiguration>())));
 
-    private void RegisterChangeCallback(IConfiguration configuration)
-    {
-        Boxed<IDisposable> disposable = new(new EmptyDisposable());
-        disposable.Ref() = configuration.GetReloadToken().RegisterChangeCallback(disposable =>
-        {
-            _logger.Debug("Reloading database configurations ...");
-            DatabaseBuilder = null;
-            if (disposable is not Boxed<IDisposable> d || d.IsNull())
-            {
-                return;
-            }
+        For<PostgresCompiler>().Use(context => compiler.Value);
+        For<Compiler>().Add(context => compiler.Value);
 
-            Task.Factory.StartNew(static d =>
-            {
-                if (d is not Boxed<IDisposable> dd || dd.IsNull())
-                {
-                    return;
-                }
+        For<DbConnection>().Add(static context => context.GetInstance<NpgsqlConnection>());
+        For<IDbConnection>().Add(static context => context.GetInstance<DbConnection>());
 
-                dd.Value.Dispose();
-                dd.Value = new EmptyDisposable();
-            }, d);
-        }, disposable);
+        For<QueryFactory>().Add(context =>
+            new QueryFactory(context.GetInstance<NpgsqlConnection>(), compiler.Value)
+        );
+
+        For<NpgsqlTransaction>().Use(context => context.GetInstance<NpgsqlConnection>().BeginTransaction());
     }
 }

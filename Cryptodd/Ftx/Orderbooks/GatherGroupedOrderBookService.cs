@@ -30,12 +30,11 @@ public sealed class GatherGroupedOrderBookService : IService
         _container = container;
     }
 
-    private FtxPublicHttpApi FtxPublicHttpApi => _container.GetInstance<FtxPublicHttpApi>();
-
     public async Task CollectOrderBooks(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
-        using var markets = await FtxPublicHttpApi.GetAllMarketsAsync(cancellationToken);
+        await using var container = _container.GetNestedContainer();
+        using var markets = await container.GetInstance<IFtxPublicHttpApi>().GetAllMarketsAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var ftxConfig = _configuration.GetSection("Ftx");
         var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 10);
@@ -51,7 +50,7 @@ public sealed class GatherGroupedOrderBookService : IService
         {
             for (var i = 0; i < maxNumWs; i++)
             {
-                var ws = _container.GetInstance<FtxGroupedOrderBookWebsocket>();
+                var ws = container.GetInstance<FtxGroupedOrderBookWebsocket>();
                 webSockets.Add(ws);
                 ws.RegisterTargetBlock(targetBlock);
                 Debug.Assert(i == 0 || !ReferenceEquals(webSockets[^1], webSockets[^2]));
@@ -97,7 +96,7 @@ public sealed class GatherGroupedOrderBookService : IService
             var processed = 0;
             var groupedOrderBooks = new List<GroupedOrderbookDetails>();
             using var dm = new DisposableManager();
-            var validators = _container.GetAllInstances<IValidator<GroupedOrderbookDetails>>();
+            var validators = container.GetAllInstances<IValidator<GroupedOrderbookDetails>>();
             while (processed < requests.Count && !cancellationToken.IsCancellationRequested)
             {
                 if (recvDone >= tasks.Count)
@@ -143,7 +142,7 @@ public sealed class GatherGroupedOrderBookService : IService
 
 
             var dispatchObHandler = DispatchOrderbookHandler(groupedOrderBooks, processed, sw, cancellationToken);
-            var dispatchGroupedObHandler = DispatchRegroupedOrderbookHandler(groupedOrderBooks, sw, cancellationToken);
+            var dispatchGroupedObHandler = DispatchRegroupedOrderbookHandler(groupedOrderBooks, sw, container, cancellationToken);
             await Task.WhenAll(dispatchObHandler, dispatchGroupedObHandler).ConfigureAwait(false);
         }
         finally
@@ -157,9 +156,9 @@ public sealed class GatherGroupedOrderBookService : IService
     }
 
     private async Task DispatchRegroupedOrderbookHandler(List<GroupedOrderbookDetails> groupedOrderBooks,
-        Stopwatch stopWatch, CancellationToken cancellationToken)
+        Stopwatch stopWatch, IServiceContext container, CancellationToken cancellationToken = default)
     {
-        var regroupedHandlers = _container.GetAllInstances<IRegroupedOrderbookHandler>();
+        var regroupedHandlers = container.GetAllInstances<IRegroupedOrderbookHandler>();
         ConcurrentBag<RegroupedOrderbook> regroupedOrderbooks;
         if (regroupedHandlers.Any() && groupedOrderBooks.Any())
         {

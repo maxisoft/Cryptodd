@@ -26,15 +26,17 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
 
     public async Task Handle(IReadOnlyCollection<FutureStats> futureStats, CancellationToken cancellationToken)
     {
-        var databases = _container.GetAllInstances<IDatabase>();
+        await using var container = _container.GetNestedContainer();
+        var databases = container.GetAllInstances<IDatabase>();
         using var dm = new DisposableManager(databases);
         
         foreach (var db in databases)
         {
+            dm.LinkDisposableAsWeak(db);
             using var tr = db.GetTransaction();
             if (db.Connection is NpgsqlConnection pgconn)
             {
-                await InsertPostgresFast(futureStats, db, pgconn, cancellationToken);
+                await InsertPostgresFast(futureStats, db, pgconn, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -42,10 +44,9 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
                 // TODO use SqlKata to build a multi insert query
                 foreach (var stats in futureStats)
                 {
-                    await db.InsertAsync(cancellationToken, stats);
+                    await db.InsertAsync(cancellationToken, stats).ConfigureAwait(false);
                 }
             }
-
             tr.Complete();
         }
     }
@@ -55,11 +56,11 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
     {
         using var tr = db.GetTransaction();
         await db.ExecuteAsync(cancellationToken,
-            $"LOCK TABLE \"{FutureStats.Naming.TableName}\" IN SHARE ROW EXCLUSIVE MODE NOWAIT;");
+            $"LOCK TABLE \"{FutureStats.Naming.TableName}\" IN SHARE ROW EXCLUSIVE MODE NOWAIT;").ConfigureAwait(false);
 
         var query = new Query(FutureStats.Naming.TableName).SelectRaw("COALESCE(MAX(id), 0)").Limit(1)
             .ToSql(CompilerType.Postgres);
-        var lastId = await db.FirstOrDefaultAsync<long>(cancellationToken, query);
+        var lastId = await db.FirstOrDefaultAsync<long>(cancellationToken, query).ConfigureAwait(false);
 
         await using (var writer =
                      await connection.BeginBinaryImportAsync(
@@ -67,7 +68,7 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
         {
             foreach (var futures in futureStatsList)
             {
-                await writer.StartRowAsync(cancellationToken).ConfigureAwait(false);
+                await writer.StartRowAsync(cancellationToken);
 #pragma warning disable CA2016
                 // ReSharper disable MethodSupportsCancellation
                 await writer.WriteAsync(++lastId, NpgsqlDbType.Bigint);
@@ -82,10 +83,10 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
 #pragma warning restore CA2016
             }
 
-            await writer.CompleteAsync(cancellationToken);
+            await writer.CompleteAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await db.ExecuteAsync(cancellationToken, @"SELECT setval('ftx_futures_stats_id_seq', @0, true);", lastId);
+        await db.ExecuteAsync(cancellationToken, @"SELECT setval('ftx_futures_stats_id_seq', @0, true);", lastId).ConfigureAwait(false);
 
         tr.Complete();
     }
