@@ -3,14 +3,14 @@ using Typin;
 using Typin.Attributes;
 using Typin.Console;
 
+namespace Cryptodd.Console.Cli;
+
 [Command]
 public class MainCommand : BaseCommand, ICommand
 {
     public override async ValueTask ExecuteAsync(IConsole console)
     {
-        console.GetCancellationToken().Register(() => Container.GetInstance<CancellationTokenSource>().Cancel());
-
-        await PreExecute();
+        await PreExecute(console);
         try
         {
             await SchedulerLoop();

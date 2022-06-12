@@ -106,7 +106,7 @@ public abstract class BaseCommand<TOptions> : ICommand, IDisposable where TOptio
         return res;
     }
 
-    protected virtual async Task PreExecute()
+    private async Task PreExecute()
     {
         if (Options.BindToConfiguration)
         {
@@ -161,6 +161,12 @@ public abstract class BaseCommand<TOptions> : ICommand, IDisposable where TOptio
         }
     }
 
+    protected virtual Task PreExecute(IConsole console)
+    {
+        LinkCancellationToken(console.GetCancellationToken());
+        return PreExecute();
+    }
+
     protected async ValueTask SchedulerLoop(int sleepDuration = 300)
     {
         var cancellationToken = Container.GetInstance<Boxed<CancellationToken>>().Value;
@@ -181,6 +187,11 @@ public abstract class BaseCommand<TOptions> : ICommand, IDisposable where TOptio
                 _rootContainer.Value.Dispose();
             }
         }
+    }
+
+    protected virtual void LinkCancellationToken(in CancellationToken cancellationToken)
+    {
+        cancellationToken.Register(() => Container.GetInstance<CancellationTokenSource>().Cancel());
     }
 }
 
