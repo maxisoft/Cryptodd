@@ -41,22 +41,7 @@ public abstract class BaseCommand<TOptions> : ICommand, IDisposable where TOptio
         _rootContainer = new Lazy<Container>(() =>
             new ContainerFactory().CreateContainer(
                 new CreateContainerOptions { ScanForPlugins = Options.LoadPlugins }));
-        _container = new Lazy<INestedContainer>(() =>
-        {
-            var container = RootContainer.GetNestedContainer();
-            try
-            {
-                container.Inject((IContainer)container);
-            }
-            catch (Exception e)
-            {
-                container.Dispose();
-                throw;
-            }
-
-            DisposableManager.LinkDisposable(container);
-            return container;
-        });
+        _container = new Lazy<INestedContainer>(GetNewContainer);
     }
 
     protected TOptions Options { get; set; } = new();
@@ -64,6 +49,23 @@ public abstract class BaseCommand<TOptions> : ICommand, IDisposable where TOptio
     internal Container RootContainer => _rootContainer.Value;
 
     protected internal virtual INestedContainer Container => _container.Value;
+
+    protected internal virtual INestedContainer GetNewContainer()
+    {
+        var container = RootContainer.GetNestedContainer();
+        try
+        {
+            container.Inject((IContainer)container);
+        }
+        catch (Exception)
+        {
+            container.Dispose();
+            throw;
+        }
+
+        DisposableManager.LinkDisposable(container);
+        return container;
+    }
 
     protected internal ILogger Logger => Container.GetInstance<ILogger>().ForContext(GetType());
     protected internal IConfiguration Configuration => Container.GetInstance<IConfiguration>();
