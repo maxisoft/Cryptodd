@@ -56,12 +56,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="..\scripts\sql\postgres\tablesize2.sql">
+      <EmbeddedResource Include="..\scripts\sql\postgres\tablesize2.sql">
         <Link>sql\postgres\tablesize2.sql</Link>
-      </Content>
-      <Content Include="..\scripts\sql\postgres\timescaledb\trades_hyper_tables.sql">
+      </EmbeddedResource>
+      <EmbeddedResource Include="..\scripts\sql\postgres\timescaledb\trades_hyper_tables.sql">
         <Link>sql\postgres\timescaledb\trades_hyper_tables.sql</Link>
-      </Content>
+      </EmbeddedResource>
       <EmbeddedResource Include="..\scripts\sql\postgres\ftx_trades.sql">
         <Link>sql\postgres\ftx_trades.sql</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -78,12 +78,12 @@
         <Link>sql\postgres\ftx_futures_stats_postgres.sql</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </EmbeddedResource>
-      <Content Include="..\scripts\sql\postgres\timescaledb\current_time_millisecond.sql">
+      <EmbeddedResource Include="..\scripts\sql\postgres\timescaledb\current_time_millisecond.sql">
         <Link>sql\postgres\timescaledb\current_time_millisecond.sql</Link>
-      </Content>
-      <Content Include="..\scripts\sql\postgres\timescaledb\hyper_tables.sql">
-        <Link>sql\postgres\timescaledb\hyper_tables.sql</Link>
-      </Content>
+      </EmbeddedResource>
+      <EmbeddedResource Include="..\scripts\sql\postgres\timescaledb\ftx_futures_stats_hyper_tables.sql">
+        <Link>sql\postgres\timescaledb\ftx_futures_stats_hyper_tables.sql</Link>
+      </EmbeddedResource>
       <EmbeddedResource Include="..\scripts\sql\postgres\ftx_trade_agg.sql">
         <Link>sql\postgres\ftx_trade_agg.sql</Link>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

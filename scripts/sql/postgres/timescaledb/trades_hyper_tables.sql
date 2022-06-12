@@ -6,7 +6,7 @@ $$;
 ALTER TABLE ftx."ftx_trade_btc_usd" DROP CONSTRAINT IF EXISTS ftx_trade_btc_usd_pkey;
 
 SELECT create_hypertable('ftx."ftx_trade_btc_usd"', 'time',
-    chunk_time_interval => 128::bigint * 24::bigint * 60::bigint * 60::bigint * 1000::bigint,
+    chunk_time_interval => 30::bigint * 24::bigint * 60::bigint * 60::bigint * 1000::bigint,
     if_not_exists => true,
     migrate_data => true
     );
@@ -17,4 +17,4 @@ ALTER TABLE ftx."ftx_trade_btc_usd" SET (
     timescaledb.compress
 );
 
-SELECT add_compression_policy('ftx."ftx_trade_btc_usd"', 128::bigint * 24::bigint * 60::bigint * 60::bigint * 1000::bigint + 1, if_not_exists := true);
+--SELECT add_compression_policy('ftx."ftx_trade_btc_usd"', 128::bigint * 24::bigint * 60::bigint * 60::bigint * 1000::bigint + 1, if_not_exists := true);

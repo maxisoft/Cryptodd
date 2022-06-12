@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS ftx.ftx_trade_agg_template
 );
 END;
 
-ALTER TABLE IF EXISTS ftx.ftx_trade_agg_template
-   OWNER TO cryptodduser;
+--ALTER TABLE IF EXISTS ftx.ftx_trade_agg_template
+--   OWNER TO cryptodduser;
 
 ALTER TABLE IF EXISTS ftx.ftx_trade_agg_template
     ADD CONSTRAINT ftx_trade_agg_template_time_positive CHECK (time > 0);

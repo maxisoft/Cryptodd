@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS ftx.ftx_trade_template
 );
 END;
 
-ALTER TABLE IF EXISTS ftx.ftx_trade_template
-   OWNER TO cryptodduser;
+--ALTER TABLE IF EXISTS ftx.ftx_trade_template
+--   OWNER TO cryptodduser;
 
 CREATE UNIQUE INDEX ftx_trade_template_time_id_unique
     ON ftx.ftx_trade_template USING btree

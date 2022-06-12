@@ -4,10 +4,6 @@
 
 CREATE OR REPLACE VIEW public.table_sizes2
 AS
-
--- View: public.table_sizes
-
--- DROP VIEW public.table_sizes;
 WITH table_sizes AS (SELECT pg_size_pretty(a.total_bytes) AS total,
                             pg_size_pretty(a.index_bytes) AS index,
                             pg_size_pretty(a.toast_bytes) AS toast,
@@ -75,7 +71,7 @@ FROM ( SELECT t.hypertable_schema AS schema,
 WHERE x.schema = 'public' OR x.schema = 'ftx'
 ORDER BY (pg_size_bytes(x.total_bytes)) DESC;
 
-ALTER TABLE public.table_sizes2
-    OWNER TO cryptodduser;
+--ALTER TABLE public.table_sizes2
+--OWNER TO cryptodduser;
 
-GRANT ALL ON TABLE public.table_sizes2 TO cryptodduser;
+--GRANT ALL ON TABLE public.table_sizes2 TO cryptodduser;

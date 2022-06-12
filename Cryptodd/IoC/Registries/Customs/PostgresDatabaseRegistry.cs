@@ -45,8 +45,8 @@ public class PostgresDatabaseRegistry : ServiceRegistry
         For<NpgsqlConnection>().Use(static context =>
             new NpgsqlConnection(GetConnectionString(context.GetInstance<IConfiguration>())));
 
-        For<PostgresCompiler>().Use(context => compiler.Value);
-        For<Compiler>().Add(context => compiler.Value);
+        For<PostgresCompiler>().Use(_ => compiler.Value);
+        For<Compiler>().Add(_ => compiler.Value);
 
         For<DbConnection>().Add(static context => context.GetInstance<NpgsqlConnection>());
         For<IDbConnection>().Add(static context => context.GetInstance<DbConnection>());
