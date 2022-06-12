@@ -3,7 +3,7 @@ using Cryptodd.Scheduler.Tasks;
 using Typin;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-await new CliApplicationBuilder()
+return await new CliApplicationBuilder()
     .AddCommandsFromThisAssembly()
     .AddCommandsFrom(typeof(BaseScheduledTask).Assembly)
     .Build()
