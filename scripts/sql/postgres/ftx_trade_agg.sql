@@ -31,6 +31,12 @@ CREATE TABLE IF NOT EXISTS ftx.ftx_trade_agg_template
     "price_q50" real NOT NULL,
     "price_q75" real NOT NULL,
     "price_q90" real NOT NULL,
+
+    "volume_q10" real NOT NULL,
+    "volume_q25" real NOT NULL,
+    "volume_q50" real NOT NULL,
+    "volume_q75" real NOT NULL,
+    "volume_q90" real NOT NULL,
     
     "close_prev_period0" real NOT NULL,
     "close_prev_period1" real NOT NULL,

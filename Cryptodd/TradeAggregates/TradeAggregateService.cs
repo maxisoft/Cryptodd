@@ -17,6 +17,7 @@ using NpgsqlTypes;
 using PetaPoco;
 using PetaPoco.Extensions;
 using PetaPoco.SqlKata;
+using Polly;
 using Serilog;
 using SqlKata;
 using SqlKata.Execution;
@@ -36,7 +37,12 @@ public class TradeAggregateOptions
     }
 }
 
-public class TradeAggregateService : IService
+public interface ITradeAggregateService : IService
+{
+    Task Update(CancellationToken cancellationToken);
+}
+
+public class TradeAggregateService : ITradeAggregateService
 {
     private readonly IConfiguration _configuration;
     private readonly IContainer _container;
@@ -82,7 +88,21 @@ public class TradeAggregateService : IService
                     try
                     {
                         var period = TimeSpan.FromMilliseconds(resamplePeriod);
-                        var prevTime = await GetSavedTime(marketName, period, token).ConfigureAwait(false);
+                        var prevTime = Int64.MinValue;
+                        await Policy.Handle<InvalidOperationException>(exception =>
+                                (exception.Message?.Contains("NpgsqlTransaction") ?? false) &&
+                                !token.IsCancellationRequested
+                                )
+                            .WaitAndRetry(1, i => TimeSpan.FromSeconds(i))
+                            .Execute(async () =>
+                            {
+                                prevTime = await GetSavedTime(marketName, period, token).ConfigureAwait(false);
+                            }).ConfigureAwait(false);
+                        
+                        if (prevTime == Int64.MinValue)
+                        {
+                            throw new Exception("prevTime not set");
+                        }
 
                         await CreateAggregates(marketName, period, prevTime, token).ConfigureAwait(false);
                     }
@@ -112,7 +132,7 @@ public class TradeAggregateService : IService
         return marketNames;
     }
 
-    public async Task CreateAggregates(string marketName, TimeSpan period, long prevTime,
+    private async Task CreateAggregates(string marketName, TimeSpan period, long prevTime,
         CancellationToken cancellationToken)
     {
         using var container = _container.GetNestedContainer();
@@ -200,8 +220,8 @@ public class TradeAggregateService : IService
         var priceRegression = new RunningWeightedRegression();
         var priceLogRegression = new RunningWeightedRegression();
         var priceEma = ExponentialMovingAverage.FromSpan(prevnum_trades > 0 ? prevnum_trades : 23);
-        MergingDigest digest;
-        digest = new MergingDigest(100);
+        var priceQuantiles = new MergingDigest(100);
+        var volumeQuantiles = new MergingDigest(100);
 
         var counter = 0;
         var priceScale = 0.0;
@@ -274,7 +294,8 @@ public class TradeAggregateService : IService
                     }
 
                     var weight = volume / priceScale;
-                    digest.Add(price, (int)((long)weight).Clamp(1, 1 << 16));
+                    priceQuantiles.Add(price, (int)((long)weight).Clamp(1, 1 << 16));
+                    volumeQuantiles.Add(volume);
                     priceStats.Push(value: price, weight: volume);
                     volumeStats.Push(volume);
                     priceRegression.Push((time - regressionStartTime) / 1000.0, price - open, 1);
@@ -364,11 +385,17 @@ public class TradeAggregateService : IService
             liquidation_volume_ratio = ((float)(volumeSum > 0 ? liquidationVolumeSum / volumeSum : .5)).Clamp(0, 1),
             num_trades = counter,
 
-            price_q10 = NanToNum(digest.Quantile(0.10)),
-            price_q25 = NanToNum(digest.Quantile(0.25)),
-            price_q50 = NanToNum(digest.Quantile(0.5)),
-            price_q75 = NanToNum(digest.Quantile(0.75)),
-            price_q90 = NanToNum(digest.Quantile(0.9)),
+            price_q10 = NanToNum(priceQuantiles.Quantile(0.10)),
+            price_q25 = NanToNum(priceQuantiles.Quantile(0.25)),
+            price_q50 = NanToNum(priceQuantiles.Quantile(0.5)),
+            price_q75 = NanToNum(priceQuantiles.Quantile(0.75)),
+            price_q90 = NanToNum(priceQuantiles.Quantile(0.9)),
+            
+            volume_q10 = NanToNum(volumeQuantiles.Quantile(0.10)),
+            volume_q25 = NanToNum(volumeQuantiles.Quantile(0.25)),
+            volume_q50 = NanToNum(volumeQuantiles.Quantile(0.5)),
+            volume_q75 = NanToNum(volumeQuantiles.Quantile(0.75)),
+            volume_q90 = NanToNum(volumeQuantiles.Quantile(0.9)),
 
             close_prev_period0 = closePrevPeriod0,
             close_prev_period1 = closePrevPeriod1,
