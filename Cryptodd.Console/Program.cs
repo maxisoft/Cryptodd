@@ -1,57 +1,10 @@
 ﻿using System.Text;
-using Cryptodd.Ftx;
-using Cryptodd.IoC;
-using Cryptodd.Plugins;
-using Cryptodd.Scheduler;
 using Cryptodd.Scheduler.Tasks;
-using Cryptodd.TradeAggregates;
-using Lamar;
-using Maxisoft.Utils.Objects;
-using Microsoft.Extensions.Configuration;
-using Serilog;
-using TaskScheduler = Cryptodd.Scheduler.TaskScheduler;
+using Typin;
 
-namespace Cryptodd.Console;
-
-internal class Program
-{
-    private static async Task Main(string[] args)
-    {
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        using var rootContainer = new ContainerFactory().CreateContainer();
-
-        using var container = rootContainer.GetNestedContainer();
-        container.Inject((IContainer)container);
-        var logger = container.GetInstance<ILogger>();
-        var config = container.GetInstance<IConfiguration>();
-        var cwd = config.GetValue<string>("BasePath", Environment.CurrentDirectory);
-        logger.Verbose("setting CurrentDirectory to {CurrentDirectory}", cwd);
-        Environment.CurrentDirectory = Path.GetFullPath(cwd);
-        foreach (var plugin in container.GetAllInstances<IBasePlugin>().OrderBy(plugin => plugin.Order))
-        {
-            await plugin.OnStart();
-        }
-        
-        var cancellationToken = container.GetInstance<Boxed<CancellationToken>>();
-
-        var aggService = container.GetInstance<TradeAggregateService>(); 
-        await aggService.Update(cancellationToken);
-        
-        //var tradeCollector = container.GetInstance<TradeCollector>();
-        //await tradeCollector.Collect(cancellationToken);
-        
-        var sched = container.GetInstance<TaskScheduler>();
-        var schedTasks = container.GetAllInstances<BaseScheduledTask>();
-        foreach (var schedTask in schedTasks)
-        {
-            sched.RegisterTask(schedTask);
-        }
-
-        while (!cancellationToken.Value.IsCancellationRequested)
-        {
-            await sched.Tick(cancellationToken);
-            await Task.Delay(300);
-        }
-
-    }
-}
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+await new CliApplicationBuilder()
+    .AddCommandsFromThisAssembly()
+    .AddCommandsFrom(typeof(BaseScheduledTask).Assembly)
+    .Build()
+    .RunAsync();

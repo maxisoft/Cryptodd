@@ -33,8 +33,14 @@ Trade:
     - BTC-PERP
     - ETH/USD
     - ETH-PERP
+    - XRP/USD
+    - XRP-PERP
+    - USDT/USD
+    - USDT-PERP
+    - SOL/USD
+    - SOL-PERP
     
 
 Postgres:
-  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;Enlist=false"
+  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432"
   
