@@ -46,6 +46,7 @@ public class TimescaleDB : IService
         await CreateTableSize2(cancellationToken);
         await CreateFtxFuturesStatsHyperTables(cancellationToken);
         await CreateFtxTradesHyperTables(cancellationToken);
+        await CompressFtxTradesHyperTables(cancellationToken);
         await using var conn = container.GetInstance<NpgsqlConnection>();
     }
 
@@ -135,6 +136,7 @@ public class TimescaleDB : IService
         var tableSizes = await db.Query("table_sizes2")
             .Where("schema", "=", "ftx")
             .WhereLike("name", "ftx_trade_%_%")
+            .WhereNotLike("name", "ftx_trade_agg_%_%")
             .OrderByRaw("COALESCE(num_chunks, -1)")
             .OrderByRaw("pg_size_bytes(total_bytes) DESC")
             .GetAsync(cancellationToken: cancellationToken);
@@ -151,19 +153,55 @@ public class TimescaleDB : IService
                 continue;
             }
 
-            await using var enableCompressionCommand =
-                new NpgsqlCommand($"ALTER TABLE ftx.\"{tableSize.name}\" SET (timescaledb.compress)", conn);
-            await enableCompressionCommand.ExecuteNonQueryAsync(cancellationToken);
-            _logger.Debug("Enabling Compression on table {Schema}.{Table} {Size} ...", tableSize.schema, tableSize.name,
-                tableSize.total_bytes);
-            await using var compresscommand = new NpgsqlCommand(@$"
+            var maxTime = await db.Query($"ftx.{tableSize.name}")
+                .SelectRaw("COALESCE(MAX(time), 0)")
+                .Limit(1)
+                .FirstOrDefaultAsync<long>(cancellationToken: cancellationToken);
+
+            var allowCompression = true;
+            if (maxTime <= 0 || (DateTimeOffset.FromUnixTimeMilliseconds(maxTime) - DateTimeOffset.UtcNow).Duration() >=
+                TimeSpan.FromDays(1))
+            {
+                _logger.Verbose("Skipping {Table} compression as it's not up to date", tableSize.name);
+                allowCompression = false;
+            }
+            
+            if (allowCompression && tableSize.compression_enabled is not true)
+            {
+                await using var enableCompressionCommand =
+                    new NpgsqlCommand($"ALTER TABLE ftx.\"{tableSize.name}\" SET (timescaledb.compress)", conn);
+                await enableCompressionCommand.ExecuteNonQueryAsync(cancellationToken);
+                _logger.Debug("Enabling Compression on table {Schema}.{Table} {Size} ...", tableSize.schema, tableSize.name,
+                    tableSize.total_bytes);
+            }
+            
+            var older_than = maxTime - (long)TimeSpan.FromDays(100).TotalMilliseconds;
+
+            if (allowCompression)
+            {
+                await using var compresscommand = new NpgsqlCommand(@$"
 SELECT compress_chunk(c)
-FROM show_chunks('ftx.""{tableSize.name}""', older_than => {(long)TimeSpan.FromDays(100).TotalMilliseconds}::bigint ) as c
-WHERE c::text NOT IN (SELECT chunk_schema || '.' || chunk_name FROM chunk_compression_stats('ftx.""{tableSize.name}""') WHERE compression_status = 'Compressed')",
-                conn);
-            _logger.Debug("Compressing table {Schema}.{Table} {Size} ...", tableSize.schema, tableSize.name,
-                tableSize.total_bytes);
-            await compresscommand.ExecuteNonQueryAsync(cancellationToken);
+FROM show_chunks('ftx.""{tableSize.name}""', older_than => '{older_than}'::bigint ) as c
+WHERE c::text NOT IN (SELECT chunk_schema || '.' || chunk_name FROM chunk_compression_stats('ftx.""{tableSize.name}""') WHERE compression_status = 'Compressed')
+AND c NOT IN (SELECT show_chunks('ftx.""{tableSize.name}""', newer_than => '{older_than}'::bigint ))
+ORDER BY c",
+                    conn) {CommandTimeout = (int)(Options.HyperTableCommandTimeout / 1000)};
+                _logger.Debug("Compressing table {Schema}.{Table} {Size} ...", tableSize.schema, tableSize.name,
+                    tableSize.total_bytes);
+                await compresscommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            if (older_than > 0)
+            {
+                await using var decompresscommand = new NpgsqlCommand(@$"
+SELECT decompress_chunk(c)
+FROM show_chunks('ftx.""{tableSize.name}""', newer_than => '{older_than}'::bigint ) as c
+WHERE c::text IN (SELECT chunk_schema || '.' || chunk_name FROM chunk_compression_stats('ftx.""{tableSize.name}""') WHERE compression_status = 'Compressed')
+ORDER BY c DESC",
+                    conn) {CommandTimeout = (int)(Options.HyperTableCommandTimeout / 1000)};
+                _logger.Debug("Decompressing table {Schema}.{Table} ...", tableSize.schema, tableSize.name);
+                await decompresscommand.ExecuteNonQueryAsync(cancellationToken);
+            }
         }
     }
 
