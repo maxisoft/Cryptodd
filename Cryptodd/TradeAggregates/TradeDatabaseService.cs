@@ -69,14 +69,15 @@ public class TradeDatabaseService : ITradeDatabaseService
         var tableName = TradeTableName(name);
         long maxTime;
         var spName = Guid.NewGuid();
-        await pgconnTransaction.SaveAsync(spName.ToString(), cancellationToken);
+        await pgconnTransaction.SaveAsync(spName.ToString(), cancellationToken).ConfigureAwait(false);
         try
         {
             maxTime = await new XQuery(pgconnTransaction.Connection, _container.GetInstance<Compiler>())
                 .From($"ftx.{tableName}")
                 .SelectRaw($"coalesce({(max ? "MAX" : "MIN")}(\"time\"), 0)")
                 .Limit(1)
-                .FirstOrDefaultAsync<long>(transaction, cancellationToken: cancellationToken);
+                .FirstOrDefaultAsync<long>(transaction, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (PostgresException e)
         {
@@ -90,11 +91,28 @@ public class TradeDatabaseService : ITradeDatabaseService
                 throw;
             }
 
-            await pgconnTransaction.RollbackAsync(spName.ToString(), cancellationToken);
-            await CreateTradeTable(pgconnTransaction, tableName, cancellationToken);
+            if (pgconnTransaction.Connection is {State: ConnectionState.Open})
+            {
+                await pgconnTransaction.RollbackAsync(spName.ToString(), cancellationToken).ConfigureAwait(false);
+            }
+            else if (pgconnTransaction.Connection is not null)
+            {
+                await pgconnTransaction.Connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            }
 
-            maxTime = await QueryTime(transaction, name, max, false,
-                cancellationToken);
+            await using var container = _container.GetNestedContainer();
+            await using var connection = container.GetInstance<NpgsqlConnection>();
+            if (connection.State != ConnectionState.Open)
+            {
+                await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await using var newTransaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await CreateTradeTable(newTransaction, tableName, cancellationToken);
+
+            maxTime = await QueryTime(newTransaction, name, max, false,
+                cancellationToken).ConfigureAwait(false);
+            await newTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return maxTime;
@@ -106,7 +124,7 @@ public class TradeDatabaseService : ITradeDatabaseService
         var query = await GetFileContents("ftx_trades.sql");
         query = query.Replace("ftx_trade_template", tableName);
         await using var cmd = new NpgsqlCommand(query, transaction.Connection, transaction);
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal static Task<string> GetFileContents(string sampleFile)
@@ -117,7 +135,7 @@ public class TradeDatabaseService : ITradeDatabaseService
         {
             if (stream is not null)
             {
-                var reader = new StreamReader(stream);
+                using var reader = new StreamReader(stream);
                 return reader.ReadToEndAsync();
             }
         }
