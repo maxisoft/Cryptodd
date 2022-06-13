@@ -101,13 +101,13 @@ public class TradeDatabaseService : ITradeDatabaseService
             }
 
             await using var container = _container.GetNestedContainer();
-            await using var connection = container.GetInstance<NpgsqlConnection>();
-            if (connection.State != ConnectionState.Open)
+            await using var newConn = container.GetInstance<NpgsqlConnection>();
+            
+            if (newConn.State != ConnectionState.Open)
             {
-                await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+                await newConn.OpenAsync(cancellationToken).ConfigureAwait(false);
             }
-
-            await using var newTransaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await using var newTransaction = await newConn.BeginTransactionAsync(IsolationLevel.Serializable ,cancellationToken).ConfigureAwait(false);
             await CreateTradeTable(newTransaction, tableName, cancellationToken);
 
             maxTime = await QueryTime(newTransaction, name, max, false,
