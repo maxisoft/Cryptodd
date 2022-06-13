@@ -14,6 +14,8 @@ Ftx:
         - ^SOL/USDT?$
     Task:
       Period: 60000
+      Enabled: false
+      
   RegroupedOrderBook:
     Parquet:
       Enabled: true
@@ -21,8 +23,32 @@ Ftx:
       
   FutureStats:
     Parquet:
-      Enabled: true
+      Enabled: false
+
+Trade:
+  Collector:
+    LockTable: false
+  PairFilter:
+    - BTC/USD
+    - BTC-PERP
+    - ETH/USD
+    - ETH-PERP
+    - XRP/USD
+    - XRP-PERP
+    - USDT/USD
+    - USDT-PERP
+    - SOL/USD
+    - SOL-PERP
       
+  Aggregate:
+    ResamplePeriods:
+      - 300000
+      - 3600000
+    ResampleOffsets: 
+      - 60000
+      - 0
+    
+
 Postgres:
-  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432"
+  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;ConnectionLifetime=1600;Keepalive=60;Application Name=cryptodd"
   

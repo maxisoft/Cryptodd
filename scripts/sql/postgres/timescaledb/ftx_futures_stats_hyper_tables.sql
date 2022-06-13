@@ -20,7 +20,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ftx_futures_stats_id_index
 
 SELECT set_integer_now_func('ftx_futures_stats', 'current_time_millisecond', true);
 
-ALTER TABLE ftx_futures_stats SET (
+ALTER TABLE IF EXISTS ftx_futures_stats SET (
     timescaledb.compress,
     timescaledb.compress_segmentby = 'market_hash'
 );

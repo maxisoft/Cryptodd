@@ -21,4 +21,8 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Typin" Version="3.1.0" />
+    </ItemGroup>
+
 </Project>

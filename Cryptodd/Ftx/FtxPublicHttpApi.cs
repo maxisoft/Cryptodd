@@ -1,24 +1,35 @@
 ﻿using System.Globalization;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Cryptodd.Ftx.Models;
+using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Maxisoft.Utils.Collections.Lists;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 
 namespace Cryptodd.Ftx;
 
 public interface IFtxPublicHttpApi
 {
-    public Task<List<Future>> GetAllFuturesAsync(CancellationToken cancellationToken = default);
+    public Task<PooledList<Future>> GetAllFuturesAsync(CancellationToken cancellationToken = default);
 
     Task<ArrayList<FundingRate>> GetAllFundingRatesAsync(DateTimeOffset? startTime = null,
         DateTimeOffset? endTime = null, CancellationToken cancellationToken = default);
 
     Task<ApiFutureStats?> GetFuturesStatsAsync(string futureName, CancellationToken cancellationToken = default);
+
+    Task<PooledList<Market>> GetAllMarketsAsync(CancellationToken cancellationToken = default);
+    Task<PooledList<FtxTrade>> GetTradesAsync(string market, CancellationToken cancellationToken = default);
+    Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime, long endTime,
+        CancellationToken cancellationToken = default);
 }
 
 public class FtxPublicHttpApi : IFtxPublicHttpApi
 {
+    internal const int TradeDefaultCapacity = 8 << 10;
+    internal const int MarketDefaultCapacity = 2048;
+    internal const int FutureDefaultCapacity = 1024;
     private static readonly JsonSerializerOptions JsonSerializerOptions = CreateJsonSerializerOptions();
     private readonly HttpClient _httpClient;
     private readonly IUriRewriteService _uriRewriteService;
@@ -43,13 +54,13 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
         _uriRewriteService = uriRewriteService;
     }
 
-    public async Task<List<Future>> GetAllFuturesAsync(CancellationToken cancellationToken = default)
+    public async Task<PooledList<Future>> GetAllFuturesAsync(CancellationToken cancellationToken = default)
     {
         var uri = new UriBuilder($"{_httpClient.BaseAddress}futures").Uri;
         uri = await _uriRewriteService.Rewrite(uri);
-        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<List<Future>>>(uri,
+        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<Future>>>(uri,
             JsonSerializerOptions,
-            cancellationToken)).Result ?? new List<Future>();
+            cancellationToken)).Result ?? new PooledList<Future>();
     }
 
     public async Task<ArrayList<FundingRate>> GetAllFundingRatesAsync(DateTimeOffset? startTime = null,
@@ -78,7 +89,7 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
     public async Task<ApiFutureStats?> GetFuturesStatsAsync(string futureName,
         CancellationToken cancellationToken = default)
     {
-        var uri = new UriBuilder($"{_httpClient.BaseAddress}futures/{futureName}/stats").Uri;
+        var uri = new UriBuilder($"{_httpClient.BaseAddress}futures/{Uri.EscapeDataString(futureName)}/stats").Uri;
         uri = await _uriRewriteService.Rewrite(uri);
         return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<ApiFutureStats>>(uri,
             JsonSerializerOptions,
@@ -88,15 +99,46 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
     private static JsonSerializerOptions CreateJsonSerializerOptions()
     {
         var res = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        res.Converters.Add(new FtxTradeConverter());
+        res.Converters.Add(new PooledListConverter<FtxTrade>() {DefaultCapacity = TradeDefaultCapacity});
+        res.Converters.Add(new PooledListConverter<Market>() {DefaultCapacity = MarketDefaultCapacity});
+        res.Converters.Add(new PooledListConverter<Future>() {DefaultCapacity = FutureDefaultCapacity});
         return res;
     }
 
-    public async Task<List<Market>> GetAllMarketsAsync(CancellationToken cancellationToken = default)
+    public async Task<PooledList<Market>> GetAllMarketsAsync(CancellationToken cancellationToken = default)
     {
         var uri = new UriBuilder($"{_httpClient.BaseAddress}markets").Uri;
         uri = await _uriRewriteService.Rewrite(uri);
-        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<List<Market>>>(uri,
+        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<Market>>>(uri,
             JsonSerializerOptions,
-            cancellationToken)).Result ?? new List<Market>();
+            cancellationToken)).Result ?? new PooledList<Market>();
+    }
+
+    public async Task<PooledList<FtxTrade>> GetTradesAsync(string market, CancellationToken cancellationToken = default)
+    {
+        // Duno if Escaping is right in the long term as both
+        // BTC/USDT
+        // BTC%2FUSDT
+        // works
+        var uri = new UriBuilder($"{_httpClient.BaseAddress}markets/{Uri.EscapeDataString(market)}/trades").Uri;
+        uri = await _uriRewriteService.Rewrite(uri);
+        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<FtxTrade>>>(uri,
+            JsonSerializerOptions,
+            cancellationToken)).Result ?? new PooledList<FtxTrade>();
+    }
+
+    public async Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime,
+        long endTime,
+        CancellationToken cancellationToken = default)
+    {
+        var uri = new UriBuilder($"{_httpClient.BaseAddress}markets/{Uri.EscapeDataString(market)}/trades")
+            .WithParameter("start_time", startTime.ToString(CultureInfo.InvariantCulture))
+            .WithParameter("end_time", endTime.ToString(CultureInfo.InvariantCulture))
+            .Uri;
+        uri = await _uriRewriteService.Rewrite(uri);
+        return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<FtxTrade>>>(uri,
+            JsonSerializerOptions,
+            cancellationToken)).Result ?? new PooledList<FtxTrade>();
     }
 }
