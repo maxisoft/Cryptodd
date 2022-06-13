@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS ftx_futures_stats
 (
 	id bigserial NOT NULL,
@@ -42,5 +40,3 @@ ALTER TABLE IF EXISTS ftx_futures_stats
 
 ALTER TABLE IF EXISTS ftx_futures_stats
     ADD CONSTRAINT ftx_futures_stats_mark_positive CHECK (mark >= 0 AND mark != double precision 'Nan' AND mark < double precision '+infinity');
-
-COMMIT;

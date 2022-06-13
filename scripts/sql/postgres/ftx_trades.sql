@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS ftx.ftx_trade_template
 (
 	id bigserial NOT NULL,
@@ -35,5 +33,3 @@ ALTER TABLE IF EXISTS ftx.ftx_trade_template
 
 ALTER TABLE IF EXISTS ftx.ftx_trade_template
     ADD CONSTRAINT ftx_trade_template_valid_flag CHECK ("flag" >= 0  AND "flag" < (1 << 3));
-
-COMMIT;

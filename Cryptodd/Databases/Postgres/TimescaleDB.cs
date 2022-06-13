@@ -12,8 +12,10 @@ namespace Cryptodd.Databases.Postgres;
 public class TimescaleDBOptions
 {
     public bool Enabled { get; set; } = true;
-    public bool AllowInstallation { get; set; } = false;
+    public bool AllowInstallation { get; set; } = true;
     public long HyperTableCommandTimeout { get; set; } = (long)TimeSpan.FromHours(4).TotalMilliseconds;
+
+    public bool EnableCompression { get; set; } = false;
 }
 
 public class TimescaleDB : IService
@@ -44,13 +46,20 @@ public class TimescaleDB : IService
         }
 
         await CreateTableSize2(cancellationToken);
+        if (!installed)
+        {
+            return;
+        }
         await CreateFtxFuturesStatsHyperTables(cancellationToken);
         await CreateFtxTradesHyperTables(cancellationToken);
-        await CompressFtxTradesHyperTables(cancellationToken);
-        await using var conn = container.GetInstance<NpgsqlConnection>();
+        if (Options.EnableCompression)
+        {
+            await CompressFtxTradesHyperTables(cancellationToken);
+            await using var conn = container.GetInstance<NpgsqlConnection>();
+        }
     }
 
-    internal async Task CreateFtxFuturesStatsHyperTables(CancellationToken cancellationToken)
+    internal async Task CreateFtxFuturesStatsHyperTables(CancellationToken cancellationToken, bool tableCreate = true)
     {
         var createQuery = await GetFileContents("ftx_futures_stats_hyper_tables.sql");
         await using var container = _container.GetNestedContainer();
@@ -63,18 +72,31 @@ public class TimescaleDB : IService
 
         var exists = await db.Query("table_sizes2")
             //.Where("schema", "=", "ftx")
-            .SelectRaw("1")
+            .SelectRaw("COALESCE(num_chunks, -1)")
             .WhereLike("name", "ftx_futures_stats")
             .Limit(1)
-            .CountAsync<int>(cancellationToken: cancellationToken);
+            .FirstOrDefaultAsync<long>(cancellationToken: cancellationToken);
 
-        if (exists > 0)
+        if (exists == 0)
         {
+            if (tableCreate)
+            {
+                var createTable = await GetFileContents("ftx_futures_stats_postgres.sql", "");
+                await using var command = new NpgsqlCommand(createTable, conn);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+
+                // ReSharper disable once TailRecursiveCall
+                await CreateFtxFuturesStatsHyperTables(cancellationToken, false);
+            }
+            
             return;
         }
 
-        await using var command = new NpgsqlCommand(createQuery, conn);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (exists == -1)
+        {
+            await using var command = new NpgsqlCommand(createQuery, conn);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     internal async Task CreateFtxTradesHyperTables(CancellationToken cancellationToken)
@@ -165,16 +187,17 @@ public class TimescaleDB : IService
                 _logger.Verbose("Skipping {Table} compression as it's not up to date", tableSize.name);
                 allowCompression = false;
             }
-            
+
             if (allowCompression && tableSize.compression_enabled is not true)
             {
                 await using var enableCompressionCommand =
                     new NpgsqlCommand($"ALTER TABLE ftx.\"{tableSize.name}\" SET (timescaledb.compress)", conn);
                 await enableCompressionCommand.ExecuteNonQueryAsync(cancellationToken);
-                _logger.Debug("Enabling Compression on table {Schema}.{Table} {Size} ...", tableSize.schema, tableSize.name,
+                _logger.Debug("Enabling Compression on table {Schema}.{Table} {Size} ...", tableSize.schema,
+                    tableSize.name,
                     tableSize.total_bytes);
             }
-            
+
             var older_than = maxTime - (long)TimeSpan.FromDays(100).TotalMilliseconds;
 
             if (allowCompression)
@@ -185,7 +208,7 @@ FROM show_chunks('ftx.""{tableSize.name}""', older_than => '{older_than}'::bigin
 WHERE c::text NOT IN (SELECT chunk_schema || '.' || chunk_name FROM chunk_compression_stats('ftx.""{tableSize.name}""') WHERE compression_status = 'Compressed')
 AND c NOT IN (SELECT show_chunks('ftx.""{tableSize.name}""', newer_than => '{older_than}'::bigint ))
 ORDER BY c",
-                    conn) {CommandTimeout = (int)(Options.HyperTableCommandTimeout / 1000)};
+                    conn) { CommandTimeout = (int)(Options.HyperTableCommandTimeout / 1000) };
                 _logger.Debug("Compressing table {Schema}.{Table} {Size} ...", tableSize.schema, tableSize.name,
                     tableSize.total_bytes);
                 await compresscommand.ExecuteNonQueryAsync(cancellationToken);
@@ -198,7 +221,7 @@ SELECT decompress_chunk(c)
 FROM show_chunks('ftx.""{tableSize.name}""', newer_than => '{older_than}'::bigint ) as c
 WHERE c::text IN (SELECT chunk_schema || '.' || chunk_name FROM chunk_compression_stats('ftx.""{tableSize.name}""') WHERE compression_status = 'Compressed')
 ORDER BY c DESC",
-                    conn) {CommandTimeout = (int)(Options.HyperTableCommandTimeout / 1000)};
+                    conn) { CommandTimeout = (int)(Options.HyperTableCommandTimeout / 1000) };
                 _logger.Debug("Decompressing table {Schema}.{Table} ...", tableSize.schema, tableSize.name);
                 await decompresscommand.ExecuteNonQueryAsync(cancellationToken);
             }
@@ -217,6 +240,8 @@ ORDER BY c DESC",
 
         await using var command = new NpgsqlCommand(createQuery, conn);
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await using var schema = new NpgsqlCommand("CREATE SCHEMA IF NOT EXISTS \"ftx\"", conn);
+        await schema.ExecuteNonQueryAsync(cancellationToken);
     }
 
     internal async Task InstallExt(CancellationToken cancellationToken)
