@@ -27,7 +27,7 @@ public class FtxTradeRemoteStartTimeSearchTest
                 ftxClient.GetTradesAsync(market, start, end, token));
         var timeSearch = new FtxTradeRemoteStartTimeSearch(mock.Object, "BTC/USD");
         var result = await timeSearch.Search(default);
-        Assert.True(result <= DateTimeOffset.Parse("2020/1/1 00:00:00", CultureInfo.InvariantCulture)); // this algorithm is not designed to be precise
+        Assert.True(result <= DateTimeOffset.Parse("2020/1/2 00:00:00", CultureInfo.InvariantCulture)); // this algorithm is not designed to be precise
         mock.Verify(api => api.GetTradesAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<long>(),
             It.IsAny<CancellationToken>()), Times.AtLeastOnce);
         mock.Verify(api => api.GetTradesAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<long>(),
