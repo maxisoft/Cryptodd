@@ -29,7 +29,8 @@ public class TradeAggregateOptions
 {
     public int MaxParallelism { get; set; }
 
-    public List<int> ResamplePeriods { get; set; } = new List<int>() { 5 * 60 * 1000 };
+    public List<long> ResamplePeriods { get; set; } = new List<long>() {};
+    public List<long> ResampleOffsets { get; set; } = new List<long>() {};
 
     public TradeAggregateOptions()
     {
@@ -65,15 +66,12 @@ public class TradeAggregateService : ITradeAggregateService
         _logger = logger.ForContext(GetType());
         _pairFilterLoader = pairFilterLoader;
         _tradeDatabaseService = tradeDatabaseService;
-        configuration.Bind(Options);
+        configuration.GetSection("Trade").GetSection("Aggregate").Bind(Options, options => options.ErrorOnUnknownConfiguration = true);
     }
 
     public async Task Update(CancellationToken cancellationToken)
     {
         var marketNames = await GetMarketNames(cancellationToken);
-
-        var resamplePeriods = _configuration.GetSection("Trade").GetSection("Aggregate")
-            .GetValue("Resample", new List<int> { 5 * 60 * 1000 });
 
         using var semaphore = new SemaphoreSlim(Options.MaxParallelism, Options.MaxParallelism);
 
@@ -81,14 +79,16 @@ public class TradeAggregateService : ITradeAggregateService
         {
             await Parallel.ForEachAsync(marketNames, cancellationToken, async (marketName, token) =>
             {
-                await Parallel.ForEachAsync(resamplePeriods, token, async (resamplePeriod, token) =>
+                await Parallel.ForEachAsync(Options.ResamplePeriods.Zip(Options.ResampleOffsets), token, async (resamplePair, token) =>
                 {
+                    var resamplePeriod = resamplePair.First;
+                    var resampleOffset = TimeSpan.FromMilliseconds(resamplePair.Second);
                     // ReSharper disable once AccessToDisposedClosure
                     await semaphore.WaitAsync(token);
                     try
                     {
                         var period = TimeSpan.FromMilliseconds(resamplePeriod);
-                        var prevTime = Int64.MinValue;
+                        var prevTime = long.MinValue;
                         await Policy.Handle<InvalidOperationException>(exception =>
                                 (exception.Message?.Contains("NpgsqlTransaction") ?? false) &&
                                 !token.IsCancellationRequested
@@ -96,15 +96,15 @@ public class TradeAggregateService : ITradeAggregateService
                             .WaitAndRetry(1, i => TimeSpan.FromSeconds(i))
                             .Execute(async () =>
                             {
-                                prevTime = await GetSavedTime(marketName, period, token).ConfigureAwait(false);
+                                prevTime = await GetSavedTime(marketName, period, resampleOffset, token).ConfigureAwait(false);
                             }).ConfigureAwait(false);
                         
-                        if (prevTime == Int64.MinValue)
+                        if (prevTime == long.MinValue)
                         {
                             throw new Exception("prevTime not set");
                         }
 
-                        await CreateAggregates(marketName, period, prevTime, token).ConfigureAwait(false);
+                        await CreateAggregates(marketName, period, resampleOffset, prevTime, token).ConfigureAwait(false);
                     }
                     finally
                     {
@@ -132,7 +132,8 @@ public class TradeAggregateService : ITradeAggregateService
         return marketNames;
     }
 
-    private async Task CreateAggregates(string marketName, TimeSpan period, long prevTime,
+    private async Task CreateAggregates(string marketName, TimeSpan period, TimeSpan offset,
+        long prevTime,
         CancellationToken cancellationToken)
     {
         using var container = _container.GetNestedContainer();
@@ -145,17 +146,18 @@ public class TradeAggregateService : ITradeAggregateService
         }
 
         var freshStart = prevTime == 0;
+        var offsetMs = (long)offset.TotalMilliseconds;
         if (freshStart)
         {
             await dbConnect;
             await using var tmpTransaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-            prevTime = await _tradeDatabaseService.GetFirstTime(tmpTransaction, marketName, cancellationToken).ConfigureAwait(false);
+            prevTime = await _tradeDatabaseService.GetFirstTime(tmpTransaction, marketName, cancellationToken).ConfigureAwait(false) - offsetMs;
             await tmpTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         var periodMs = (long)period.TotalMilliseconds;
-        var roundedPrevTime = prevTime / periodMs * periodMs;
-        var nextTime = (prevTime / periodMs + 1) * periodMs;
+        var roundedPrevTime = prevTime / periodMs * periodMs + offsetMs;
+        var nextTime = (prevTime / periodMs + 1) * periodMs + offsetMs;
         await dbConnect;
         await using var tr = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var tradeTime = await _tradeDatabaseService.GetLastTime(tr, marketName, false, cancellationToken)
@@ -166,7 +168,7 @@ public class TradeAggregateService : ITradeAggregateService
             return;
         }
 
-        var tableName = TradeAggregateTableName(marketName, period);
+        var tableName = TradeAggregateTableName(marketName, period, offset);
 
         if (tradeTime < nextTime) // TODO check with trades ids too to detect changes
         {
@@ -202,8 +204,8 @@ public class TradeAggregateService : ITradeAggregateService
             if (tradeId > 0)
             {
                 prevTime = nextTime;
-                roundedPrevTime = prevTime / periodMs * periodMs;
-                nextTime = (prevTime / periodMs + 1) * periodMs;
+                roundedPrevTime = prevTime / periodMs * periodMs + offsetMs;
+                nextTime = roundedPrevTime + periodMs;
             }
         } while (tradeId > 0);
     
@@ -338,8 +340,8 @@ public class TradeAggregateService : ITradeAggregateService
                 return;
             }
 
-            roundedPrevTime = prevTime / periodMs * periodMs;
-            nextTime = (prevTime / periodMs + 1) * periodMs;
+            roundedPrevTime = prevTime / periodMs * periodMs + offsetMs;
+            nextTime = roundedPrevTime + periodMs;
         }
 
 
@@ -391,11 +393,10 @@ public class TradeAggregateService : ITradeAggregateService
             price_q75 = NanToNum(priceQuantiles.Quantile(0.75)),
             price_q90 = NanToNum(priceQuantiles.Quantile(0.9)),
             
-            volume_q10 = NanToNum(volumeQuantiles.Quantile(0.10)),
-            volume_q25 = NanToNum(volumeQuantiles.Quantile(0.25)),
             volume_q50 = NanToNum(volumeQuantiles.Quantile(0.5)),
             volume_q75 = NanToNum(volumeQuantiles.Quantile(0.75)),
             volume_q90 = NanToNum(volumeQuantiles.Quantile(0.9)),
+            volume_q95 = NanToNum(volumeQuantiles.Quantile(0.95)),
 
             close_prev_period0 = closePrevPeriod0,
             close_prev_period1 = closePrevPeriod1,
@@ -414,14 +415,17 @@ public class TradeAggregateService : ITradeAggregateService
         await tr.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public string TradeAggregateTableName(string market, TimeSpan period) =>
-        "ftx_trade_agg_template".Replace("_template",
-            _tradeDatabaseService.EscapeMarket($"_{market}_{(long)period.TotalSeconds}s"));
+    public string TradeAggregateTableName(string market, TimeSpan period, TimeSpan offset)
+    {
+        var templateReplacement = offset == TimeSpan.Zero ? $"_{market}_{(long)period.TotalSeconds}s" : $"_{market}_{(long) offset.TotalSeconds}_{(long)period.TotalSeconds}s";
+        return "ftx_trade_agg_template".Replace("_template",
+            _tradeDatabaseService.EscapeMarket(templateReplacement));
+    }
 
-    private async ValueTask<long> GetSavedTime(string market, TimeSpan period, CancellationToken cancellationToken,
+    private async ValueTask<long> GetSavedTime(string market, TimeSpan period, TimeSpan offset, CancellationToken cancellationToken,
         bool allowTableCreation = true)
     {
-        // TODO use external QueryFactory
+        // TODO use external QueryFactory and table size to avoid transaction closing ?
         await using var container = _container.GetNestedContainer();
         using var db = container.GetInstance<QueryFactory>();
         await using var conn = (NpgsqlConnection)db.Connection;
@@ -432,7 +436,7 @@ public class TradeAggregateService : ITradeAggregateService
 
         await using var tr = await conn.BeginTransactionAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        var tableName = TradeAggregateTableName(market, period);
+        var tableName = TradeAggregateTableName(market, period, offset);
         long maxTime;
         try
         {
@@ -455,26 +459,36 @@ public class TradeAggregateService : ITradeAggregateService
             {
                 await conn.OpenAsync(cancellationToken);
             }
-            
-            await tr.DisposeAsync().ConfigureAwait(false);
+            else
+            {
+                await tr.DisposeAsync();
+            }
 
-            await using var tr2 = await conn.BeginTransactionAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-            
-            await CreateTradeTable(tableName, tr2, cancellationToken).ConfigureAwait(false);
+            await CreateTradeTable(tableName, cancellationToken).ConfigureAwait(false);
 
-            maxTime = await GetSavedTime(market, period, cancellationToken, false).ConfigureAwait(false);
-            await tr2.CommitAsync(cancellationToken).ConfigureAwait(false);
+            maxTime = await GetSavedTime(market, period, offset, cancellationToken, false).ConfigureAwait(false);
         }
 
         return maxTime;
     }
 
-    private async ValueTask CreateTradeTable(string tableName, NpgsqlTransaction transaction,
+    private async ValueTask CreateTradeTable(string tableName,
         CancellationToken cancellationToken)
     {
         var query = await TradeDatabaseService.GetFileContents("ftx_trade_agg.sql");
         query = query.Replace("ftx_trade_agg_template", tableName);
-        await using var cmd = new NpgsqlCommand(query, transaction.Connection, transaction);
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        
+        await using var container = _container.GetNestedContainer();
+        using var db = container.GetInstance<QueryFactory>();
+        await using var conn = (NpgsqlConnection)db.Connection;
+        if (conn.State != ConnectionState.Open)
+        {
+            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using var tr = await conn.BeginTransactionAsync(IsolationLevel.Serializable ,cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = new NpgsqlCommand(query, conn, tr);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }
