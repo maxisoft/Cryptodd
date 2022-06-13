@@ -1,7 +1,5 @@
 ﻿using System.Buffers;
 using System.Data;
-using System.IO.Compression;
-using LamarCodeGeneration.Util;
 using Maxisoft.Utils.Objects;
 using Npgsql;
 using SqlKata.Execution;
@@ -25,9 +23,6 @@ public class ExportToCsvCommandOptions : BaseCommandOptions
 [Command("csv", Description = "Export database tables to csv files")]
 public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, ICommand
 {
-    [CommandOption("compress", 'z', Description = "compress csv file using zip")]
-    public bool Compress { get; set; }
-
     [CommandOption("trades", 't', Description = "Export ftx trades")]
     public bool ExportTrades { get; set; } = false;
 
@@ -73,7 +68,7 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
                 .OrderByRaw("pg_size_bytes(total_bytes) DESC")
                 .GetAsync(cancellationToken: cancellationToken)).ToList();
 
-            int progress = 0;
+            var progress = 0;
             foreach (var tableSize in tableSizes)
             {
                 if (tableSize is null)
@@ -105,19 +100,6 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
                     return res;
                 }
 
-                if (Compress)
-                {
-                    var zipFileName = $"{baseName}.zip";
-                    Logger.Information("Saving to file {File}", zipFileName);
-                    await using var zipToOpen = new FileStream(zipFileName, FileMode.OpenOrCreate);
-                    using var archive = new ZipArchive(zipToOpen, ZipArchiveMode.Update);
-                    var entry = archive.CreateEntry(baseName, CompressionLevel.SmallestSize);
-                    await using var s = entry.Open();
-                    await using var outStream = new StreamWriter(s);
-
-                    await CopyStream(inStream, outStream, cancellationToken);
-                }
-                else
                 {
                     Logger.Information("Saving to file {File}", baseName);
                     await using var outStream = File.CreateText(baseName);
