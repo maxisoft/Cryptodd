@@ -208,9 +208,6 @@ public class TradeAggregateService : ITradeAggregateService
                 nextTime = roundedPrevTime + periodMs;
             }
         } while (tradeId > 0);
-    
-        await db.Query($"ftx.{tableName}").Where("time", "=", roundedPrevTime)
-            .DeleteAsync(tr, cancellationToken: cancellationToken).ConfigureAwait(false);
 
         long id, time;
         float price, volume, open, high, low;
@@ -291,7 +288,7 @@ public class TradeAggregateService : ITradeAggregateService
                     }
                     else if (time >= maxTime)
                     {
-                        tId = Math.Max(tId, id);
+                        tId = time == maxTime ? Math.Max(tId, id) : id;
                         maxTime = time;
                     }
 
