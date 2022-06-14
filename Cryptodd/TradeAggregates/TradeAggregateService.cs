@@ -208,6 +208,11 @@ public class TradeAggregateService : ITradeAggregateService
                 nextTime = roundedPrevTime + periodMs;
             }
         } while (tradeId > 0);
+    
+        await db.Query($"ftx.{tableName}")
+            .Where("time", ">=", roundedPrevTime)
+            .Where("time", "<", nextTime)
+            .DeleteAsync(tr, cancellationToken: cancellationToken).ConfigureAwait(false);
 
         long id, time;
         float price, volume, open, high, low;
