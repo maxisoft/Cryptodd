@@ -25,6 +25,9 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
 {
     [CommandOption("trades", 't', Description = "Export ftx trades")]
     public bool ExportTrades { get; set; } = false;
+    
+    [CommandOption("agg", 'g', Description = "Export Aggregated ftx trades")]
+    public bool ExportAggregatedTrades { get; set; } = false;
 
     [CommandOption("timeout", Description = "Operation timeout")]
     public TimeSpan Timeout { get; set; } = TimeSpan.Zero;
@@ -61,53 +64,94 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
         var progressTicker = console.CreateProgressTicker();
         if (ExportTrades)
         {
-            var tableSizes = (await db.Query("table_sizes2")
-                .Where("schema", "=", "ftx")
-                .WhereLike("name", "ftx_trade_%_%")
-                .WhereNotLike("name", "ftx_trade_agg_%_%")
-                .OrderByRaw("pg_size_bytes(total_bytes) DESC")
-                .GetAsync(cancellationToken: cancellationToken)).ToList();
+            await DoExportTrades(db, outputDirectory, cancellationToken);
+        }
 
-            var progress = 0;
-            foreach (var tableSize in tableSizes)
+        if (ExportAggregatedTrades)
+        {
+            await DoExportAggregatedTrades(db, outputDirectory, cancellationToken);
+        }
+    }
+
+    private async Task CopyCsvStreamToFile(string baseName, TextReader inStream, string outputDirectory,
+        CancellationToken cancellationToken)
+    {
+        baseName = Path.Combine(outputDirectory, baseName);
+
+
+        static async ValueTask<long> CopyStream(TextReader inStream, TextWriter outStream,
+            CancellationToken cancellationToken)
+        {
+            long res = 0;
+            using var buffer = MemoryPool<char>.Shared.Rent(4096);
+            var memory = buffer.Memory;
+            var read = memory.Length;
+            while (read > 0 && !cancellationToken.IsCancellationRequested)
             {
-                if (tableSize is null)
-                {
-                    continue;
-                }
-
-                using var inStream = await conn.BeginTextExportAsync(
-                    $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\") TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
-                    cancellationToken);
-                var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
-                baseName = Path.Combine(outputDirectory, baseName);
-
-
-                static async ValueTask<long> CopyStream(TextReader inStream, TextWriter outStream,
-                    CancellationToken cancellationToken)
-                {
-                    long res = 0;
-                    using var buffer = MemoryPool<char>.Shared.Rent(4096);
-                    var memory = buffer.Memory;
-                    var read = memory.Length;
-                    while (read > 0 && !cancellationToken.IsCancellationRequested)
-                    {
-                        read = await inStream.ReadBlockAsync(buffer.Memory, cancellationToken);
-                        await outStream.WriteAsync(memory[..read], cancellationToken);
-                        res += read;
-                    }
-
-                    return res;
-                }
-
-                {
-                    Logger.Information("Saving to file {File}", baseName);
-                    await using var outStream = File.CreateText(baseName);
-                    await CopyStream(inStream, outStream, cancellationToken);
-                }
-
-                progress += 1;
+                read = await inStream.ReadBlockAsync(buffer.Memory, cancellationToken);
+                await outStream.WriteAsync(memory[..read], cancellationToken);
+                res += read;
             }
+
+            return res;
+        }
+
+        {
+            Logger.Information("Saving to file {File}", baseName);
+            await using var outStream = File.CreateText(baseName);
+            await CopyStream(inStream, outStream, cancellationToken);
+        }
+    }
+
+    private async Task DoExportTrades(QueryFactory db, string outputDirectory,
+        CancellationToken cancellationToken)
+    {
+        var conn = (NpgsqlConnection) db.Connection;
+        var tableSizes = (await db.Query("table_sizes2")
+            .Where("schema", "=", "ftx")
+            .WhereLike("name", "ftx_trade_%_%")
+            .WhereNotLike("name", "ftx_trade_agg_%_%")
+            .OrderByRaw("pg_size_bytes(total_bytes) DESC")
+            .GetAsync(cancellationToken: cancellationToken)).ToList();
+
+        var progress = 0;
+        foreach (var tableSize in tableSizes)
+        {
+            if (tableSize is null)
+            {
+                continue;
+            }
+
+            using var inStream = await conn.BeginTextExportAsync(
+                $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\") TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
+                cancellationToken);
+            var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
+            await CopyCsvStreamToFile(baseName, inStream, outputDirectory, cancellationToken);
+
+            progress += 1;
+        }
+    }
+
+    private async Task DoExportAggregatedTrades(QueryFactory db, string outputDirectory,
+        CancellationToken cancellationToken)
+    {
+        var conn = (NpgsqlConnection) db.Connection;
+        var tableSizes = (await db.Query("table_sizes2")
+            .Where("schema", "=", "ftx")
+            .WhereLike("name", "ftx_trade_agg_%_%")
+            .OrderByRaw("pg_size_bytes(total_bytes) DESC")
+            .GetAsync(cancellationToken: cancellationToken)).ToList();
+
+        var progress = 0;
+        foreach (var tableSize in tableSizes.Where(tableSize => tableSize is not null))
+        {
+            using var inStream = await conn.BeginTextExportAsync(
+                $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\" ORDER BY \"time\") TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
+                cancellationToken);
+            var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
+            await CopyCsvStreamToFile(baseName, inStream, outputDirectory, cancellationToken);
+
+            progress += 1;
         }
     }
 }
