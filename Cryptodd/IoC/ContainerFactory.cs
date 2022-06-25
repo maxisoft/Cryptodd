@@ -1,4 +1,5 @@
-﻿using Cryptodd.Ftx;
+﻿using Cryptodd.Bitfinex;
+using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.IoC.Registries;
 using Cryptodd.IoC.Registries.Customs;
@@ -88,7 +89,16 @@ public class ContainerFactory : IContainerFactory
                         provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
                     .AddPolicyHandler(
                         (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
-                //.AddPolicyHandler(GetCircuitBreakerPolicy());
+
+                c.AddHttpClient<IBitfinexPublicHttpApi, BitfinexPublicHttpApi>((provider, client) =>
+                    {
+                        var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
+                        httpClientFactoryHelper?.Configure(client);
+                    })
+                    .ConfigurePrimaryHttpMessageHandler(provider =>
+                        provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
+                    .AddPolicyHandler(
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
             });
 
             options.PostConfigure(x);

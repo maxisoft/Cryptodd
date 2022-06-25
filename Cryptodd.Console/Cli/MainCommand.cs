@@ -1,4 +1,7 @@
-﻿using Cryptodd.Cli;
+﻿using Cryptodd.Bitfinex;
+using Cryptodd.Bitfinex.WebSockets;
+using Cryptodd.Cli;
+using Maxisoft.Utils.Objects;
 using Npgsql;
 using Typin;
 using Typin.Attributes;

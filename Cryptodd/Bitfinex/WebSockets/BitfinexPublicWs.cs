@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Net.WebSockets;
@@ -6,36 +7,42 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks.Dataflow;
+using Cryptodd.Bitfinex.Models;
+using Cryptodd.Bitfinex.Models.Json;
 using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
+using Cryptodd.Pairs;
 using Maxisoft.Utils.Objects;
 using Serilog;
 
-namespace Cryptodd.Ftx.Orderbooks;
+namespace Cryptodd.Bitfinex.WebSockets;
 
-public readonly record struct GroupedOrderBookRequest(string Market, double Grouping) { }
+public readonly record struct GroupedOrderBookRequest(string Symbol, string Precision = "P0") { }
 
-public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposable
+public class BitfinexPublicWs: IService, IDisposable, IAsyncDisposable
 {
-    private const string WebsocketUrl = "wss://ftx.com/ws/";
-
+    private const string WebsocketUrl = "wss://api-pub.bitfinex.com/ws/2";
     internal static readonly JsonSerializerOptions OrderBookJsonSerializerOptions =
         CreateOrderBookJsonSerializerOptions();
 
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
-    private readonly List<ITargetBlock<GroupedOrderbookDetails>> _targetBlocks = new();
+    private readonly List<ITargetBlock<OrderbookEnvelope>> _targetBlocks = new();
     private readonly IClientWebSocketFactory _webSocketFactory;
 
     internal readonly CancellationTokenSource LoopCancellationTokenSource;
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
     private ClientWebSocket? _ws;
     internal BufferBlock<GroupedOrderBookRequest> Requests = new();
+    private readonly SemaphoreSlim _subscribedSemaphore = new (25, 25);
 
-    public FtxGroupedOrderBookWebsocket(IClientWebSocketFactory webSocketFactory,
+    private long messageCounter = 0;
+    private readonly ConcurrentDictionary<long, string> _channelToSymbol = new ();
+
+    public BitfinexPublicWs(IClientWebSocketFactory webSocketFactory,
         ILogger logger, Boxed<CancellationToken> cancellationToken)
     {
         _webSocketFactory = webSocketFactory;
@@ -104,26 +111,28 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
         _semaphoreSlim.Dispose();
         LoopCancellationTokenSource.Dispose();
+        _subscribedSemaphore.Dispose();
     }
 
     private static JsonSerializerOptions CreateOrderBookJsonSerializerOptions()
     {
         var res = new JsonSerializerOptions
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
-        res.Converters.Add(new PriceSizePairConverter());
-        res.Converters.Add(new PooledListPriceSizePairConverter());
+        res.Converters.Add(new PooledListConverter<PriceCountSizeTuple>());
+        res.Converters.Add(new PriceCountSizeConverter());
+        res.Converters.Add(new OrderbookEnvelopeConverter());
         return res;
     }
 
     public int NumRemainingRequests() => Requests.Count;
 
-    public void RegisterTargetBlock(ITargetBlock<GroupedOrderbookDetails> block)
+    public void RegisterTargetBlock(ITargetBlock<OrderbookEnvelope> block)
     {
         _targetBlocks.Add(block);
     }
 
-    public bool RegisterGroupedOrderBookRequest(string market, double grouping) =>
-        Requests.Post(new GroupedOrderBookRequest(market, grouping));
+    public bool RegisterGroupedOrderBookRequest(string market, int precision) =>
+        Requests.Post(new GroupedOrderBookRequest($"t{market}", $"P{precision}"));
 
     internal async ValueTask ProcessRequests(CancellationToken cancellationToken)
     {
@@ -138,13 +147,26 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
 
             while (Requests.TryReceive(out var request) && !cancellationToken.IsCancellationRequested)
             {
-                await _ws!.SendAsync(
-                    Encoding.UTF8.GetBytes(
-                        "{\"op\":\"subscribe\",\"channel\":\"orderbookGrouped\",\"market\":\"" +
-                        $"{request.Market}" + "\",\"grouping\":" +
-                        request.Grouping.ToString(CultureInfo.InvariantCulture) +
-                        "}"),
-                    WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+                await _subscribedSemaphore.WaitAsync(cancellationToken);
+                try
+                {
+                    var subId = Interlocked.Increment(ref messageCounter);
+                    subId <<= 32;
+                    subId |= PairHasher.Hash(request.Symbol) & int.MaxValue;
+                    await _ws!.SendAsync(
+                        Encoding.UTF8.GetBytes(
+                            "{\"event\":\"subscribe\",\"channel\":\"book\",\"symbol\":\"" +
+                            request.Symbol + "\",\"freq\":\"f1\",\"prec\":\"" + request.Precision +
+                            "\",\"subId\":\"" +
+                            subId +
+                            "\"}"),
+                        WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    _subscribedSemaphore.Release();
+                    throw;
+                }
             }
         }
     }
@@ -179,9 +201,9 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
                     }
 
 
-                    if (!PreParsedFtxWsMessage.TryParse(mem.Memory[..resp.Count].Span, out var pre))
+                    if (!PreParsedBitfinexWsMessage.TryParse(mem.Memory[..resp.Count].Span, out var pre))
                     {
-                        _logger.Warning("Unable to pre parse message {Message}", pre);
+                        _logger.Warning("Unable to pre parse message {Message}", Encoding.UTF8.GetString(mem.Memory[..resp.Count].Span));
                         Close();
                         continue;
                     }
@@ -244,33 +266,34 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         }
     }
 
-    private async ValueTask HandleOrderbookGrouped(PreParsedFtxWsMessage pre, Memory<byte> memory,
+    private async ValueTask HandleOrderbookGrouped(PreParsedBitfinexWsMessage pre, Memory<byte> memory,
         CancellationToken cancellationToken)
     {
-        Debug.Assert(pre.Channel == "orderbookGrouped");
-        if (pre.Type is "subscribed" or "unsubscribed")
-        {
-            return;
-        }
+        Debug.Assert(pre.ChanId > 0);
 
         var unsub = Unsubscribe(pre);
         try
         {
-            if (pre.Type != "partial")
+            var orderbookEnvelope = JsonSerializer.Deserialize<OrderbookEnvelope>(memory.Span,
+                OrderBookJsonSerializerOptions);
+            if (orderbookEnvelope is null)
             {
                 return;
             }
 
-            var orderbookGroupedWrapper = JsonSerializer.Deserialize<GroupedOrderbookDetails>(memory.Span,
-                OrderBookJsonSerializerOptions);
-            if (orderbookGroupedWrapper is null)
+            if (_channelToSymbol.TryGetValue(orderbookEnvelope.Channel, out var symbol) && !string.IsNullOrWhiteSpace(symbol))
+            {
+                orderbookEnvelope.Symbol = symbol;
+            }
+
+            if (orderbookEnvelope.Orderbook.Count != 50)
             {
                 return;
             }
 
             foreach (var block in _targetBlocks)
             {
-                await block.SendAsync(orderbookGroupedWrapper, cancellationToken);
+                await block.SendAsync(orderbookEnvelope, cancellationToken);
             }
         }
         finally
@@ -282,23 +305,13 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         }
     }
 
-    private async Task Unsubscribe(PreParsedFtxWsMessage pre)
+    private async Task Unsubscribe(PreParsedBitfinexWsMessage pre)
     {
         var stringBuilder = new StringBuilder();
-        stringBuilder.Append("{\"op\":\"unsubscribe\"");
-        if (!string.IsNullOrWhiteSpace(pre.Channel))
+        stringBuilder.Append("{\"event\":\"unsubscribe\"");
+        if (pre.ChanId > 0)
         {
-            stringBuilder.Append(CultureInfo.InvariantCulture, $",\"channel\":\"{pre.Channel}\"");
-        }
-
-        if (!string.IsNullOrWhiteSpace(pre.Market))
-        {
-            stringBuilder.Append(CultureInfo.InvariantCulture, $",\"market\":\"{pre.Market}\"");
-        }
-
-        if (pre.Grouping.HasValue)
-        {
-            stringBuilder.Append(CultureInfo.InvariantCulture, $",\"grouping\":\"{pre.Grouping}\"");
+            stringBuilder.Append(CultureInfo.InvariantCulture, $",\"chanId\":{pre.ChanId}");
         }
 
         stringBuilder.Append('}');
@@ -306,21 +319,33 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
             CancellationToken) ?? Task.CompletedTask);
     }
 
-    private ValueTask DispatchMessage(PreParsedFtxWsMessage pre, Memory<byte> memory,
+    private ValueTask DispatchMessage(PreParsedBitfinexWsMessage pre, Memory<byte> memory,
         CancellationToken cancellationToken)
     {
-        switch (pre.Type, pre.Channel)
+        if (!pre.IsArray)
         {
-            case ("subscribed" or "unsubscribed" or "pong", _):
-                break;
-            case (_, "orderbookGrouped"):
-                return HandleOrderbookGrouped(pre, memory, cancellationToken);
-            default:
-                _logger.Warning("No handling for {Pre}", pre);
-                break;
+            switch (pre.Event, pre.Channel)
+            {
+                case ("subscribed", _):
+                    _channelToSymbol[pre.ChanId] = pre.Symbol;
+                    break;
+                case ("unsubscribed", _):
+                    _subscribedSemaphore.Release();
+                    break;
+                case ("pong" or "info" or "conf", _):
+                    break;
+                default:
+                    _logger.Warning("No handling for {Pre} {Message}", pre, Encoding.UTF8.GetString(memory.Span));
+                    break;
+            }
         }
 
-        return ValueTask.CompletedTask;
+        if (pre.IsHearthBeat)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        return pre.IsArray ? HandleOrderbookGrouped(pre, memory, cancellationToken) : ValueTask.CompletedTask;
     }
 
     private Task PingRemote()
@@ -328,7 +353,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
         var pingTask = Task.CompletedTask;
         if (_pingStopWatch.ElapsedMilliseconds > 15_000 && !IsClosed)
         {
-            pingTask = _ws?.SendAsync(Encoding.UTF8.GetBytes("{\"op\":\"ping\"}"), WebSocketMessageType.Text, true,
+            pingTask = _ws?.SendAsync(Encoding.UTF8.GetBytes("{\"event\":\"ping\"}"), WebSocketMessageType.Text, true,
                 CancellationToken) ?? Task.CompletedTask;
             pingTask = pingTask.ContinueWith(task =>
             {
@@ -367,6 +392,11 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
             {
                 _semaphoreSlim.Release();
             }
+
+            var flags = (long)RemoteBitfinexWebsocketConfigFlags.Timestamp ^ (long) RemoteBitfinexWebsocketConfigFlags.SeqAll ^ (long) RemoteBitfinexWebsocketConfigFlags.BulkUpdates;
+            await _ws.SendAsync(Encoding.UTF8.GetBytes("{\"event\":\"conf\",\"flags\":" + flags +
+                                                       " }"), WebSocketMessageType.Text, true,
+                CancellationToken);
         }
 
         return res;
@@ -375,7 +405,7 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
     internal void Close()
     {
         var ws = _ws;
-        if (ws is { })
+        if (ws is not null)
         {
             try
             {

@@ -53,7 +53,9 @@ public class FtxRegroupedOrderbookPathResolver : IPluginPathResolver
         if (option.FileType != SaveRegroupedOrderbookToParquetHandler.FileType ||
             (path != SaveRegroupedOrderbookToParquetHandler.DefaultFileName &&
              path != SaveOrderbookToParquetHandler.DefaultFileName && 
-             path != SaveFuturesStatsToParquetHandler.DefaultFileName))
+             path != SaveFuturesStatsToParquetHandler.DefaultFileName &&
+             path != Bitfinex.Orderbooks.SaveOrderbookToParquetHandler.DefaultFileName
+             ))
         {
             return path;
         }
@@ -74,7 +76,7 @@ public class FtxRegroupedOrderbookPathResolver : IPluginPathResolver
 
     private string ReplacePath(string path)
     {
-        var now = DateTimeOffset.UtcNow.ToString("yyyy_MM_dd_hh", DateTimeFormatInfo.InvariantInfo);
+        var now = DateTimeOffset.UtcNow.ToString("yyyy_MM_dd_HH", DateTimeFormatInfo.InvariantInfo);
         var ext = Path.GetExtension(path);
         var fileName = ((ReadOnlySpan<char>)path)[..^ext.Length];
         var result = $"{fileName}_{now}{ext}";

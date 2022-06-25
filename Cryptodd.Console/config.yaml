@@ -24,10 +24,16 @@ Ftx:
   FutureStats:
     Parquet:
       Enabled: false
+      
+Bitfinex:
+  OrderBook:
+    Parquet:
+      Enabled: true
 
 Trade:
   Collector:
-    LockTable: false
+    LockTable: true
+    MaxParallelism: 2
   PairFilter:
     - BTC/USD
     - BTC-PERP
@@ -41,6 +47,7 @@ Trade:
     - SOL-PERP
       
   Aggregate:
+    MaxParallelism: 2
     ResamplePeriods:
       - 300000
       - 3600000

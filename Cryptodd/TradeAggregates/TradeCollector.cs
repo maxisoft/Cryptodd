@@ -61,13 +61,13 @@ public class TradeCollector : ITradeCollector
             {
                 await Parallel.ForEachAsync(marketNames, token, async (marketName, token) =>
                 {
-                    var savedTime = await GetSavedTime(marketName, token);
-
-                    if (savedTime < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+                    // ReSharper disable once AccessToDisposedClosure
+                    await semaphore.WaitAsync(token).ConfigureAwait(false);
+                    try
                     {
-                        // ReSharper disable once AccessToDisposedClosure
-                        await semaphore.WaitAsync(token).ConfigureAwait(false);
-                        try
+                        var savedTime = await GetSavedTime(marketName, token);
+
+                        if (savedTime < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                         {
                             await Policy.Handle<PostgresException>(exception =>
                                     exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested &&
@@ -76,11 +76,11 @@ public class TradeCollector : ITradeCollector
                                 .ExecuteAsync(() => DownloadAndInsert(http, marketName, savedTime, token))
                                 .ConfigureAwait(false);
                         }
-                        finally
-                        {
-                            // ReSharper disable once AccessToDisposedClosure
-                            semaphore.Release();
-                        }
+                    }
+                    finally
+                    {
+                        // ReSharper disable once AccessToDisposedClosure
+                        semaphore.Release();
                     }
                 }).ConfigureAwait(true);
             }

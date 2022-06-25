@@ -77,6 +77,8 @@ public class TradeAggregateService : ITradeAggregateService
 
         while (!cancellationToken.IsCancellationRequested && semaphore.CurrentCount > 0)
         {
+            var closeToCurrentTime = true;
+            var minDelay = TimeSpan.MaxValue;
             await Parallel.ForEachAsync(marketNames, cancellationToken, async (marketName, token) =>
             {
                 await Parallel.ForEachAsync(Options.ResamplePeriods.Zip(Options.ResampleOffsets), token, async (resamplePair, token) =>
@@ -105,6 +107,13 @@ public class TradeAggregateService : ITradeAggregateService
                         }
 
                         await CreateAggregates(marketName, period, resampleOffset, prevTime, token).ConfigureAwait(false);
+                        closeToCurrentTime &=
+                            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - prevTime
+                                      < period.TotalMilliseconds * 2;
+                        if (period < minDelay)
+                        {
+                            minDelay = period;
+                        }
                     }
                     finally
                     {
@@ -113,6 +122,17 @@ public class TradeAggregateService : ITradeAggregateService
                     }
                 }).ConfigureAwait(true);
             }).ConfigureAwait(true);
+            
+            if (closeToCurrentTime && minDelay != TimeSpan.MaxValue)
+            {
+                minDelay /= 2;
+
+                if (minDelay > TimeSpan.FromSeconds(5))
+                {
+                    minDelay = TimeSpan.FromSeconds(5);
+                }
+                await Task.Delay(minDelay, cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -150,7 +170,7 @@ public class TradeAggregateService : ITradeAggregateService
         if (freshStart)
         {
             await dbConnect;
-            await using var tmpTransaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await using var tmpTransaction = await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken).ConfigureAwait(false);
             prevTime = await _tradeDatabaseService.GetFirstTime(tmpTransaction, marketName, cancellationToken).ConfigureAwait(false) - offsetMs;
             await tmpTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -159,7 +179,7 @@ public class TradeAggregateService : ITradeAggregateService
         var roundedPrevTime = prevTime / periodMs * periodMs + offsetMs;
         var nextTime = (prevTime / periodMs + 1) * periodMs + offsetMs;
         await dbConnect;
-        await using var tr = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var tr = await connection.BeginTransactionAsync(IsolationLevel.Serializable ,cancellationToken).ConfigureAwait(false);
         var tradeTime = await _tradeDatabaseService.GetLastTime(tr, marketName, false, cancellationToken)
             .ConfigureAwait(false);
         if (tradeTime == 0)
