@@ -1,4 +1,5 @@
 ﻿using Cryptodd.Bitfinex;
+using Cryptodd.Features;
 using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.IoC.Registries;
@@ -37,6 +38,7 @@ public class ContainerFactory : IContainerFactory
         var loggerRegistry = new LoggerServiceRegistry(configuration);
         var logger = loggerRegistry.Logger.ForContext(GetType());
         PluginRegistry? pluginRegistry = null;
+        var featureList = new FeatureList();
         if (options.ScanForPlugins && configuration.GetValue("LoadPlugins", true))
         {
             pluginRegistry = new PluginRegistry(configuration, loggerRegistry.Logger);
@@ -59,17 +61,16 @@ public class ContainerFactory : IContainerFactory
                     !string.IsNullOrWhiteSpace(
                         configuration.GetSection("Postgres").GetValue<string>("ConnectionString", ""))))
             {
+                featureList.RegisterFeature(ExternalFeatureFlags.Postgres);
                 x.IncludeRegistry<PostgresDatabaseRegistry>();
             }
 
             if (configuration.GetSection("Sqlite").GetValue<bool>("Enabled", false))
             {
+                featureList.RegisterFeature(ExternalFeatureFlags.Sqlite);
                 x.IncludeRegistry<SqliteDatabaseRegistry>();
             }
-            //x.IncludeRegistry<MemoryCacheRegistry>();
-            //x.IncludeRegistry<RedisServiceRegistry>();
-            //x.IncludeRegistry<HandlerRegistry>();
-            //x.IncludeRegistry<ScheduledTaskRegistry>();
+            
             if (pluginRegistry is not null)
             {
                 x.IncludeRegistry(pluginRegistry);
@@ -100,6 +101,10 @@ public class ContainerFactory : IContainerFactory
                     .AddPolicyHandler(
                         (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
             });
+
+            x.Use(featureList).Singleton()
+                .For<IFeatureList>()
+                .For<IFeatureListRegistry>();
 
             options.PostConfigure(x);
         });

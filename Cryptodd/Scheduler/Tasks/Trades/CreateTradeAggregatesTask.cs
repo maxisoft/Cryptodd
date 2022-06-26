@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Cryptodd.Features;
 using Cryptodd.TradeAggregates;
 using Lamar;
 using Maxisoft.Utils.Disposables;
@@ -14,18 +15,25 @@ public class CreateTradeAggregates : BasePeriodicScheduledTask, IDisposable
     private IDisposable _disposable = new EmptyDisposable();
     private Task? _runningTasks;
     private readonly ITradeAggregateService _tradeAggregateService;
+    private readonly IFeatureList _featureList;
 
     public CreateTradeAggregates(ILogger logger, IConfiguration configuration, IContainer container,
-        ITradeAggregateService tradeAggregateService) : base(logger,
+        ITradeAggregateService tradeAggregateService, IFeatureList featureList) : base(logger,
         configuration, container)
     {
         Period = TimeSpan.FromSeconds(10);
         _tradeAggregateService = tradeAggregateService;
+        _featureList = featureList;
         AdaptativeReschedule = false;
     }
 
     public override async Task Execute(CancellationToken cancellationToken)
     {
+        if (!_featureList.HasPostgres())
+        {
+            return;
+        }
+        
         if (!(_runningTasks?.IsCompleted ?? true))
         {
             return;

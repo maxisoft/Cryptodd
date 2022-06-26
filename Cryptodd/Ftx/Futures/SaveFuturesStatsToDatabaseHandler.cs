@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using Cryptodd.Features;
 using Cryptodd.Ftx.Models.DatabasePoco;
 using Lamar;
 using Maxisoft.Utils.Disposables;
@@ -26,6 +27,10 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
 
     public async Task Handle(IReadOnlyCollection<FutureStats> futureStats, CancellationToken cancellationToken)
     {
+        if (!_container.GetInstance<IFeatureList>().HasDatabase())
+        {
+            return;
+        }
         await using var container = _container.GetNestedContainer();
         var databases = container.GetAllInstances<IDatabase>();
         using var dm = new DisposableManager(databases);

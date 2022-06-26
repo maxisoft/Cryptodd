@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using Cryptodd.Features;
 using Cryptodd.IoC;
 using Cryptodd.TradeAggregates;
 using Lamar;
@@ -38,6 +39,11 @@ public class TimescaleDB : IService
             return;
         }
 
+        if (!_container.GetInstance<IFeatureList>().HasPostgres())
+        {
+            return;
+        }
+
         await using var container = _container.GetNestedContainer();
         var installed = await IsExtensionInstalled(cancellationToken);
         if (!installed && Options.AllowInstallation)
@@ -50,6 +56,8 @@ public class TimescaleDB : IService
         {
             return;
         }
+
+        _container.GetInstance<IFeatureListRegistry>().RegisterFeature(ExternalFeatureFlags.TimeScaleDb);
         await CreateFtxFuturesStatsHyperTables(cancellationToken);
         await CreateFtxTradesHyperTables(cancellationToken);
         if (Options.EnableCompression)

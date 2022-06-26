@@ -2,6 +2,7 @@
 using Cryptodd.Bitfinex.Models;
 using Cryptodd.Databases;
 using Cryptodd.Databases.Tables.Bitfinex;
+using Cryptodd.Features;
 using Lamar;
 using Npgsql;
 using NpgsqlTypes;
@@ -25,6 +26,10 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
 
     public async Task Handle(IReadOnlyCollection<OrderbookEnvelope> orderbooks, CancellationToken cancellationToken)
     {
+        if (!_container.GetInstance<IFeatureList>().HasPostgres())
+        {
+            return;
+        }
         await using var container = _container.GetNestedContainer()!;
         await using var connection = container.GetInstance<NpgsqlConnection>();
         if (connection is not null)
