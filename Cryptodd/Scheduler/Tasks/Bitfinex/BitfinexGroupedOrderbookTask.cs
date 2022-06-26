@@ -12,11 +12,13 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
 {
     private AsyncPolicy _retryPolicy;
 
-    public BitfinexGroupedOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration) : base(logger,
+    public BitfinexGroupedOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration) : base(
+        logger,
         configuration, container)
     {
         _retryPolicy = Policy.NoOpAsync();
         ConfigureRetryPolicy();
+        Period = TimeSpan.FromMinutes(1);
     }
 
     public override IConfigurationSection Section =>
@@ -24,22 +26,17 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
 
     public override Task Execute(CancellationToken cancellationToken)
     {
-        var sw = Stopwatch.StartNew();
-        return _retryPolicy.ExecuteAsync(token =>
-        {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, token);
-            cts.CancelAfter(Period - sw.Elapsed);
-            var orderBookService = Container.GetInstance<BitfinexGatherGroupedOrderBookService>();
-            return orderBookService.CollectOrderBooks(cts.Token);
-        }, cancellationToken);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(Period);
+        var orderBookService = Container.GetInstance<BitfinexGatherGroupedOrderBookService>();
+        return orderBookService.CollectOrderBooks(cts.Token);
     }
 
     private void ConfigureRetryPolicy()
     {
         var maxRetry = Section.GetValue("MaxRetry", 3);
-        _retryPolicy = Policy.TimeoutAsync(TimeSpan.FromMilliseconds(Period.TotalMilliseconds / maxRetry))
-            .WrapAsync(
-                Policy.Handle<Exception>(_ => true).WaitAndRetryAsync(maxRetry, i => TimeSpan.FromSeconds(1 + i)));
+        _retryPolicy = Policy.Handle<Exception>(_ => true)
+            .WaitAndRetryAsync(maxRetry, i => TimeSpan.FromSeconds(1 + i));
     }
 
     protected override void OnConfigurationChange(object obj)
