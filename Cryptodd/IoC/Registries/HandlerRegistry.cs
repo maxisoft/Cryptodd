@@ -1,4 +1,5 @@
-﻿using Cryptodd.Ftx;
+﻿using Cryptodd.Bitfinex.Orderbooks;
+using Cryptodd.Ftx;
 using Cryptodd.Ftx.Futures;
 using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
@@ -18,6 +19,7 @@ public class HandlerRegistry : ServiceRegistry
             scanner.AddAllTypesOf<IGroupedOrderbookHandler>(ServiceLifetime.Transient);
             scanner.AddAllTypesOf<IRegroupedOrderbookHandler>(ServiceLifetime.Transient);
             scanner.AddAllTypesOf<IFuturesStatsHandler>(ServiceLifetime.Transient);
+            scanner.AddAllTypesOf<IOrderbookHandler>(ServiceLifetime.Transient);
         });
     }
 }

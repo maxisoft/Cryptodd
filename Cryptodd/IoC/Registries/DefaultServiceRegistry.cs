@@ -1,4 +1,5 @@
-﻿using Cryptodd.Ftx;
+﻿using Cryptodd.Bitfinex.Orderbooks;
+using Cryptodd.Ftx;
 using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Lamar;
@@ -15,6 +16,7 @@ public class DefaultServiceRegistry : ServiceRegistry
             scanner.ExcludeType<INoAutoRegister>();
             scanner.ExcludeType<IGroupedOrderbookHandler>();
             scanner.ExcludeType<IRegroupedOrderbookHandler>();
+            scanner.ExcludeType<IOrderbookHandler>();
             scanner.AddAllTypesOf<IService>();
             scanner.SingleImplementationsOfInterface();
             scanner.WithDefaultConventions();

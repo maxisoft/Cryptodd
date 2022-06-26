@@ -240,8 +240,10 @@ ORDER BY c DESC",
 
         await using var command = new NpgsqlCommand(createQuery, conn);
         await command.ExecuteNonQueryAsync(cancellationToken);
-        await using var schema = new NpgsqlCommand("CREATE SCHEMA IF NOT EXISTS \"ftx\"", conn);
-        await schema.ExecuteNonQueryAsync(cancellationToken);
+        await using var ftxSchema = new NpgsqlCommand("CREATE SCHEMA IF NOT EXISTS \"ftx\"", conn);
+        await ftxSchema.ExecuteNonQueryAsync(cancellationToken);
+        await using var bitfinexSchema = new NpgsqlCommand("CREATE SCHEMA IF NOT EXISTS \"bitfinex\"", conn);
+        await bitfinexSchema.ExecuteNonQueryAsync(cancellationToken);
     }
 
     internal async Task InstallExt(CancellationToken cancellationToken)

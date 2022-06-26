@@ -91,4 +91,10 @@
       </EmbeddedResource>
     </ItemGroup>
 
+    <ItemGroup>
+      <EmbeddedResource Include="..\scripts\sql\postgres\bitfinex_orderbook.sql">
+        <Link>sql\postgres\bitfinex_orderbook.sql</Link>
+      </EmbeddedResource>
+    </ItemGroup>
+
 </Project>

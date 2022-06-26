@@ -68,7 +68,7 @@ FROM ( SELECT t.hypertable_schema AS schema,
        FROM table_sizes ts
        WHERE NOT (format('%I.%I'::text, ts.table_schema, ts.table_name)::regclass::oid IN ( SELECT format('%I.%I'::text, t.hypertable_schema, t.hypertable_name)::regclass AS format
                                                                                             FROM timescaledb_information.hypertables t))) x
-WHERE x.schema = 'public' OR x.schema = 'ftx'
+WHERE x.schema = 'public' OR x.schema = 'ftx' OR x.schema = 'bitfinex'
 ORDER BY (pg_size_bytes(x.total_bytes)) DESC;
 
 --ALTER TABLE public.table_sizes2

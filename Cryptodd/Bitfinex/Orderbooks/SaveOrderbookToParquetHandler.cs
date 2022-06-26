@@ -1,6 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Cryptodd.Bitfinex.Models;
 using Cryptodd.FileSystem;
 using Cryptodd.Pairs;
@@ -21,9 +19,9 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
     public const string DefaultFileName = "bitfinex_orderbook.parquet";
     private const int ChunkSize = 128;
     private readonly IConfiguration _configuration;
+    private readonly ILogger _logger;
     private readonly IPairFilterLoader _pairFilterLoader;
     private readonly IPathResolver _pathResolver;
-    private readonly ILogger _logger;
 
     public SaveOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,
         IPairFilterLoader pairFilterLoader, ILogger logger)
@@ -63,7 +61,8 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
                                  FileIntendedAction.Write
             });
         var gzip = section.GetValue("HighCompression", false); // use snappy else
-        var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Bitfinex.GroupedOrderBook.Parquet", cancellationToken)
+        var pairFilter = await _pairFilterLoader
+            .GetPairFilterAsync("Bitfinex.GroupedOrderBook.Parquet", cancellationToken)
             .ConfigureAwait(false);
 
         foreach (var array in orderbooks

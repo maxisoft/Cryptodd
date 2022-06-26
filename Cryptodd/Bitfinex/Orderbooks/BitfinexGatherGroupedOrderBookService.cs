@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Bitfinex.Models;
 using Cryptodd.Bitfinex.Orderbooks;
@@ -35,7 +34,8 @@ public class BitfinexGatherGroupedOrderBookService : IService
     {
         var sw = Stopwatch.StartNew();
         await using var container = _container.GetNestedContainer();
-        var pairs = await container.GetInstance<IBitfinexPublicHttpApi>().GetAllPairs(cancellationToken).ConfigureAwait(false);
+        var pairs = await container.GetInstance<IBitfinexPublicHttpApi>().GetAllPairs(cancellationToken)
+            .ConfigureAwait(false);
         pairs = pairs.OrderBy(a => Guid.NewGuid()).ToList();
         cancellationToken.ThrowIfCancellationRequested();
         var bitfinexConfig = _configuration.GetSection("Bitfinex");
@@ -97,13 +97,13 @@ public class BitfinexGatherGroupedOrderBookService : IService
 
             using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cancellationTokenSource.CancelAfter(orderBookSection.GetValue("GatherTimeout", 20 * 1000));
-            
+
             while (!cancellationTokenSource.IsCancellationRequested && reDispatch)
             {
                 reDispatch = DispatchTasks();
                 await Parallel.ForEachAsync(webSockets, cancellationTokenSource.Token,
                     (ws, token) => ws.ProcessRequests(token));
-                
+
                 var orderBooks = new List<OrderbookEnvelope>();
                 using var dm = new DisposableManager();
                 var validators = container.GetAllInstances<IValidator<OrderbookEnvelope>>();
@@ -125,6 +125,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
                     {
                         break;
                     }
+
                     dm.LinkDisposable(resp);
 
                     var valid = true;
@@ -136,8 +137,13 @@ public class BitfinexGatherGroupedOrderBookService : IService
                         }
 
                         valid = false;
-                        if (details is null || !_logger.IsEnabled(LogEventLevel.Debug)) continue;
-                        _logger.Debug("Orderbook for {Symbol} has invalid field(s): {Fields}", resp.Symbol, string.Join(" ", details.InvalidFields.Keys));
+                        if (details is null || !_logger.IsEnabled(LogEventLevel.Debug))
+                        {
+                            continue;
+                        }
+
+                        _logger.Debug("Orderbook for {Symbol} has invalid field(s): {Fields}", resp.Symbol,
+                            string.Join(" ", details.InvalidFields.Keys));
                     }
 
                     if (!valid)
