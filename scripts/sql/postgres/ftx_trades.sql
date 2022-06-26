@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS ftx.ftx_trade_template
     "flag" smallint NOT NULL,
     PRIMARY KEY (id)
 );
-END;
 
 --ALTER TABLE IF EXISTS ftx.ftx_trade_template
 --   OWNER TO cryptodduser;

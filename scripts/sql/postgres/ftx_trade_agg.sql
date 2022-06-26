@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS ftx.ftx_trade_agg_template
     
     PRIMARY KEY (time)
 );
-END;
 
 --ALTER TABLE IF EXISTS ftx.ftx_trade_agg_template
 --   OWNER TO cryptodduser;

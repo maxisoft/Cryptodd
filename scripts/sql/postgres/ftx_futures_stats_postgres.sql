@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS ftx_futures_stats
     "mark" real NOT NULL,
     PRIMARY KEY (id)
 );
-END;
 
 --ALTER TABLE IF EXISTS ftx_futures_stats
 --   OWNER TO cryptodduser;
