@@ -11,7 +11,7 @@ public static class TableNameStandardize
     private static readonly Lazy<Regex> _valid = new(() =>
         new Regex(@"^[A-Za-z][A-Za-z0-9_]{0,127}$", RegexOptions.Compiled | RegexOptions.CultureInvariant));
 
-    public static char[] EscapeChars = CreateEscapeChars();
+    private static readonly char[] EscapeChars = CreateEscapeChars();
 
     private static char[] CreateEscapeChars()
     {
