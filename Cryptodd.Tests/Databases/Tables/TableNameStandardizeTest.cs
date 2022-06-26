@@ -16,4 +16,15 @@ public class TableNameStandardizeTest
     {
         Assert.Equal(expected, TableNameStandardize.IsValid(table));
     }
+    
+    [Theory]
+    [InlineData("trades_btc_usd", "trades_btc_usd")]
+    [InlineData("btc", "btc")]
+    [InlineData("invalid$", "invalid_")]
+    [InlineData("invalid@", "invalid_")]
+    [InlineData("invalid_  héhé", "invalid___hehe")]
+    public void TestStandardize(string table, string expected)
+    {
+        Assert.Equal(expected, TableNameStandardize.Standardize(table));
+    }
 }
