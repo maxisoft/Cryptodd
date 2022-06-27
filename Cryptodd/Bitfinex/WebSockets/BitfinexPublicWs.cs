@@ -9,7 +9,6 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Bitfinex.Models;
 using Cryptodd.Bitfinex.Models.Json;
-using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
@@ -21,14 +20,18 @@ namespace Cryptodd.Bitfinex.WebSockets;
 
 public readonly record struct GroupedOrderBookRequest(string Symbol, string Precision = "P0") { }
 
-public class BitfinexPublicWs: IService, IDisposable, IAsyncDisposable
+public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
 {
     private const string WebsocketUrl = "wss://api-pub.bitfinex.com/ws/2";
+
     internal static readonly JsonSerializerOptions OrderBookJsonSerializerOptions =
         CreateOrderBookJsonSerializerOptions();
 
+    private readonly ConcurrentDictionary<long, string> _channelToSymbol = new();
+
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
+    private readonly SemaphoreSlim _subscribedSemaphore = new(25, 25);
 
     private readonly List<ITargetBlock<OrderbookEnvelope>> _targetBlocks = new();
     private readonly IClientWebSocketFactory _webSocketFactory;
@@ -36,11 +39,9 @@ public class BitfinexPublicWs: IService, IDisposable, IAsyncDisposable
     internal readonly CancellationTokenSource LoopCancellationTokenSource;
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
     private ClientWebSocket? _ws;
-    internal BufferBlock<GroupedOrderBookRequest> Requests = new();
-    private readonly SemaphoreSlim _subscribedSemaphore = new (25, 25);
 
-    private long messageCounter = 0;
-    private readonly ConcurrentDictionary<long, string> _channelToSymbol = new ();
+    private long messageCounter;
+    internal BufferBlock<GroupedOrderBookRequest> Requests = new();
 
     public BitfinexPublicWs(IClientWebSocketFactory webSocketFactory,
         ILogger logger, Boxed<CancellationToken> cancellationToken)
@@ -203,7 +204,8 @@ public class BitfinexPublicWs: IService, IDisposable, IAsyncDisposable
 
                     if (!PreParsedBitfinexWsMessage.TryParse(mem.Memory[..resp.Count].Span, out var pre))
                     {
-                        _logger.Warning("Unable to pre parse message {Message}", Encoding.UTF8.GetString(mem.Memory[..resp.Count].Span));
+                        _logger.Warning("Unable to pre parse message {Message}",
+                            Encoding.UTF8.GetString(mem.Memory[..resp.Count].Span));
                         Close();
                         continue;
                     }
@@ -281,7 +283,8 @@ public class BitfinexPublicWs: IService, IDisposable, IAsyncDisposable
                 return;
             }
 
-            if (_channelToSymbol.TryGetValue(orderbookEnvelope.Channel, out var symbol) && !string.IsNullOrWhiteSpace(symbol))
+            if (_channelToSymbol.TryGetValue(orderbookEnvelope.Channel, out var symbol) &&
+                !string.IsNullOrWhiteSpace(symbol))
             {
                 orderbookEnvelope.Symbol = symbol;
             }
@@ -393,9 +396,13 @@ public class BitfinexPublicWs: IService, IDisposable, IAsyncDisposable
                 _semaphoreSlim.Release();
             }
 
-            var flags = (long)RemoteBitfinexWebsocketConfigFlags.Timestamp ^ (long) RemoteBitfinexWebsocketConfigFlags.SeqAll ^ (long) RemoteBitfinexWebsocketConfigFlags.BulkUpdates;
-            await _ws.SendAsync(Encoding.UTF8.GetBytes("{\"event\":\"conf\",\"flags\":" + flags +
-                                                       " }"), WebSocketMessageType.Text, true,
+            var flags = (long)RemoteBitfinexWebsocketConfigFlags.Timestamp ^
+                        (long)RemoteBitfinexWebsocketConfigFlags.SeqAll ^
+                        (long)RemoteBitfinexWebsocketConfigFlags.BulkUpdates;
+            var payload = Encoding.UTF8.GetBytes("{\"event\":\"conf\",\"flags\":" + flags + " }");
+            await _ws.SendAsync(payload,
+                WebSocketMessageType.Text,
+                true,
                 CancellationToken);
         }
 
