@@ -46,7 +46,7 @@ public class BitfinexPublicHttpApi : IBitfinexPublicHttpApi
         uri = await _uriRewriteService.Rewrite(uri);
         var rateLimiter = _rateLimiters.GetOrAdd("conf", _ => new BitfinexRateLimiter() { MaxRequestPerMinutes = 90 });
         using var helper = rateLimiter.Helper();
-        await helper.Wait(cancellationToken);
+        await helper.Wait(cancellationToken).ConfigureAwait(false);
         return (await _httpClient.GetFromJsonAsync<List<string>[]>(uri,
             cancellationToken))?[0] ?? new List<string>();
     }
