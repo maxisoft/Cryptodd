@@ -90,7 +90,7 @@ public class SaveFuturesStatsToParquetHandler : IFuturesStatsHandler
 
         var schema = new Schema(timeColumn, marketHashColumn, openInterestColumn, openInterestUsdColumn, nextFundingRateColumn, spreadColumn, markColumn);
 
-        var exists = File.Exists(fileName);
+        var exists = File.Exists(fileName) && new FileInfo(fileName).Length > 0;
         using Stream fileStream = File.Open(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
         using var parquetWriter = new ParquetWriter(schema, fileStream, append: exists);
 
