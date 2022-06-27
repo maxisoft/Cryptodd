@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Data;
 using Cryptodd.Features;
 using Cryptodd.Ftx.Models.DatabasePoco;
 using Lamar;
@@ -38,7 +39,6 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
         foreach (var db in databases)
         {
             dm.LinkDisposableAsWeak(db);
-            using var tr = db.GetTransaction();
             if (db.Connection is NpgsqlConnection pgconn)
             {
                 await InsertPostgresFast(futureStats, db, pgconn, cancellationToken).ConfigureAwait(false);
@@ -47,22 +47,21 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
             {
                 // slow path for other database
                 // TODO use SqlKata to build a multi insert query
+                using var tr = db.GetTransaction();
                 foreach (var stats in futureStats)
                 {
                     await db.InsertAsync(cancellationToken, stats).ConfigureAwait(false);
                 }
+                tr.Complete();
             }
-            tr.Complete();
+            
         }
     }
 
     private static async Task InsertPostgresFast(IEnumerable<FutureStats> futureStatsList, IDatabase db,
         NpgsqlConnection connection, CancellationToken cancellationToken)
     {
-        using var tr = db.GetTransaction();
-        await db.ExecuteAsync(cancellationToken,
-            $"LOCK TABLE \"{FutureStats.Naming.TableName}\" IN SHARE ROW EXCLUSIVE MODE NOWAIT;").ConfigureAwait(false);
-
+        await using var tr = await connection.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken).ConfigureAwait(false);
         var query = new Query(FutureStats.Naming.TableName).SelectRaw("COALESCE(MAX(id), 0)").Limit(1)
             .ToSql(CompilerType.Postgres);
         var lastId = await db.FirstOrDefaultAsync<long>(cancellationToken, query).ConfigureAwait(false);
@@ -93,6 +92,6 @@ public class SaveFuturesStatsToDatabaseHandler : IFuturesStatsHandler
 
         await db.ExecuteAsync(cancellationToken, @"SELECT setval('ftx_futures_stats_id_seq', @0, true);", lastId).ConfigureAwait(false);
 
-        tr.Complete();
+        await tr.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 }

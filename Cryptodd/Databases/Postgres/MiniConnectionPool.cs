@@ -35,8 +35,10 @@ public readonly struct RentedConnection : IRentedConnection
 public interface IMiniConnectionPool : IDisposable, IAsyncDisposable
 {
     ValueTask<IRentedConnection> RentAsync(CancellationToken cancellationToken);
-    void @Return(NpgsqlConnection connection);
+    void Return(NpgsqlConnection connection);
     ValueTask ReturnAsync(NpgsqlConnection connection);
+    
+    long CappedSize { get; }
 }
 
 public interface IDynamicMiniConnectionPool : IMiniConnectionPool
@@ -46,7 +48,7 @@ public interface IDynamicMiniConnectionPool : IMiniConnectionPool
 
 public sealed class MiniConnectionPool : IDynamicMiniConnectionPool
 {
-    public const int DefaultCap = 16;
+    public const int DefaultCap = 4;
 
     private readonly ConcurrentQueue<TaskCompletionSource> _awaiters = new();
     private readonly object _lockObject = new();
@@ -158,26 +160,15 @@ public sealed class MiniConnectionPool : IDynamicMiniConnectionPool
         }
     }
 
-    private void RemoveUsedConnection(NpgsqlConnection connection)
-    {
-        lock (_lockObject)
-        {
-            if (!_usedConnections.Remove(connection))
-            {
-                throw new ArgumentException("Trying to return a non used connection", nameof(connection));
-            }
-        }
-    }
-
     public async ValueTask<IRentedConnection> RentAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            if (_freeConnections.Count > 0)
+            if (_freeConnections.Any())
             {
                 lock (_lockObject)
                 {
-                    if (_freeConnections.TryPopFront(out var connection))
+                    if (!_usedConnections.IsFull && _freeConnections.TryPopFront(out var connection))
                     {
                         _usedConnections.Add(connection);
                         return new RentedConnection(connection, this);
@@ -212,16 +203,61 @@ public sealed class MiniConnectionPool : IDynamicMiniConnectionPool
                     continue;
                 }
 
-                tcs = new TaskCompletionSource(TaskCreationOptions.PreferFairness);
+                tcs = new TaskCompletionSource();
                 _awaiters.Enqueue(tcs);
             }
 
             await using var _ = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
-            await tcs.Task.ConfigureAwait(false);
+            await tcs.Task.ConfigureAwait(true);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         throw new OperationCanceledException();
+    }
+
+    public void Return(NpgsqlConnection connection)
+    {
+        RemoveUsedConnection(connection);
+
+        if (IsFull)
+        {
+            connection.Dispose();
+        }
+        else
+        {
+            AddToFreeConnections(connection);
+            NotifyAwaiters();
+        }
+    }
+
+    public ValueTask ReturnAsync(NpgsqlConnection connection)
+    {
+        RemoveUsedConnection(connection);
+        if (IsFull)
+        {
+            lock (_lockObject)
+            {
+                if (IsFull)
+                {
+                    return connection.DisposeAsync();
+                }
+            }
+        }
+
+        AddToFreeConnections(connection);
+        NotifyAwaiters();
+        return ValueTask.CompletedTask;
+    }
+
+    private void RemoveUsedConnection(NpgsqlConnection connection)
+    {
+        lock (_lockObject)
+        {
+            if (!_usedConnections.Remove(connection))
+            {
+                throw new ArgumentException("Trying to return a non used connection", nameof(connection));
+            }
+        }
     }
 
     private void NotifyAwaiters()
@@ -234,46 +270,15 @@ public sealed class MiniConnectionPool : IDynamicMiniConnectionPool
 
     private void AddToFreeConnections(NpgsqlConnection connection)
     {
-        var openState = connection.State == ConnectionState.Open;
+        if (connection.State != ConnectionState.Open)
+        {
+            return;
+        }
+
         lock (_lockObject)
         {
-            if (openState)
-            {
-                _freeConnections.PushFront(connection);
-            }
-            else
-            {
-                _freeConnections.PushBack(connection);
-            }
+            _freeConnections.PushFront(connection);
         }
-
-        NotifyAwaiters();
-    }
-
-    public void Return(NpgsqlConnection connection)
-    {
-        RemoveUsedConnection(connection);
-
-        if (Size > CappedSize)
-        {
-            connection.Dispose();
-        }
-        else
-        {
-            AddToFreeConnections(connection);
-        }
-    }
-
-    public ValueTask ReturnAsync(NpgsqlConnection connection)
-    {
-        RemoveUsedConnection(connection);
-        if (Size > CappedSize)
-        {
-            return connection.DisposeAsync();
-        }
-
-        AddToFreeConnections(connection);
-        return ValueTask.CompletedTask;
     }
 #if DEBUG
     ~MiniConnectionPool()

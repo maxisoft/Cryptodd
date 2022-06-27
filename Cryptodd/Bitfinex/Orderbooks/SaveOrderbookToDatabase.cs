@@ -56,17 +56,27 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
         var tableSchemaForSymbol = container.GetInstance<OrderbookTableSchemaForSymbolFactory>();
         var tableService = container.GetInstance<TableService>();
         await using var connectionPool = container.GetInstance<IMiniConnectionPool>();
+        using var semaphore = new SemaphoreSlim(checked((int)connectionPool.CappedSize), checked((int)connectionPool.CappedSize));
         await Parallel.ForEachAsync(orderbooks, cancellationToken, async (orderbook, token) =>
         {
-            await using var rent = await connectionPool.RentAsync(token);
             var table = tableSchemaForSymbol.Resolve(orderbook.Symbol.ToLowerInvariant(), CompilerType.Postgres);
-            await tableService.CreateTableIfNotExists<OrderbookTableSchema>(table, rent.Connection, token)
-                .ConfigureAwait(false);
-            await Reconnect(rent.Connection).ConfigureAwait(false);
-            await using var tr =
-                await rent.Connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
-            await ImportOrderbook(rent.Connection, table, orderbook, token);
-            await tr.CommitAsync(token);
+            await semaphore.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                await using var rent = await connectionPool.RentAsync(token).ConfigureAwait(false);
+                await tableService.CreateTableIfNotExists<OrderbookTableSchema>(table, rent.Connection, token)
+                    .ConfigureAwait(false);
+                
+                await Reconnect(rent.Connection).ConfigureAwait(false);
+                await using var tr =
+                    await rent.Connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, token).ConfigureAwait(false);
+                await ImportOrderbook(rent.Connection, table, orderbook, token).ConfigureAwait(false);
+                await tr.CommitAsync(token).ConfigureAwait(false);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
         });
     }
 
@@ -75,7 +85,7 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
     {
         await using var writer =
             await connection.BeginBinaryImportAsync(
-                $"COPY \"{table.Schema}\".\"{table.Table}\" FROM STDIN (FORMAT BINARY)", cancellationToken);
+                $"COPY \"{table.Schema}\".\"{table.Table}\" FROM STDIN (FORMAT BINARY)", cancellationToken).ConfigureAwait(false);
         await writer.StartRowAsync(cancellationToken);
         await writer.WriteAsync(orderbook.Time, NpgsqlDbType.Bigint, cancellationToken);
 
@@ -93,6 +103,6 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
 
         WriteTuples(orderbook, writer);
 
-        await writer.CompleteAsync(cancellationToken);
+        await writer.CompleteAsync(cancellationToken).ConfigureAwait(false);
     }
 }

@@ -2,6 +2,7 @@
 using System.Collections.Immutable;
 using System.Data;
 using Cryptodd.Algorithms;
+using Cryptodd.Databases.Postgres;
 using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
 using Cryptodd.IoC;
@@ -12,6 +13,7 @@ using MathNet.Numerics.Statistics;
 using Maxisoft.Utils.Algorithms;
 using Maxisoft.Utils.Empties;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using NpgsqlTypes;
 using PetaPoco;
@@ -74,7 +76,9 @@ public class TradeAggregateService : ITradeAggregateService
         var marketNames = await GetMarketNames(cancellationToken);
 
         using var semaphore = new SemaphoreSlim(Options.MaxParallelism, Options.MaxParallelism);
-
+        await using var container = _container.GetNestedContainer();
+        await using var connectionPool = container.GetRequiredService<IDynamicMiniConnectionPool>();
+        connectionPool.ChangeCapSize(Options.MaxParallelism);
         while (!cancellationToken.IsCancellationRequested && semaphore.CurrentCount > 0)
         {
             var closeToCurrentTime = true;
@@ -98,7 +102,8 @@ public class TradeAggregateService : ITradeAggregateService
                             .WaitAndRetry(1, i => TimeSpan.FromSeconds(i))
                             .Execute(async () =>
                             {
-                                prevTime = await GetSavedTime(marketName, period, resampleOffset, token).ConfigureAwait(false);
+                                // ReSharper disable once AccessToDisposedClosure
+                                prevTime = await GetSavedTime(connectionPool, marketName, period, resampleOffset, token).ConfigureAwait(false);
                             }).ConfigureAwait(false);
                         
                         if (prevTime == long.MinValue)
@@ -106,7 +111,8 @@ public class TradeAggregateService : ITradeAggregateService
                             throw new Exception("prevTime not set");
                         }
 
-                        await CreateAggregates(marketName, period, resampleOffset, prevTime, token).ConfigureAwait(false);
+                        // ReSharper disable once AccessToDisposedClosure
+                        await CreateAggregates(connectionPool, marketName, period, resampleOffset, prevTime, token).ConfigureAwait(false);
                         closeToCurrentTime &=
                             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - prevTime
                                       < period.TotalMilliseconds * 2;
@@ -152,13 +158,15 @@ public class TradeAggregateService : ITradeAggregateService
         return marketNames;
     }
 
-    private async Task CreateAggregates(string marketName, TimeSpan period, TimeSpan offset,
+    private async Task CreateAggregates(IMiniConnectionPool connectionPool, string marketName, TimeSpan period, TimeSpan offset,
         long prevTime,
         CancellationToken cancellationToken)
     {
         using var container = _container.GetNestedContainer();
         using var db = container.GetInstance<QueryFactory>();
-        await using var connection = (NpgsqlConnection)db.Connection;
+        await using var rent = await connectionPool.RentAsync(cancellationToken).ConfigureAwait(false);
+        using var _ = new HijackQueryFactoryConnection(db, rent);
+        var connection = rent.Connection;
         var dbConnect = Task.CompletedTask;
         if (connection.State != ConnectionState.Open)
         {
@@ -444,13 +452,16 @@ public class TradeAggregateService : ITradeAggregateService
             _tradeDatabaseService.EscapeMarket(templateReplacement));
     }
 
-    private async ValueTask<long> GetSavedTime(string market, TimeSpan period, TimeSpan offset, CancellationToken cancellationToken,
+    private async ValueTask<long> GetSavedTime(IMiniConnectionPool connectionPool, string market, TimeSpan period, TimeSpan offset, CancellationToken cancellationToken,
         bool allowTableCreation = true)
     {
-        // TODO use external QueryFactory and table size to avoid transaction closing ?
         await using var container = _container.GetNestedContainer();
         using var db = container.GetInstance<QueryFactory>();
-        await using var conn = (NpgsqlConnection)db.Connection;
+        
+        await using var rent = await connectionPool.RentAsync(cancellationToken).ConfigureAwait(false);
+        using var _ = new HijackQueryFactoryConnection(db, rent);
+        db.Connection = rent.Connection;
+        var conn = rent.Connection;
         if (conn.State != ConnectionState.Open)
         {
             await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -488,9 +499,9 @@ public class TradeAggregateService : ITradeAggregateService
 
             await CreateTradeTable(tableName, cancellationToken).ConfigureAwait(false);
 
-            maxTime = await GetSavedTime(market, period, offset, cancellationToken, false).ConfigureAwait(false);
+            maxTime = await GetSavedTime(connectionPool, market, period, offset, cancellationToken, false).ConfigureAwait(false);
         }
-
+        
         return maxTime;
     }
 

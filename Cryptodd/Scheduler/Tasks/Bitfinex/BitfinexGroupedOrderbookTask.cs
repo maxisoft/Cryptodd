@@ -24,12 +24,12 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
     public override IConfigurationSection Section =>
         Configuration.GetSection("Bitfinex").GetSection("OrderBook").GetSection("Task");
 
-    public override Task Execute(CancellationToken cancellationToken)
+    public override async Task Execute(CancellationToken cancellationToken)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(Period);
         var orderBookService = Container.GetInstance<BitfinexGatherGroupedOrderBookService>();
-        return orderBookService.CollectOrderBooks(cts.Token);
+        await orderBookService.CollectOrderBooks(cts.Token).ConfigureAwait(false);
     }
 
     private void ConfigureRetryPolicy()

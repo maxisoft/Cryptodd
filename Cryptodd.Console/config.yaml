@@ -57,5 +57,5 @@ Trade:
     
 
 Postgres:
-  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;ConnectionLifetime=1600;Keepalive=60;Application Name=cryptodd"
+  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;ConnectionLifetime=600;Keepalive=60;Application Name=cryptodd"
   

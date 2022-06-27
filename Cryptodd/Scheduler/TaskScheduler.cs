@@ -277,6 +277,11 @@ public class TaskScheduler : IService
                         s._exceptions.Add(exception!);
                         Interlocked.Increment(ref s._errorCounter);
                     }
+                    else if (execTask.IsCanceled)
+                    {
+                        _logger.Warning("{Task} cancelled", execTask);
+                        Interlocked.Increment(ref s._errorCounter);
+                    }
                     else
                     {
                         Debug.Assert(execTask.IsCompletedSuccessfully);

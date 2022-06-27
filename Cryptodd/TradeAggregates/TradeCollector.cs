@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Data;
+using Cryptodd.Databases.Postgres;
 using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
 using Cryptodd.Pairs;
@@ -7,6 +8,7 @@ using Dapper;
 using Lamar;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using NpgsqlTypes;
 using Polly;
@@ -55,6 +57,8 @@ public class TradeCollector : ITradeCollector
         var marketNames = markets.Select(market => market.Name).Where(name => pairFilter.Match(name)).ToImmutableList();
 
         using var semaphore = new SemaphoreSlim(_options.MaxParallelism, _options.MaxParallelism);
+        await using var connectionPool = container.GetRequiredService<IDynamicMiniConnectionPool>();
+        connectionPool.ChangeCapSize(_options.MaxParallelism);
         while (!token.IsCancellationRequested)
         {
             try
@@ -65,7 +69,8 @@ public class TradeCollector : ITradeCollector
                     await semaphore.WaitAsync(token).ConfigureAwait(false);
                     try
                     {
-                        var savedTime = await GetSavedTime(marketName, token);
+                        // ReSharper disable once AccessToDisposedClosure
+                        var savedTime = await GetSavedTime(connectionPool, marketName, token);
 
                         if (savedTime < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                         {
@@ -73,7 +78,7 @@ public class TradeCollector : ITradeCollector
                                     exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested &&
                                     _options.LockTable)
                                 .WaitAndRetryAsync(10, i => TimeSpan.FromSeconds(0.5 + i))
-                                .ExecuteAsync(() => DownloadAndInsert(http, marketName, savedTime, token))
+                                .ExecuteAsync(() => DownloadAndInsert(connectionPool, http, marketName, savedTime, token))
                                 .ConfigureAwait(false);
                         }
                     }
@@ -94,23 +99,25 @@ public class TradeCollector : ITradeCollector
         }
     }
 
-    private async Task<long> GetSavedTime(string marketName, CancellationToken token)
+    private async Task<long> GetSavedTime(IMiniConnectionPool connectionPool, string marketName,
+        CancellationToken token)
     {
         await using var container = _container.GetNestedContainer();
-        await using var db = container.GetInstance<NpgsqlConnection>();
-        if (db.State != ConnectionState.Open)
+        await using var rent = await connectionPool.RentAsync(token).ConfigureAwait(false);
+        if (rent.Connection.State != ConnectionState.Open)
         {
-            await db.OpenAsync(token).ConfigureAwait(false);
+            await rent.Connection.OpenAsync(token).ConfigureAwait(false);
         }
 
-        await using var tr = await db.BeginTransactionAsync(token);
+        await using var tr = await rent.Connection.BeginTransactionAsync(token);
         var savedTime = await _tradeDatabaseService.GetLastTime(tr, marketName, cancellationToken: token)
             .ConfigureAwait(false);
 
         return savedTime;
     }
 
-    private async Task DownloadAndInsert(IFtxPublicHttpApi api, string marketName, long prevTime,
+    private async Task DownloadAndInsert(IMiniConnectionPool connectionPool, IFtxPublicHttpApi api,
+        string marketName, long prevTime,
         CancellationToken cancellationToken)
     {
         var wasZero = prevTime == 0;
@@ -159,13 +166,14 @@ public class TradeCollector : ITradeCollector
 
         await using var container = _container.GetNestedContainer();
         using var db = container.GetInstance<QueryFactory>();
-        await using var conn = (NpgsqlConnection)db.Connection;
-        if (conn.State != ConnectionState.Open)
+        await using var rent = await connectionPool.RentAsync(cancellationToken).ConfigureAwait(false);
+        using var _ = new HijackQueryFactoryConnection(db, rent);
+        if (rent.Connection.State != ConnectionState.Open)
         {
-            await conn.OpenAsync(cancellationToken);
+            await rent.Connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await using var tr = await conn.BeginTransactionAsync(cancellationToken);
+        await using var tr = await rent.Connection.BeginTransactionAsync(cancellationToken);
         var prevIds =
             await _tradeDatabaseService.GetLatestIds(tr, marketName, Math.Max(trades.Count, 64), cancellationToken);
 

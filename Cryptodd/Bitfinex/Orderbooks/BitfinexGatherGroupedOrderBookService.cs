@@ -102,7 +102,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
             {
                 reDispatch = DispatchTasks();
                 await Parallel.ForEachAsync(webSockets, cancellationTokenSource.Token,
-                    (ws, token) => ws.ProcessRequests(token));
+                    (ws, token) => ws.ProcessRequests(cancellationTokenSource.Token));
 
                 var orderBooks = new List<OrderbookEnvelope>();
                 using var dm = new DisposableManager();
@@ -161,7 +161,14 @@ public class BitfinexGatherGroupedOrderBookService : IService
         }
         finally
         {
-            await Parallel.ForEachAsync(webSockets, cancellationToken, (ws, token) => ws.DisposeAsync())
+            await Parallel.ForEachAsync(webSockets, cancellationToken, async (ws, token) =>
+                {
+                    if (!token.IsCancellationRequested)
+                    {
+                        await ws.DisposeAsync().ConfigureAwait(false);
+                    }
+                    ws.Close();
+                })
                 .ConfigureAwait(false);
             targetBlock.Complete();
         }
@@ -193,7 +200,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
             try
             {
                 // ReSharper disable once MethodHasAsyncOverload
-                task.Wait(cancellationToken);
+                await task.WaitAsync(cancellationToken);
             }
             catch (Exception e)
             {
