@@ -1,6 +1,7 @@
 ﻿using System.Data;
 using Cryptodd.Bitfinex.Models;
 using Cryptodd.Databases;
+using Cryptodd.Databases.Postgres;
 using Cryptodd.Databases.Tables.Bitfinex;
 using Cryptodd.Features;
 using Lamar;
@@ -54,17 +55,19 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
 
         var tableSchemaForSymbol = container.GetInstance<OrderbookTableSchemaForSymbolFactory>();
         var tableService = container.GetInstance<TableService>();
-        foreach (var orderbook in orderbooks)
+        await using var connectionPool = container.GetInstance<IMiniConnectionPool>();
+        await Parallel.ForEachAsync(orderbooks, cancellationToken, async (orderbook, token) =>
         {
+            await using var rent = await connectionPool.RentAsync(token);
             var table = tableSchemaForSymbol.Resolve(orderbook.Symbol.ToLowerInvariant(), CompilerType.Postgres);
-            await tableService.CreateTableIfNotExists<OrderbookTableSchema>(table, connection, cancellationToken)
+            await tableService.CreateTableIfNotExists<OrderbookTableSchema>(table, rent.Connection, token)
                 .ConfigureAwait(false);
-            await Reconnect(connection).ConfigureAwait(false);
+            await Reconnect(rent.Connection).ConfigureAwait(false);
             await using var tr =
-                await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-            await ImportOrderbook(connection, table, orderbook, cancellationToken);
-            await tr.CommitAsync(cancellationToken);
-        }
+                await rent.Connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
+            await ImportOrderbook(rent.Connection, table, orderbook, token);
+            await tr.CommitAsync(token);
+        });
     }
 
     private static async Task ImportOrderbook(NpgsqlConnection connection, OrderbookTableSchema table,

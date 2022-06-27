@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Data.Common;
+using Cryptodd.Databases.Postgres;
 using Lamar;
 using Maxisoft.Utils.Disposables;
 using Maxisoft.Utils.Empties;
@@ -56,5 +57,7 @@ public class PostgresDatabaseRegistry : ServiceRegistry
         );
 
         For<NpgsqlTransaction>().Use(context => context.GetInstance<NpgsqlConnection>().BeginTransaction());
+        For<IDynamicMiniConnectionPool>().Add<MiniConnectionPool>().Scoped();
+        For<IMiniConnectionPool>().Use(context => context.GetInstance<IDynamicMiniConnectionPool>());
     }
 }
