@@ -78,7 +78,8 @@ public class TradeCollector : ITradeCollector
                                     exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested &&
                                     _options.LockTable)
                                 .WaitAndRetryAsync(10, i => TimeSpan.FromSeconds(0.5 + i))
-                                .ExecuteAsync(() => DownloadAndInsert(connectionPool, http, marketName, savedTime, token))
+                                .ExecuteAsync(() =>
+                                    DownloadAndInsert(connectionPool, http, marketName, savedTime, token))
                                 .ConfigureAwait(false);
                         }
                     }
@@ -173,9 +174,13 @@ public class TradeCollector : ITradeCollector
             await rent.Connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await using var tr = await rent.Connection.BeginTransactionAsync(cancellationToken);
+        await using var tr = await rent.Connection
+            .BeginTransactionAsync(_options.LockTable ? IsolationLevel.Serializable : IsolationLevel.ReadCommitted,
+                cancellationToken)
+            .ConfigureAwait(false);
         var prevIds =
-            await _tradeDatabaseService.GetLatestIds(tr, marketName, Math.Max(trades.Count, 64), cancellationToken);
+            await _tradeDatabaseService.GetLatestIds(tr, marketName, Math.Max(trades.Count + 1, 64), cancellationToken)
+                .ConfigureAwait(false);
 
 
         var mergeCounter = 0;
@@ -212,12 +217,13 @@ public class TradeCollector : ITradeCollector
 
         _periodOptimizer.AdaptApiPeriod(marketName, mergeCounter, trades.Count);
 
-        if (!await BulkInsert(tr, marketName, trades, prevTime, wasZero, prevIds, cancellationToken))
+        if (!await BulkInsert(tr, marketName, trades, prevTime, wasZero, prevIds, cancellationToken)
+                .ConfigureAwait(false))
         {
             return;
         }
 
-        await tr.CommitAsync(cancellationToken);
+        await tr.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<bool> BulkInsert(NpgsqlTransaction transaction, string marketName, PooledList<FtxTrade> trades,
