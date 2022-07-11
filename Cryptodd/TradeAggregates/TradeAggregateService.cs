@@ -523,5 +523,7 @@ public class TradeAggregateService : ITradeAggregateService
 
         await using var cmd = new NpgsqlCommand(query, conn, tr);
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await tr.CommitAsync(cancellationToken);
+        _logger.Information("Created aggregate table for {TableName}", tableName);
     }
 }
