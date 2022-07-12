@@ -9,7 +9,7 @@ public interface IHttpClientFactoryHelper
 {
     void Configure(HttpClient client);
     IAsyncPolicy<HttpResponseMessage> GetRetryPolicy();
-    HttpClientHandler GetHandler();
+    SocketsHttpHandler GetHandler();
 }
 
 // ReSharper disable once UnusedType.Global
@@ -34,10 +34,17 @@ public class HttpClientFactoryHelper : IHttpClientFactoryHelper
         }
     }
 
-    public HttpClientHandler GetHandler()
+    public SocketsHttpHandler GetHandler()
     {
-        var handler = new HttpClientHandler
-            { MaxConnectionsPerServer = _httpConfig.GetValue("MaxConnectionsPerServer", 16) };
+        var handler = new SocketsHttpHandler
+        {
+            MaxConnectionsPerServer = _httpConfig.GetValue("MaxConnectionsPerServer", 32),
+            PooledConnectionLifetime = _httpConfig.GetValue("PooledConnectionLifetime", TimeSpan.FromMinutes(5)),
+            PooledConnectionIdleTimeout = _httpConfig.GetValue("PooledConnectionIdleTimeout", TimeSpan.FromMinutes(1)),
+            KeepAlivePingDelay = _httpConfig.GetValue("KeepAlivePingDelay", TimeSpan.FromSeconds(10)),
+            ConnectTimeout = _httpConfig.GetValue("ConnectTimeout", TimeSpan.FromSeconds(5))
+        };
+
         var proxyString = _httpConfig.GetValue("Proxy", string.Empty);
         if (Uri.TryCreate(proxyString, UriKind.Absolute, out var proxyUri))
         {
