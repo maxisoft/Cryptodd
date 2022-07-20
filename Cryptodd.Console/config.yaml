@@ -32,7 +32,7 @@ Bitfinex:
 
 Trade:
   Collector:
-    LockTable: true
+    LockTable: false
     MaxParallelism: 2
   PairFilter:
     - BTC/USD
@@ -45,13 +45,24 @@ Trade:
     - USDT-PERP
     - SOL/USD
     - SOL-PERP
+    - BNB/USD
+    - BNB-PERP
+    - RAY/USD
+    - RAY-PERP
+    - FTT/USD
+    - FTT-PERP
+    - SRM/USD
+    - SRM-PERP
       
   Aggregate:
-    MaxParallelism: 2
+    LockTable: false
+    MaxParallelism: 4
     ResamplePeriods:
+      - 60000
       - 300000
       - 3600000
     ResampleOffsets: 
+      - 10000
       - 60000
       - 0
     
