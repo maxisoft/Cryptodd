@@ -28,14 +28,10 @@ public class TradeDatabaseService : ITradeDatabaseService
     {
         var tableName = TradeTableName(market);
         var query = new XQuery(transaction.Connection, _container.GetInstance<Compiler>())
-            .From("ids")
-            .With("ids",
-                new Query($"ftx.{tableName}")
-                    .Select("id")
-                    .OrderByDesc("time")
-                    .Limit(limit))
+            .From($"ftx.{tableName}")
             .Select("id")
-            .OrderBy("id");
+            .OrderByDesc("time")
+            .Limit(limit);
         return (await query
             .GetAsync<long>(transaction, cancellationToken: cancellationToken)).ToList();
     }
