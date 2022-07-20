@@ -1,5 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Data;
+using System.Net;
+using System.Net.Sockets;
 using Cryptodd.Databases.Postgres;
 using Cryptodd.Ftx;
 using Cryptodd.Ftx.Models;
@@ -18,7 +20,7 @@ using SqlKata.Execution;
 
 namespace Cryptodd.TradeAggregates;
 
-public class TradeCollector : ITradeCollector
+public class TradeCollector : ITradeCollector, IDisposable
 {
     private const string LockErrorSqlState = "55P03";
     private readonly IConfiguration _configuration;
@@ -33,7 +35,7 @@ public class TradeCollector : ITradeCollector
     public TradeCollector(IContainer container, ILogger logger, IPairFilterLoader pairFilterLoader,
         ITradeDatabaseService tradeDatabaseService, IConfiguration configuration, ITradePeriodOptimizer periodOptimizer)
     {
-        _container = container;
+        _container = (IContainer) container.GetNestedContainer();
         _logger = logger.ForContext(GetType());
         _pairFilterLoader = pairFilterLoader;
         _tradeDatabaseService = tradeDatabaseService;
@@ -49,7 +51,7 @@ public class TradeCollector : ITradeCollector
         await using var container = _container.GetNestedContainer();
         cts.CancelAfter(_options.Timeout);
         var token = cts.Token;
-        var http = container.GetInstance<IFtxPublicHttpApi>();
+        using var http = container.GetInstance<IFtxPublicHttpApi>();
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync(_options.PairFilterName, cancellationToken)
             .ConfigureAwait(false);
         using var markets = await http.GetAllMarketsAsync(token);
@@ -59,11 +61,12 @@ public class TradeCollector : ITradeCollector
         using var semaphore = new SemaphoreSlim(_options.MaxParallelism, _options.MaxParallelism);
         await using var connectionPool = container.GetRequiredService<IDynamicMiniConnectionPool>();
         connectionPool.ChangeCapSize(_options.MaxParallelism);
+        var exceptions = new List<Exception>();
         while (!token.IsCancellationRequested)
         {
             try
             {
-                await Parallel.ForEachAsync(marketNames, token, async (marketName, token) =>
+                await Parallel.ForEachAsync(marketNames.OrderBy(_ => Guid.NewGuid()), token, async (marketName, token) =>
                 {
                     // ReSharper disable once AccessToDisposedClosure
                     await semaphore.WaitAsync(token).ConfigureAwait(false);
@@ -74,13 +77,29 @@ public class TradeCollector : ITradeCollector
 
                         if (savedTime < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                         {
-                            await Policy.Handle<PostgresException>(exception =>
-                                    exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested &&
-                                    _options.LockTable)
-                                .WaitAndRetryAsync(10, i => TimeSpan.FromSeconds(0.5 + i))
-                                .ExecuteAsync(() =>
-                                    DownloadAndInsert(connectionPool, http, marketName, savedTime, token))
-                                .ConfigureAwait(false);
+                            try
+                            {
+                                // ReSharper disable twice AccessToDisposedClosure
+                                await Policy.Handle<HttpRequestException>(exception =>
+                                        !token.IsCancellationRequested &&
+                                        exception.StatusCode is HttpStatusCode.ServiceUnavailable
+                                            or HttpStatusCode.InternalServerError or HttpStatusCode.BadRequest)
+                                    .RetryAsync(2, (_, _) => _periodOptimizer.Reset(marketName)).WrapAsync(Policy
+                                        .Handle<PostgresException>(exception =>
+                                            exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested &&
+                                            _options.LockTable)
+                                        .WaitAndRetryAsync(5, i => TimeSpan.FromSeconds(0.5 + i)))
+                                    .ExecuteAsync(() =>
+                                        DownloadAndInsert(connectionPool, http, marketName, savedTime, token));
+                            }
+                            catch (Exception e) when (e is PostgresException or WebException or HttpRequestException)
+                            {
+                                _periodOptimizer.Reset(marketName);
+                                lock (exceptions)
+                                {
+                                    exceptions.Add(e);
+                                }
+                            }
                         }
                     }
                     finally
@@ -90,12 +109,29 @@ public class TradeCollector : ITradeCollector
                     }
                 }).ConfigureAwait(true);
             }
-            catch (Exception e) when (e is (OperationCanceledException or TaskCanceledException))
+            catch (Exception e) when (e is OperationCanceledException or TaskCanceledException)
             {
                 if (!cts.IsCancellationRequested)
                 {
                     throw;
                 }
+            }
+            catch (Exception e) when (e is PostgresException or WebException or HttpRequestException or SocketException)
+            {
+                _logger.Debug(e, "Got web exception => clearing the http client");
+                http.DisposeHttpClient = true;
+                throw;
+            }
+
+            if (exceptions.Any())
+            {
+                http.DisposeHttpClient = true;
+                if (exceptions.Count == 1)
+                {
+                    throw exceptions.First();
+                }
+
+                throw new AggregateException(exceptions);
             }
         }
     }
@@ -110,7 +146,7 @@ public class TradeCollector : ITradeCollector
             await rent.Connection.OpenAsync(token).ConfigureAwait(false);
         }
 
-        await using var tr = await rent.Connection.BeginTransactionAsync(token);
+        await using var tr = await rent.Connection.BeginTransactionAsync(token).ConfigureAwait(false);
         var savedTime = await _tradeDatabaseService.GetLastTime(tr, marketName, cancellationToken: token)
             .ConfigureAwait(false);
 
@@ -146,7 +182,9 @@ public class TradeCollector : ITradeCollector
         }
 
         var apiPeriod = _periodOptimizer.GetPeriod(marketName);
-        using var trades = await GetTradesAsync(prevTime, (long)(prevTime + apiPeriod.TotalMilliseconds))
+        using var trades = await GetTradesAsync(prevTime,
+                Math.Min((long)(prevTime + apiPeriod.TotalMilliseconds),
+                    (DateTimeOffset.Now + TimeSpan.FromMinutes(1)).ToUnixTimeMilliseconds()))
             .ConfigureAwait(false);
 
         if (!trades.Any())
@@ -171,17 +209,16 @@ public class TradeCollector : ITradeCollector
         using var _ = new HijackQueryFactoryConnection(db, rent);
         if (rent.Connection.State != ConnectionState.Open)
         {
-            await rent.Connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await rent.Connection.OpenAsync(cancellationToken);
         }
 
         await using var tr = await rent.Connection
             .BeginTransactionAsync(_options.LockTable ? IsolationLevel.Serializable : IsolationLevel.ReadCommitted,
-                cancellationToken)
-            .ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
         var prevIds =
-            await _tradeDatabaseService.GetLatestIds(tr, marketName, Math.Max(trades.Count + 1, 64), cancellationToken)
-                .ConfigureAwait(false);
-
+            await _tradeDatabaseService.GetLatestIds(tr, marketName, Math.Max(trades.Count + 1, 64), cancellationToken).ConfigureAwait(false);
+        
+        prevIds.Sort();
 
         var mergeCounter = 0;
         var commonIdFound = wasZero;
@@ -204,8 +241,7 @@ public class TradeCollector : ITradeCollector
             }
 
             mergeCounter += 1;
-            using var tmp = await GetTradesAsync(prevTime, trades.First().Time.ToUnixTimeMilliseconds())
-                .ConfigureAwait(false);
+            using var tmp = await GetTradesAsync(prevTime, trades.First().Time.ToUnixTimeMilliseconds()).ConfigureAwait(false);
             if (!tmp.Any())
             {
                 break;
@@ -217,13 +253,20 @@ public class TradeCollector : ITradeCollector
 
         _periodOptimizer.AdaptApiPeriod(marketName, mergeCounter, trades.Count);
 
-        if (!await BulkInsert(tr, marketName, trades, prevTime, wasZero, prevIds, cancellationToken)
-                .ConfigureAwait(false))
+        try
         {
-            return;
-        }
+            if (!await BulkInsert(tr, marketName, trades, prevTime, wasZero, prevIds, cancellationToken).ConfigureAwait(false))
+            {
+                return;
+            }
 
-        await tr.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await tr.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (NpgsqlException)
+        {
+            _periodOptimizer.Reset(marketName);
+            throw;
+        }
     }
 
     private async Task<bool> BulkInsert(NpgsqlTransaction transaction, string marketName, PooledList<FtxTrade> trades,
@@ -267,10 +310,11 @@ public class TradeCollector : ITradeCollector
 
                 if (index > 0 && trade.Id == trades[index - 1].Id)
                 {
+                    _logger.Warning("Duplicate trade skipped");
                     continue;
                 }
 
-                await writer.StartRowAsync(cancellationToken).ConfigureAwait(false);
+                await writer.StartRowAsync(cancellationToken);
 #pragma warning disable CA2016
                 // ReSharper disable MethodSupportsCancellation RedundantCast
                 maxId = Math.Max(maxId, trade.Id);
@@ -297,5 +341,10 @@ public class TradeCollector : ITradeCollector
         _logger.Debug("Saved {Count} Trades for {MarketName} @ {Date:u}", saveCount, marketName,
             maxTime);
         return true;
+    }
+
+    public void Dispose()
+    {
+        _container.Dispose();
     }
 }
