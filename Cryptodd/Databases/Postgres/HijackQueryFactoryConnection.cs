@@ -8,11 +8,16 @@ public readonly struct HijackQueryFactoryConnection : IDisposable
     private readonly QueryFactory _queryFactory;
     private readonly IDbConnection? _dbConnection;
 
-    public HijackQueryFactoryConnection(QueryFactory queryFactory, IRentedConnection connection)
+    public HijackQueryFactoryConnection(QueryFactory queryFactory, IRentedConnection connection,
+        bool disposeUnusedConnection = true)
     {
         _queryFactory = queryFactory;
         _dbConnection = queryFactory.Connection;
-        _dbConnection?.Dispose();
+        if (disposeUnusedConnection)
+        {
+            _dbConnection?.Dispose();
+        }
+
         queryFactory.Connection = connection.Connection;
     }
 
