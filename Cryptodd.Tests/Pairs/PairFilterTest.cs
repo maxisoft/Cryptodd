@@ -45,6 +45,17 @@ public class PairFilterTest
 
 
     [Fact]
+    public void TestPairFilter_USDT_Must_Not_Match_CUSDT()
+    {
+        var pf = new PairFilter();
+        pf.AddAll("USDT-PERP;ETH-PERP");
+        Assert.True(pf.Match("USDT-PERP"));
+        Assert.False(pf.Match("CUSDT-PERP"));
+        
+        Assert.Empty(pf.RegexEntries);
+    }
+
+    [Fact]
     public void TestPairFilter_items()
     {
         {

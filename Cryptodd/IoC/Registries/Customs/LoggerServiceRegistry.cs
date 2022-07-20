@@ -21,6 +21,7 @@ public class LoggerServiceRegistry : ServiceRegistry
 
         ForSingletonOf<LoggingLevelSwitch>().Use(loggingLevel);
         ForSingletonOf<ILogger>().Use(Logger);
+        ForSingletonOf<Logger>().Use(Logger);
 #if DEBUG
         loggingLevel.MinimumLevel = LogEventLevel.Debug;
         ForSingletonOf<LoggerConfiguration>().Use(serilogConfig);

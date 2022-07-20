@@ -13,7 +13,7 @@ public class ScheduledTaskRegistry : ServiceRegistry
         {
             scanner.ExcludeType<INoAutoRegister>();
             scanner.TheCallingAssembly();
-            scanner.AddAllTypesOf<ScheduledTask>(ServiceLifetime.Transient);
+            scanner.AddAllTypesOf<BaseScheduledTask>(ServiceLifetime.Transient);
         });
     }
 }

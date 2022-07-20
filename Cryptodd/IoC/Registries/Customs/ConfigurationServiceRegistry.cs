@@ -13,7 +13,7 @@ internal class ConfigurationServiceOptions
 
     internal OrderedDictionary<string, string> DefaultConfig { get; set; } = new();
 
-    internal bool ScanForAssemblyConfig { get; set; } = true;
+    internal bool? ScanForAssemblyConfig { get; set; } = null;
     internal bool ScanForWorkingDirectoryConfig { get; set; } = true;
 
     internal bool ScanForEnvConfig { get; set; } = true;
@@ -61,6 +61,8 @@ public class ConfigurationServiceRegistry : ServiceRegistry
             "" + ((Environment.GetEnvironmentVariable("IS_DOCKER") ??
                    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") ?? "") == "1"));
 
+        var isDocker = defaultConfig.TryGetValue("Docker", out var value) && value is not "" or "0" or "false";
+            
         IConfigurationBuilder builder = new ConfigurationBuilder();
 
         builder = builder
@@ -75,7 +77,7 @@ public class ConfigurationServiceRegistry : ServiceRegistry
                     true);
         }
 
-        if (envConfig.GetValue("ScanForAssemblyConfig", options.ScanForAssemblyConfig))
+        if (envConfig.GetValue("ScanForAssemblyConfig", options.ScanForAssemblyConfig ?? !isDocker))
         {
             builder = builder
                 .AddJsonFile(Path.GetFullPath(Path.Combine(assemblyDirectory, ApplicationSettingsJsonFileName)), true)

@@ -36,7 +36,7 @@ public interface IPairFilter
 
 public class PairFilter : IPairFilter
 {
-    public static readonly Regex DetectRegex = new(@"^[a-zA-Z][\w:/-_]+$",
+    public static readonly Regex DetectRegex = new(@"^[a-zA-Z][\w:/\-_]+$",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     private static readonly char[] Separators = { '\r', '\n', ';' };
@@ -49,6 +49,8 @@ public class PairFilter : IPairFilter
 
     private ConcurrentDictionary<string, EmptyStruct> _pairsSet = new(StringComparer.InvariantCultureIgnoreCase);
 
+    internal IReadOnlyList<PairFilterEntry> RegexEntries => _entries;
+    
     public bool Match(string input)
     {
         if (_pairsSet.ContainsKey(input))

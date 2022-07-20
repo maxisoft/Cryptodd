@@ -10,6 +10,7 @@ using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
+using Maxisoft.Utils.Objects;
 using Serilog;
 
 namespace Cryptodd.Ftx.Orderbooks;
@@ -29,16 +30,17 @@ public class FtxGroupedOrderBookWebsocket : IService, IDisposable, IAsyncDisposa
     private readonly List<ITargetBlock<GroupedOrderbookDetails>> _targetBlocks = new();
     private readonly IClientWebSocketFactory _webSocketFactory;
 
-    internal readonly CancellationTokenSource LoopCancellationTokenSource = new();
+    internal readonly CancellationTokenSource LoopCancellationTokenSource;
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
     private ClientWebSocket? _ws;
     internal BufferBlock<GroupedOrderBookRequest> Requests = new();
 
     public FtxGroupedOrderBookWebsocket(IClientWebSocketFactory webSocketFactory,
-        ILogger logger)
+        ILogger logger, Boxed<CancellationToken> cancellationToken)
     {
         _webSocketFactory = webSocketFactory;
         _logger = logger;
+        LoopCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     }
 
 
