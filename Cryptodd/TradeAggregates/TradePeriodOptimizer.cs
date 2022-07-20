@@ -11,8 +11,11 @@ public interface ITradePeriodOptimizer : IService
     TradePeriodOptimizerOptions Options { get; }
     TimeSpan GetPeriod(string market);
     void AdaptApiPeriod(string market, int excessCounter, int numElements);
+
+    void Reset(string market);
 }
 
+[Singleton]
 public class TradePeriodOptimizer : ITradePeriodOptimizer
 {
     public TradePeriodOptimizerOptions
@@ -44,5 +47,10 @@ public class TradePeriodOptimizer : ITradePeriodOptimizer
         }
 
         ApiPeriods[market] = apiPeriod;
+    }
+
+    public void Reset(string market)
+    {
+        ApiPeriods.Remove(market, out var _);
     }
 }
