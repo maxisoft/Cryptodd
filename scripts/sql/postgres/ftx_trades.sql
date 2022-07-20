@@ -12,14 +12,25 @@ CREATE TABLE IF NOT EXISTS ftx.ftx_trade_template
 --   OWNER TO cryptodduser;
 
 CREATE UNIQUE INDEX ftx_trade_template_time_id_unique
-    ON ftx.ftx_trade_template USING btree
+   ON ftx.ftx_trade_template USING btree
         ("time", "id")
 ;
 
-CREATE INDEX ftx_trade_template_time
-    ON ftx.ftx_trade_template USING btree
-    ("time")
+--CREATE INDEX ftx_trade_template_time
+--    ON ftx.ftx_trade_template USING btree
+--    ("time")
+--;
+
+CREATE INDEX ftx_trade_template_time_brin
+    ON ftx.ftx_trade_template USING brin
+        ("time")
+    WITH (pages_per_range = 16)
 ;
+
+--CREATE INDEX ftx_trade_template_time_id_brin
+--    ON ftx.ftx_trade_template USING brin
+--        ("time", "id")
+--;
 
 ALTER TABLE IF EXISTS ftx.ftx_trade_template
     ADD CONSTRAINT ftx_trade_template_time_positive CHECK (time > 0);
