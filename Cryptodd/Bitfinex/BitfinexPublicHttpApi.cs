@@ -1,6 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Cryptodd.Bitfinex.Models;
+using Cryptodd.Bitfinex.Models.Json;
+using Cryptodd.Ftx.Models;
+using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
 using Maxisoft.Utils.Collections.Lists.Specialized;
@@ -12,13 +16,23 @@ public interface IBitfinexPublicHttpApi : IService
     ValueTask<List<string>> GetAllPairs(CancellationToken cancellationToken);
 }
 
-public class BitfinexPublicHttpApi : IBitfinexPublicHttpApi
+public class BitfinexPublicHttpApi : IBitfinexPublicHttpApi, INoAutoRegister
 {
     private readonly HttpClient _httpClient;
     private readonly IUriRewriteService _uriRewriteService;
 
     private readonly ConcurrentDictionary<string, BitfinexRateLimiter> _rateLimiters =
         new ConcurrentDictionary<string, BitfinexRateLimiter>();
+    
+    private static readonly JsonSerializerOptions JsonSerializerOptions = CreateJsonSerializerOptions();
+
+    private static JsonSerializerOptions CreateJsonSerializerOptions()
+    {
+        var res = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        res.Converters.Add(new DerivativeStatusConverter());
+        res.Converters.Add(new PooledListConverter<DerivativeStatus>() {DefaultCapacity = 1024});
+        return res;
+    }
 
     public BitfinexPublicHttpApi(HttpClient httpClient, IUriRewriteService uriRewriteService)
     {
@@ -37,9 +51,9 @@ public class BitfinexPublicHttpApi : IBitfinexPublicHttpApi
 
         _httpClient = httpClient;
         _uriRewriteService = uriRewriteService;
+        
     }
-
-
+    
     public async ValueTask<List<string>> GetAllPairs(CancellationToken cancellationToken)
     {
         var uri = new UriBuilder($"{_httpClient.BaseAddress}v2/conf/pub:list:pair:exchange").Uri;
@@ -49,5 +63,19 @@ public class BitfinexPublicHttpApi : IBitfinexPublicHttpApi
         await helper.Wait(cancellationToken).ConfigureAwait(false);
         return (await _httpClient.GetFromJsonAsync<List<string>[]>(uri,
             cancellationToken))?[0] ?? new List<string>();
+    }
+
+    public async ValueTask<PooledList<DerivativeStatus>> GetDerivativeStatus(CancellationToken cancellationToken)
+    {
+        var uri = new UriBuilder($"{_httpClient.BaseAddress}v2/status/deriv")
+            .WithParameter("keys", "ALL")
+            .Uri;
+        uri = await _uriRewriteService.Rewrite(uri);
+        var rateLimiter = _rateLimiters.GetOrAdd("conf", _ => new BitfinexRateLimiter() { MaxRequestPerMinutes = 90 });
+        using var helper = rateLimiter.Helper();
+        await helper.Wait(cancellationToken).ConfigureAwait(false);
+        return (await _httpClient.GetFromJsonAsync<PooledList<DerivativeStatus>>(uri,
+            JsonSerializerOptions,
+            cancellationToken)) ?? new PooledList<DerivativeStatus>();
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,5 +32,18 @@ public class BitfinexPublicHttpApiTest
         var result = await api.GetAllPairs(CancellationToken.None);
         Assert.NotEmpty(result);
         Assert.Contains("BTCUSD", result);
+    }
+    
+    [RetryFact]
+    public async Task TestGetDerivativeStatus()
+    {
+        using var httpclient = new HttpClient();
+        
+        var uriServiceMock = new Mock<DirectUri>(){CallBase = true};
+
+        var api = new BitfinexPublicHttpApi(httpclient, uriServiceMock.Object);
+        var result = await api.GetDerivativeStatus(CancellationToken.None);
+        Assert.NotEmpty(result);
+        Assert.Empty(result.Where(status => string.IsNullOrWhiteSpace(status.Key)));
     }
 }
