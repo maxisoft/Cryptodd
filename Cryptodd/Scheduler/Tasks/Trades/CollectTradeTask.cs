@@ -5,55 +5,83 @@ using Lamar;
 using Maxisoft.Utils.Disposables;
 using Maxisoft.Utils.Empties;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace Cryptodd.Scheduler.Tasks.Trades;
 
 public class CollectTradeTask : BasePeriodicScheduledTask, IDisposable
 {
-    private readonly ITradeCollector _tradeCollector;
-    private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+    private CancellationTokenSource _cancellationTokenSource = new();
     private IDisposable _disposable = new EmptyDisposable();
     private Task? _runningTasks;
-    private readonly IFeatureList _featureList;
+    private readonly IContainer _container;
 
-    public CollectTradeTask(ILogger logger, IConfiguration configuration, IContainer container,
-        ITradeCollector tradeCollector, IFeatureList featureList) : base(logger,
+    public CollectTradeTask(ILogger logger, IConfiguration configuration, IContainer container) : base(logger,
         configuration, container)
     {
+        _container = container;
         Period = TimeSpan.FromSeconds(3);
-        _tradeCollector = tradeCollector;
         AdaptativeReschedule = false;
-        _featureList = featureList;
     }
 
     public override async Task Execute(CancellationToken cancellationToken)
     {
-        if (!_featureList.HasPostgres())
+
+        if (_runningTasks is not null)
         {
-            return;
+            if (!_runningTasks.IsCompleted)
+            {
+                try
+                {
+                    await _runningTasks.WaitAsync(Period, cancellationToken).ConfigureAwait(false);
+                }
+                catch (TimeoutException e)
+                {
+                    Logger.Verbose(e, "expected timeout while waiting for task to complete");
+                }
+                
+                return;
+            }
+            
+            if (_runningTasks.IsFaulted)
+            {
+                try
+                {
+                    await _runningTasks;
+                }
+                catch (Exception)
+                {
+                    _runningTasks.Dispose();
+                    _runningTasks = null;
+                    throw;
+                }
+            }
         }
 
-        if (!(_runningTasks?.IsCompleted ?? true))
+        var container = _container.GetNestedContainer();
+        var featureList = container.GetRequiredService<IFeatureList>();
+        if (!featureList.HasPostgres())
         {
+            await container.DisposeAsync();
             return;
-        }
-
-        if (_runningTasks?.IsFaulted ?? false)
-        {
-            await _runningTasks.ConfigureAwait(true);
         }
 
         _disposable.Dispose();
         _cancellationTokenSource.Cancel();
-        _disposable = _cancellationTokenSource;
+        var dm = new DisposableManager();
+        dm.LinkDisposable(_cancellationTokenSource);
+        _disposable = dm;
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _cancellationTokenSource.CancelAfter(30_000);
         Debug.Assert(_runningTasks?.IsCompleted ?? true);
-        _runningTasks = _tradeCollector.Collect(_cancellationTokenSource.Token);
+        var tradeCollector = container.GetRequiredService<ITradeCollector>();
+        dm.LinkDisposable(container);
+        _runningTasks?.Dispose();
+        _runningTasks = tradeCollector.Collect(_cancellationTokenSource.Token);
         try
         {
-            await (_runningTasks?.WaitAsync(Period, cancellationToken) ?? Task.CompletedTask).ConfigureAwait(false);
+            await _runningTasks.WaitAsync(Period, cancellationToken).ConfigureAwait(false);
         }
         catch (TimeoutException e)
         {
@@ -79,5 +107,6 @@ public class CollectTradeTask : BasePeriodicScheduledTask, IDisposable
     {
         _disposable.Dispose();
         base.Dispose(disposing);
+        _cancellationTokenSource.Dispose();
     }
 }
