@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Data;
+using Cryptodd.Databases.Postgres;
 using Cryptodd.Pairs;
 using Maxisoft.Utils.Objects;
 using Npgsql;
@@ -24,19 +25,19 @@ public class ExportToCsvCommandOptions : BaseCommandOptions
 [Command("csv", Description = "Export database tables to csv files")]
 public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, ICommand
 {
-    public ExportToCsvCommand(): base()
+    public ExportToCsvCommand() : base()
     {
         Options.LoadPlugins = false;
         Options.SetupScheduler = false;
         Options.SetupTimescaleDb = false;
     }
-    
+
     [CommandOption("trades", 't', Description = "Export ftx trades")]
     public bool ExportTrades { get; set; } = false;
-    
+
     [CommandOption("agg", 'g', Description = "Export Aggregated ftx trades")]
     public bool ExportAggregatedTrades { get; set; } = false;
-    
+
     [CommandOption("bitfinex-ob", Description = "Export Bitfinex orderbook")]
     public bool ExportBitfinexOrderbooks { get; set; } = false;
 
@@ -45,10 +46,10 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
 
     [CommandOption("output", 'o', Description = "Output directory")]
     public string Output { get; set; } = ".";
-    
+
     [CommandOption("limit", 'l', Description = "Limit Number of row")]
     public long Limit { get; set; } = 0;
-    
+
     [CommandOption("filter", Description = "Filter by table name")]
     public List<string> Filters { get; set; } = new List<string>();
 
@@ -128,7 +129,7 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
     private async Task DoExportTrades(QueryFactory db, string outputDirectory,
         CancellationToken cancellationToken)
     {
-        var conn = (NpgsqlConnection) db.Connection;
+        var conn = (NpgsqlConnection)db.Connection;
         var tableSizes = (await db.Query("table_sizes2")
             .Where("schema", "=", "ftx")
             .WhereLike("name", "ftx_trade_%_%")
@@ -145,7 +146,7 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
             }
 
             using var inStream = await conn.BeginTextExportAsync(
-                $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\") TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
+                $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\" ORDER BY \"time\", \"id\") TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
                 cancellationToken);
             var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
             await CopyCsvStreamToFile(baseName, inStream, outputDirectory, cancellationToken);
@@ -157,7 +158,7 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
     private async Task DoExportAggregatedTrades(QueryFactory db, string outputDirectory, long limit,
         CancellationToken cancellationToken)
     {
-        var conn = (NpgsqlConnection) db.Connection;
+        var conn = (NpgsqlConnection)db.Connection;
         var tableSizes = (await db.Query("pg_tables")
             .Select("schemaname AS schema", "tablename as name")
             .Where("schemaname", "=", "ftx")
@@ -178,22 +179,30 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
         {
             filter.AddAll(filter1);
         }
-        foreach (var tableSize in tableSizes.Where(tableSize => tableSize is not null && filter.Match(tableSize.name)))
-        {
-            using var inStream = await conn.BeginTextExportAsync(
-                $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\" {orderByQuery} {limitQuery}) TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
-                cancellationToken);
-            var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
-            await CopyCsvStreamToFile(baseName, inStream, outputDirectory, cancellationToken);
+        await using var pool = Container.GetInstance<IMiniConnectionPool>();
+        await Parallel.ForEachAsync(
+            tableSizes.Where(tableSize => tableSize is not null && filter.Match(tableSize.name)), cancellationToken,
+            async (tableSize, token) =>
+            {
+                await using var rent = await pool.RentAsync(cancellationToken);
+                if (rent.Connection.State != ConnectionState.Open)
+                {
+                    await rent.Connection.OpenAsync(cancellationToken);
+                }
+                using var inStream = await rent.Connection.BeginTextExportAsync(
+                    $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\" {orderByQuery} {limitQuery}) TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
+                    cancellationToken);
+                var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
+                await CopyCsvStreamToFile(baseName, inStream, outputDirectory, cancellationToken);
 
-            progress += 1;
-        }
+                Interlocked.Increment(ref progress);
+            });
     }
-    
+
     private async Task DoExportBitfinexOrderbooks(QueryFactory db, string outputDirectory, long limit,
         CancellationToken cancellationToken)
     {
-        var conn = (NpgsqlConnection) db.Connection;
+        var conn = (NpgsqlConnection)db.Connection;
         var tableSizes = (await db.Query("pg_tables")
             .Select("schemaname AS schema", "tablename as name")
             .Where("schemaname", "=", "bitfinex")
@@ -214,15 +223,23 @@ public class ExportToCsvCommand : BaseCommand<ExportToCsvCommandOptions>, IComma
         {
             filter.AddAll(filter1);
         }
-        foreach (var tableSize in tableSizes.Where(tableSize => tableSize is not null && filter.Match(tableSize.name)))
-        {
-            using var inStream = await conn.BeginTextExportAsync(
-                $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\" {orderByQuery} {limitQuery}) TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
-                cancellationToken);
-            var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
-            await CopyCsvStreamToFile(baseName, inStream, outputDirectory, cancellationToken);
 
-            progress += 1;
-        }
+        await using var pool = Container.GetInstance<IMiniConnectionPool>();
+        await Parallel.ForEachAsync(
+            tableSizes.Where(tableSize => tableSize is not null && filter.Match(tableSize.name)), cancellationToken,
+            async (tableSize, token) =>
+            {
+                await using var rent = await pool.RentAsync(cancellationToken);
+                if (rent.Connection.State != ConnectionState.Open)
+                {
+                    await rent.Connection.OpenAsync(cancellationToken);
+                }
+                using var inStream = await rent.Connection.BeginTextExportAsync(
+                    $"COPY (SELECT * FROM \"{tableSize.schema}\".\"{tableSize.name}\" {orderByQuery} {limitQuery}) TO STDOUT WITH CSV HEADER ENCODING 'UTF8'",
+                    cancellationToken);
+                var baseName = $"{tableSize.schema}_{tableSize.name}.csv";
+                await CopyCsvStreamToFile(baseName, inStream, outputDirectory, cancellationToken);
+                Interlocked.Increment(ref progress);
+            });
     }
 }
