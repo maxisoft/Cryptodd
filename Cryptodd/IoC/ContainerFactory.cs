@@ -4,6 +4,7 @@ using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.IoC.Registries;
 using Cryptodd.IoC.Registries.Customs;
+using Cryptodd.TradeAggregates;
 using Lamar;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,7 +90,8 @@ public class ContainerFactory : IContainerFactory
                     .ConfigurePrimaryHttpMessageHandler(provider =>
                         provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
                     .AddPolicyHandler(
-                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
+                    .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
                 c.AddHttpClient<IBitfinexPublicHttpApi, BitfinexPublicHttpApi>((provider, client) =>
                     {
@@ -99,7 +101,8 @@ public class ContainerFactory : IContainerFactory
                     .ConfigurePrimaryHttpMessageHandler(provider =>
                         provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
                     .AddPolicyHandler(
-                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
+                    .SetHandlerLifetime(TimeSpan.FromMinutes(5));
             });
 
             x.Use(featureList).Singleton()

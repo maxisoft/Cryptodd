@@ -5,12 +5,13 @@ using System.Text.Json;
 using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
+using Cryptodd.IoC;
 using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 
 namespace Cryptodd.Ftx;
 
-public interface IFtxPublicHttpApi
+public interface IFtxPublicHttpApi: IDisposable
 {
     public Task<PooledList<Future>> GetAllFuturesAsync(CancellationToken cancellationToken = default);
 
@@ -23,9 +24,11 @@ public interface IFtxPublicHttpApi
     Task<PooledList<FtxTrade>> GetTradesAsync(string market, CancellationToken cancellationToken = default);
     Task<PooledList<FtxTrade>> GetTradesAsync(string market, long startTime, long endTime,
         CancellationToken cancellationToken = default);
+    
+    bool DisposeHttpClient { get; set; }
 }
 
-public class FtxPublicHttpApi : IFtxPublicHttpApi
+public class FtxPublicHttpApi : IFtxPublicHttpApi, INoAutoRegister
 {
     internal const int TradeDefaultCapacity = 8 << 10;
     internal const int MarketDefaultCapacity = 2048;
@@ -140,5 +143,17 @@ public class FtxPublicHttpApi : IFtxPublicHttpApi
         return (await _httpClient.GetFromJsonAsync<ResponseEnvelope<PooledList<FtxTrade>>>(uri,
             JsonSerializerOptions,
             cancellationToken)).Result ?? new PooledList<FtxTrade>();
+    }
+
+    public bool DisposeHttpClient { get; set; }
+
+    public void Dispose()
+    {
+        if (DisposeHttpClient)
+        {
+            _httpClient.Dispose();
+        }
+        
+        GC.SuppressFinalize(this);
     }
 }

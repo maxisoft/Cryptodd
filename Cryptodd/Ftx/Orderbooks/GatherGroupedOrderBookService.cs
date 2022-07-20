@@ -34,7 +34,8 @@ public sealed class GatherGroupedOrderBookService : IService
     {
         var sw = Stopwatch.StartNew();
         await using var container = _container.GetNestedContainer();
-        using var markets = await container.GetInstance<IFtxPublicHttpApi>().GetAllMarketsAsync(cancellationToken).ConfigureAwait(false);
+        using var api = container.GetInstance<IFtxPublicHttpApi>();
+        using var markets = await api.GetAllMarketsAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var ftxConfig = _configuration.GetSection("Ftx");
         var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 10);
