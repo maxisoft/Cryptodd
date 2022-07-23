@@ -21,7 +21,7 @@
         <PackageReference Include="PetaPoco.Compiled" Version="6.0.524" />
         <PackageReference Include="PetaPoco.SqlKata" Version="2.1.11" />
         <PackageReference Include="Serilog" Version="2.11.0" />
-        <PackageReference Include="Serilog.Exceptions" Version="8.2.0" />
+        <PackageReference Include="Serilog.Exceptions" Version="8.3.0+build.654" />
         <PackageReference Include="Serilog.Settings.Configuration" Version="3.3.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
         <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
