@@ -209,7 +209,7 @@ public sealed class GatherGroupedOrderBookService : IService
             catch (Exception e)
             {
                 errorCount += 1;
-                _logger.Error(e, "A regrouped orderbook handler throwed up. This shouldn't occurs !");
+                _logger.Error(e, "A regrouped orderbook handler threw up. This shouldn't occurs !");
             }
         }
 
