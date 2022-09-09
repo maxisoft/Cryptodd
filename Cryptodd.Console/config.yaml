@@ -14,7 +14,7 @@ Ftx:
         - ^SOL/USDT?$
     Task:
       Period: 60000
-      Enabled: false
+      Enabled: true
       
   RegroupedOrderBook:
     Parquet:
@@ -23,7 +23,7 @@ Ftx:
       
   FutureStats:
     Parquet:
-      Enabled: false
+      Enabled: true
       
 Bitfinex:
   OrderBook:
@@ -33,7 +33,7 @@ Bitfinex:
 Trade:
   Collector:
     LockTable: false
-    MaxParallelism: 2
+    MaxParallelism: 8
   PairFilter:
     - BTC/USD
     - BTC-PERP
@@ -53,6 +53,22 @@ Trade:
     - FTT-PERP
     - SRM/USD
     - SRM-PERP
+    #- EOS/USD
+    #- EOS-PERP
+    - DOGE/USD
+    - DOGE-PERP
+    - AAVE/USD
+    - AAVE-PERP
+    - TRX/USD
+    - TRX-PERP
+    - COMP/USD
+    - COMP-PERP
+    - FTM/USD
+    - FTM-PERP
+    - LINK/USD
+    - LINK-PERP
+    #- CHZ-PERP
+    #- CHZ/USD
       
   Aggregate:
     LockTable: false
