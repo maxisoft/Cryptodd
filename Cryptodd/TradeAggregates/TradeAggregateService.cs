@@ -78,7 +78,7 @@ public class TradeAggregateService : ITradeAggregateService, IDisposable
             .Bind(Options, options => options.ErrorOnUnknownConfiguration = true);
     }
 
-    public async Task Update(int operationTimeout = 20_000, CancellationToken cancellationToken = default)
+    public async Task Update(int operationTimeout = 15_000, CancellationToken cancellationToken = default)
     {
         if (_semaphoreSlim.CurrentCount == 0)
         {
@@ -288,6 +288,21 @@ public class TradeAggregateService : ITradeAggregateService, IDisposable
                 roundedPrevTime = prevTime / periodMs * periodMs + offsetMs;
                 nextTime = roundedPrevTime + periodMs;
             }
+            else
+            {
+                var count = await db.Query($"ftx.{_tradeDatabaseService.TradeTableName(marketName)}")
+                    .SelectRaw("COUNT(id)")
+                    .Where("time", "<", nextTime)
+                    .Where("time", ">=", roundedPrevTime)
+                    .Limit(1).FirstOrDefaultAsync<long>(tr, cancellationToken: cancellationToken);
+                if (count <= 0)
+                {
+                    tradeId = long.MaxValue;
+                    prevTime = nextTime;
+                    roundedPrevTime = prevTime / periodMs * periodMs + offsetMs;
+                    nextTime = roundedPrevTime + periodMs;
+                }
+            }
         } while (tradeId > 0);
 
         await db.Query($"ftx.{tableName}")
@@ -298,8 +313,17 @@ public class TradeAggregateService : ITradeAggregateService, IDisposable
         await tr.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         var timeUpperLimit = roundedPrevTime + periodMs * Options.MaxItemProcessedPerQuery;
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         timeUpperLimit = Math.Min(timeUpperLimit,
-            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / periodMs * periodMs + offsetMs);
+            now / periodMs * periodMs + offsetMs);
+        if (timeUpperLimit >= now)
+        {
+            if (now < nextTime)
+            {
+                return;
+            }
+            timeUpperLimit = nextTime;
+        }
         await using (var reader = await connection.BeginBinaryExportAsync(
                          $"COPY (SELECT * FROM ftx.\"{_tradeDatabaseService.TradeTableName(marketName)}\" WHERE \"time\" >= {roundedPrevTime} AND \"time\" < {timeUpperLimit} ORDER BY \"time\") TO STDOUT (FORMAT BINARY)",
                          cancellationToken))
@@ -341,8 +365,7 @@ public class TradeAggregateService : ITradeAggregateService, IDisposable
 
             while (!stop)
             {
-                stop = preCancellationToken.IsCancellationRequested ||
-                       (await reader.StartRowAsync(cancellationToken) == -1);
+                stop = preCancellationToken.IsCancellationRequested || await reader.StartRowAsync(cancellationToken) == -1;
                 id = -1;
                 time = -1;
                 if (!stop)

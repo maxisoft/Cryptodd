@@ -44,6 +44,7 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
             ApiFutureStats? stats = null;
             try
             {
+                // ReSharper disable once AccessToDisposedClosure
                 stats = await http.GetFuturesStatsAsync(market, token).ConfigureAwait(false);
             }
             catch (HttpRequestException e)
