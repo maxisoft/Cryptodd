@@ -75,8 +75,7 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
                 break;
             }
 
-            await Task.Factory.StartNew(() => SaveToParquet(array, fileName, gzip), cancellationToken)
-                .ConfigureAwait(false);
+            await SaveToParquetAsync(array, fileName, gzip, cancellationToken).ConfigureAwait(false);
         }
 
         _logger.Debug("Saved {Count} Grouped Orderbooks to parquet", orderbooks.Count);
@@ -84,8 +83,8 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
 
     public bool Disabled { get; set; }
 
-    private static void SaveToParquet(IReadOnlyCollection<OrderbookEnvelope> orderbooks, string fileName,
-        bool gzip)
+    private async Task SaveToParquetAsync(IReadOnlyCollection<OrderbookEnvelope> orderbooks, string fileName,
+        bool gzip, CancellationToken cancellationToken)
     {
         if (!orderbooks.Any())
         {
@@ -121,7 +120,7 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
 
         var exists = File.Exists(fileName) && new FileInfo(fileName).Length > 0;
         using Stream fileStream = File.Open(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
-        using var parquetWriter = new ParquetWriter(schema, fileStream, append: exists);
+        using var parquetWriter = await ParquetWriter.CreateAsync(schema, fileStream, append: exists, cancellationToken: cancellationToken);
         if (gzip)
         {
             parquetWriter.CompressionMethod = CompressionMethod.Gzip;
@@ -129,24 +128,24 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
 
         // create a new row group in the file
         using var groupWriter = parquetWriter.CreateRowGroup();
-        groupWriter.WriteColumn(new DataColumn(timeColumn,
-            orderbooks.Select(o => o.Time).ToArray()));
-        groupWriter.WriteColumn(new DataColumn(marketColumn,
-            orderbooks.Select(o => PairHasher.Hash(o.Symbol)).ToArray()));
+        await groupWriter.WriteColumnAsync(new DataColumn(timeColumn,
+            orderbooks.Select(o => o.Time).ToArray()), cancellationToken).ConfigureAwait(false);
+        await groupWriter.WriteColumnAsync(new DataColumn(marketColumn,
+            orderbooks.Select(o => PairHasher.Hash(o.Symbol)).ToArray()), cancellationToken).ConfigureAwait(false);
 
-        var dataFields = columns.AsSpan()[2..];
+        var dataFields = columns.ToArray()[2..];
 
         Debug.Assert(dataFields[0].Name == "bid_price_1");
         Debug.Assert(dataFields[2].Name == "bid_size_1");
 
         for (var i = 0; i < orderBookDeepness; i++)
         {
-            groupWriter.WriteColumn(new DataColumn(dataFields[0],
-                orderbooks.Select(orderbook => orderbook.Orderbook[i].Price).ToArray()));
-            groupWriter.WriteColumn(new DataColumn(dataFields[1],
-                orderbooks.Select(orderbook => orderbook.Orderbook[i].Count).ToArray()));
-            groupWriter.WriteColumn(new DataColumn(dataFields[2],
-                orderbooks.Select(orderbook => orderbook.Orderbook[i].Size).ToArray()));
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[0],
+                orderbooks.Select(orderbook => orderbook.Orderbook[i].Price).ToArray()), cancellationToken);
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[1],
+                orderbooks.Select(orderbook => orderbook.Orderbook[i].Count).ToArray()), cancellationToken);
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[2],
+                orderbooks.Select(orderbook => orderbook.Orderbook[i].Size).ToArray()), cancellationToken);
             dataFields = dataFields[3..];
         }
 
@@ -155,15 +154,15 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
 
         for (var i = 0; i < orderBookDeepness; i++)
         {
-            groupWriter.WriteColumn(new DataColumn(dataFields[0],
-                orderbooks.Select(orderbook => orderbook.Orderbook[i + orderBookDeepness].Price).ToArray()));
-            groupWriter.WriteColumn(new DataColumn(dataFields[1],
-                orderbooks.Select(orderbook => orderbook.Orderbook[i + orderBookDeepness].Count).ToArray()));
-            groupWriter.WriteColumn(new DataColumn(dataFields[2],
-                orderbooks.Select(orderbook => orderbook.Orderbook[i + orderBookDeepness].Size).ToArray()));
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[0],
+                orderbooks.Select(orderbook => orderbook.Orderbook[i + orderBookDeepness].Price).ToArray()), cancellationToken);
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[1],
+                orderbooks.Select(orderbook => orderbook.Orderbook[i + orderBookDeepness].Count).ToArray()), cancellationToken);
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[2],
+                orderbooks.Select(orderbook => orderbook.Orderbook[i + orderBookDeepness].Size).ToArray()), cancellationToken);
             dataFields = dataFields[3..];
         }
 
-        Debug.Assert(dataFields.IsEmpty);
+        Debug.Assert(dataFields.Length == 0);
     }
 }
