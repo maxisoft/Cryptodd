@@ -18,7 +18,7 @@
         <PackageReference Include="NetEscapades.Configuration.Yaml" Version="2.2.0" />
         <PackageReference Include="Parquet.Net" Version="3.9.1" />
         <PackageReference Include="PathLib" Version="0.9.7.1" />
-        <PackageReference Include="PetaPoco.Compiled" Version="6.0.524" />
+        <PackageReference Include="PetaPoco.Compiled" Version="6.0.532" />
         <PackageReference Include="PetaPoco.SqlKata" Version="2.1.11" />
         <PackageReference Include="Serilog" Version="2.12.0" />
         <PackageReference Include="Serilog.Exceptions" Version="8.2.0" />
