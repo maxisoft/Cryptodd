@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -14,6 +15,7 @@ using Cryptodd.Pairs;
 using Cryptodd.Tests.Ftx.Orderbooks.RegroupedOrderbook;
 using Lamar;
 using Maxisoft.Utils.Collections.Dictionaries;
+using Maxisoft.Utils.Collections.Lists;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using Parquet;
@@ -109,7 +111,7 @@ public class TestSaveRegroupedOrderbookToParquetHandler
         using (Stream fileStream =
                System.IO.File.OpenRead(Path.Combine(_tmpPath, SaveRegroupedOrderbookToParquetHandler.DefaultFileName)))
         {
-            using (var parquetReader = new ParquetReader(fileStream))
+            using (var parquetReader = await ParquetReader.CreateAsync(fileStream))
             {
                 DataField[] dataFields = parquetReader.Schema.GetDataFields();
                 Assert.NotEmpty(dataFields);
@@ -120,7 +122,11 @@ public class TestSaveRegroupedOrderbookToParquetHandler
                 for (var i = 0; i < parquetReader.RowGroupCount; i++)
                 {
                     using var groupReader = parquetReader.OpenRowGroupReader(i);
-                    DataColumn[] columns = dataFields.Select(groupReader.ReadColumn).ToArray();
+                    ArrayList<DataColumn> columns = new();
+                    foreach (var dataField in dataFields)
+                    {
+                        columns.Add(await groupReader.ReadColumnAsync(dataField, CancellationToken.None));
+                    }
                     Assert.Equal(new dynamic[] { pairh },
                         columns[1].Data); // it must conserve order too
                 }

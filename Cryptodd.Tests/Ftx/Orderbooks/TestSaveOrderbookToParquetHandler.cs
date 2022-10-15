@@ -14,6 +14,7 @@ using Cryptodd.Pairs;
 using Cryptodd.Tests.Ftx.Orderbooks.RegroupedOrderbook;
 using Lamar;
 using Maxisoft.Utils.Collections.Dictionaries;
+using Maxisoft.Utils.Collections.Lists;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Moq;
 using Parquet;
@@ -129,7 +130,7 @@ public class TestSaveOrderbookToParquetHandler
         using (Stream fileStream =
                System.IO.File.OpenRead(Path.Combine(_tmpPath, SaveOrderbookToParquetHandler.DefaultFileName)))
         {
-            using (var parquetReader = new ParquetReader(fileStream))
+            using (var parquetReader = await ParquetReader.CreateAsync(fileStream))
             {
                 DataField[] dataFields = parquetReader.Schema.GetDataFields();
                 Assert.NotEmpty(dataFields);
@@ -140,7 +141,11 @@ public class TestSaveOrderbookToParquetHandler
                 for (var i = 0; i < parquetReader.RowGroupCount; i++)
                 {
                     using var groupReader = parquetReader.OpenRowGroupReader(i);
-                    DataColumn[] columns = dataFields.Select(groupReader.ReadColumn).ToArray();
+                    ArrayList<DataColumn> columns = new();
+                    foreach (var dataField in dataFields)
+                    {
+                        columns.Add(await groupReader.ReadColumnAsync(dataField, CancellationToken.None));
+                    }
                     Assert.Equal(new dynamic[] { "BCH/JPY", "BTC/USD" },
                         columns[1].Data); // it must conserve order too
                     Assert.Equal(orderbookGroupedWrapper!.Grouping, ((double[])columns[2].Data)[^1]);
