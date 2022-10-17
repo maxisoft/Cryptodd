@@ -28,7 +28,7 @@
         <PackageReference Include="Serilog.Sinks.Async" Version="1.5.0" />
         <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
         <PackageReference Include="SqlKata" Version="2.4.0" />
-        <PackageReference Include="StackExchange.Redis" Version="2.6.66" />
+        <PackageReference Include="StackExchange.Redis" Version="2.6.70" />
         <PackageReference Include="StackExchange.Redis.Extensions.Core" Version="8.0.5" />
         <PackageReference Include="StackExchange.Redis.Extensions.System.Text.Json" Version="8.0.5" />
         <PackageReference Include="System.Buffers" Version="4.5.1" />
