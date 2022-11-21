@@ -25,7 +25,7 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
 
     public virtual IConfigurationSection Section => Configuration.GetSection(Name.Replace('.', ':'));
 
-    private void OnConfigurationChange()
+    protected void OnConfigurationChange()
     {
         var section = Section;
         Period = TimeSpan.FromMilliseconds(section.GetValue("Period", Period.TotalMilliseconds));
@@ -36,7 +36,7 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
         }
     }
 
-    protected virtual void OnConfigurationChange(object obj)
+    protected virtual void OnConfigurationChange(object? obj)
     {
         if (!ReferenceEquals(obj, this))
         {

@@ -4,6 +4,7 @@ namespace Cryptodd.TradeAggregates;
 
 public class TradeCollectorOptions
 {
+    public bool Enabled { get; set; } = false;
     public int MaxParallelism { get; set; }
     public int Timeout { get; set; } = 60 * 1000;
     public string PairFilterName { get; set; } = "Trade";

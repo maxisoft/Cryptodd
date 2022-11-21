@@ -14,15 +14,22 @@ using Cryptodd.Http;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Maxisoft.Utils.Objects;
+using Microsoft.Extensions.Configuration;
 using Serilog;
 
 namespace Cryptodd.Bitfinex.WebSockets;
 
 public readonly record struct GroupedOrderBookRequest(string Symbol, string Precision = "P0") { }
 
-public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
+public class BitfinexPublicWebSocketOptions
 {
-    private const string WebsocketUrl = "wss://api-pub.bitfinex.com/ws/2";
+    public string WebsocketUrl { get; set; } = "wss://api-pub.bitfinex.com/ws/2";
+    public int MaxChannel { get; set; } = 25;
+}
+
+public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
+{
+    private readonly BitfinexPublicWebSocketOptions _options = new();
 
     internal static readonly JsonSerializerOptions OrderBookJsonSerializerOptions =
         CreateOrderBookJsonSerializerOptions();
@@ -31,24 +38,27 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
 
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
-    private readonly SemaphoreSlim _subscribedSemaphore = new(25, 25);
+    private readonly SemaphoreSlim _subscribedSemaphore;
+    public int SubscriptionsCount => _options.MaxChannel - _subscribedSemaphore.CurrentCount;
 
     private readonly List<ITargetBlock<OrderbookEnvelope>> _targetBlocks = new();
     private readonly IClientWebSocketFactory _webSocketFactory;
 
     internal readonly CancellationTokenSource LoopCancellationTokenSource;
     private Stopwatch _pingStopWatch = Stopwatch.StartNew();
-    private ClientWebSocket? _ws;
+    internal ClientWebSocket? _ws;
 
-    private long messageCounter;
-    internal BufferBlock<GroupedOrderBookRequest> Requests = new();
+    private long _messageCounter;
+    private readonly BufferBlock<GroupedOrderBookRequest> _requests = new();
 
-    public BitfinexPublicWs(IClientWebSocketFactory webSocketFactory,
+    public BitfinexPublicWebSocket(IClientWebSocketFactory webSocketFactory, IConfiguration configuration,
         ILogger logger, Boxed<CancellationToken> cancellationToken)
     {
+        configuration.GetSection("Bitfinex:Websocket").Bind(_options);
         _webSocketFactory = webSocketFactory;
         _logger = logger;
         LoopCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _subscribedSemaphore = new SemaphoreSlim(_options.MaxChannel, _options.MaxChannel);
     }
 
 
@@ -67,26 +77,38 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
-        LoopCancellationTokenSource.Cancel();
+        try
+        {
+            LoopCancellationTokenSource.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        
         var ws = _ws;
         if (ws is { State: WebSocketState.Open })
         {
-            using var closeCancellationToken = new CancellationTokenSource();
-            closeCancellationToken.CancelAfter(1000);
-            try
-            {
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
-            }
-            catch (Exception e) when (e is OperationCanceledException or WebSocketException)
-            {
-                if (Requests.Count > 0)
-                {
-                    _logger.Debug(e, "Error when closing ws");
-                }
-            }
+            await CloseWebSocketAsync(ws);
         }
 
         Dispose();
+    }
+
+    protected virtual async ValueTask CloseWebSocketAsync(ClientWebSocket ws)
+    {
+        using var closeCancellationToken = new CancellationTokenSource();
+        closeCancellationToken.CancelAfter(1000);
+        try
+        {
+            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
+        }
+        catch (Exception e) when (e is OperationCanceledException or WebSocketException)
+        {
+            if (_requests.Count > 0)
+            {
+                _logger.Debug(e, "Error when closing ws");
+            }
+        }
     }
 
     public void Dispose()
@@ -125,7 +147,7 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
         return res;
     }
 
-    public int NumRemainingRequests() => Requests.Count;
+    public int NumRemainingRequests => _requests.Count;
 
     public void RegisterTargetBlock(ITargetBlock<OrderbookEnvelope> block)
     {
@@ -133,7 +155,7 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
     }
 
     public bool RegisterGroupedOrderBookRequest(string market, int precision) =>
-        Requests.Post(new GroupedOrderBookRequest($"t{market}", $"P{precision}"));
+        _requests.Post(new GroupedOrderBookRequest($"t{market}", $"P{precision}"));
 
     internal async ValueTask ProcessRequests(CancellationToken cancellationToken)
     {
@@ -141,17 +163,17 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
         {
             await ConnectIfNeeded().ConfigureAwait(false);
             await PingRemote().ConfigureAwait(false);
-            if (Requests.Count == 0)
+            if (_requests.Count == 0)
             {
                 return;
             }
 
-            while (Requests.TryReceive(out var request) && !cancellationToken.IsCancellationRequested)
+            while (_requests.TryReceive(out var request) && !cancellationToken.IsCancellationRequested)
             {
                 await _subscribedSemaphore.WaitAsync(cancellationToken);
                 try
                 {
-                    var subId = Interlocked.Increment(ref messageCounter);
+                    var subId = Interlocked.Increment(ref _messageCounter);
                     subId <<= 32;
                     subId |= PairHasher.Hash(request.Symbol) & int.MaxValue;
                     await _ws!.SendAsync(
@@ -172,11 +194,28 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
         }
     }
 
-    internal async Task RecvLoop()
+    private long _cid = 1;
+
+    public async ValueTask<bool> Ping()
+    {
+        var ws = _ws;
+        if (ws is { State: WebSocketState.Open })
+        {
+            var buff = Encoding.UTF8.GetBytes(@"{""event"":""ping"", ""cid"":" + Interlocked.Increment(ref _cid) + '}');
+            await ws.SendAsync(buff, WebSocketMessageType.Text, true,
+                CancellationToken);
+            return true;
+        }
+
+        return false;
+    }
+
+    internal async Task RecvLoop(CancellationToken loopCancellationToken)
     {
         try
         {
-            while (!LoopCancellationTokenSource.IsCancellationRequested)
+            while (!LoopCancellationTokenSource.IsCancellationRequested &&
+                   !loopCancellationToken.IsCancellationRequested)
             {
                 await ConnectIfNeeded().ConfigureAwait(false);
 
@@ -385,8 +424,7 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
 
                 Close();
 
-                _ws = await _webSocketFactory
-                    .GetWebSocket(new Uri(WebsocketUrl), cancellationToken: CancellationToken)
+                _ws = await CreateWebSocket()
                     .ConfigureAwait(false);
                 _pingStopWatch = Stopwatch.StartNew();
                 res = true;
@@ -409,7 +447,11 @@ public class BitfinexPublicWs : IService, IDisposable, IAsyncDisposable
         return res;
     }
 
-    internal void Close()
+    protected virtual ValueTask<ClientWebSocket> CreateWebSocket() =>
+        _webSocketFactory
+            .GetWebSocket(new Uri(_options.WebsocketUrl), cancellationToken: CancellationToken);
+
+    protected internal virtual void Close()
     {
         var ws = _ws;
         if (ws is not null)

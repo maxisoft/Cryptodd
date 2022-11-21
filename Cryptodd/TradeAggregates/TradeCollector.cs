@@ -35,7 +35,7 @@ public class TradeCollector : ITradeCollector, IDisposable
     public TradeCollector(IContainer container, ILogger logger, IPairFilterLoader pairFilterLoader,
         ITradeDatabaseService tradeDatabaseService, IConfiguration configuration, ITradePeriodOptimizer periodOptimizer)
     {
-        _container = (IContainer) container.GetNestedContainer();
+        _container = (IContainer)container.GetNestedContainer();
         _logger = logger.ForContext(GetType());
         _pairFilterLoader = pairFilterLoader;
         _tradeDatabaseService = tradeDatabaseService;
@@ -47,6 +47,11 @@ public class TradeCollector : ITradeCollector, IDisposable
 
     public async Task Collect(CancellationToken cancellationToken)
     {
+        if (!_options.Enabled)
+        {
+            return;
+        }
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         await using var container = _container.GetNestedContainer();
         cts.CancelAfter(_options.Timeout);
@@ -66,48 +71,51 @@ public class TradeCollector : ITradeCollector, IDisposable
         {
             try
             {
-                await Parallel.ForEachAsync(marketNames.OrderBy(_ => Guid.NewGuid()), token, async (marketName, token) =>
-                {
-                    // ReSharper disable once AccessToDisposedClosure
-                    await semaphore.WaitAsync(token).ConfigureAwait(false);
-                    try
+                await Parallel.ForEachAsync(marketNames.OrderBy(_ => Guid.NewGuid()), token,
+                    async (marketName, token) =>
                     {
                         // ReSharper disable once AccessToDisposedClosure
-                        var savedTime = await GetSavedTime(connectionPool, marketName, token);
-
-                        if (savedTime < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
+                        await semaphore.WaitAsync(token).ConfigureAwait(false);
+                        try
                         {
-                            try
+                            // ReSharper disable once AccessToDisposedClosure
+                            var savedTime = await GetSavedTime(connectionPool, marketName, token);
+
+                            if (savedTime < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                             {
-                                // ReSharper disable twice AccessToDisposedClosure
-                                await Policy.Handle<HttpRequestException>(exception =>
-                                        !token.IsCancellationRequested &&
-                                        exception.StatusCode is HttpStatusCode.ServiceUnavailable
-                                            or HttpStatusCode.InternalServerError or HttpStatusCode.BadRequest)
-                                    .RetryAsync(2, (_, _) => _periodOptimizer.Reset(marketName)).WrapAsync(Policy
-                                        .Handle<PostgresException>(exception =>
-                                            exception.SqlState == LockErrorSqlState && !token.IsCancellationRequested &&
-                                            _options.LockTable)
-                                        .WaitAndRetryAsync(5, i => TimeSpan.FromSeconds(0.5 + i)))
-                                    .ExecuteAsync(() =>
-                                        DownloadAndInsert(connectionPool, http, marketName, savedTime, token));
-                            }
-                            catch (Exception e) when (e is PostgresException or WebException or HttpRequestException)
-                            {
-                                _periodOptimizer.Reset(marketName);
-                                lock (exceptions)
+                                try
                                 {
-                                    exceptions.Add(e);
+                                    // ReSharper disable twice AccessToDisposedClosure
+                                    await Policy.Handle<HttpRequestException>(exception =>
+                                            !token.IsCancellationRequested &&
+                                            exception.StatusCode is HttpStatusCode.ServiceUnavailable
+                                                or HttpStatusCode.InternalServerError or HttpStatusCode.BadRequest)
+                                        .RetryAsync(2, (_, _) => _periodOptimizer.Reset(marketName)).WrapAsync(Policy
+                                            .Handle<PostgresException>(exception =>
+                                                exception.SqlState == LockErrorSqlState &&
+                                                !token.IsCancellationRequested &&
+                                                _options.LockTable)
+                                            .WaitAndRetryAsync(5, i => TimeSpan.FromSeconds(0.5 + i)))
+                                        .ExecuteAsync(() =>
+                                            DownloadAndInsert(connectionPool, http, marketName, savedTime, token));
+                                }
+                                catch (Exception e) when
+                                    (e is PostgresException or WebException or HttpRequestException)
+                                {
+                                    _periodOptimizer.Reset(marketName);
+                                    lock (exceptions)
+                                    {
+                                        exceptions.Add(e);
+                                    }
                                 }
                             }
                         }
-                    }
-                    finally
-                    {
-                        // ReSharper disable once AccessToDisposedClosure
-                        semaphore.Release();
-                    }
-                }).ConfigureAwait(true);
+                        finally
+                        {
+                            // ReSharper disable once AccessToDisposedClosure
+                            semaphore.Release();
+                        }
+                    }).ConfigureAwait(true);
             }
             catch (Exception e) when (e is OperationCanceledException or TaskCanceledException)
             {
@@ -216,8 +224,9 @@ public class TradeCollector : ITradeCollector, IDisposable
             .BeginTransactionAsync(_options.LockTable ? IsolationLevel.Serializable : IsolationLevel.ReadCommitted,
                 cancellationToken).ConfigureAwait(false);
         var prevIds =
-            await _tradeDatabaseService.GetLatestIds(tr, marketName, Math.Max(trades.Count + 1, 64), cancellationToken).ConfigureAwait(false);
-        
+            await _tradeDatabaseService.GetLatestIds(tr, marketName, Math.Max(trades.Count + 1, 64), cancellationToken)
+                .ConfigureAwait(false);
+
         prevIds.Sort();
 
         var mergeCounter = 0;
@@ -241,7 +250,8 @@ public class TradeCollector : ITradeCollector, IDisposable
             }
 
             mergeCounter += 1;
-            using var tmp = await GetTradesAsync(prevTime, trades.First().Time.ToUnixTimeMilliseconds()).ConfigureAwait(false);
+            using var tmp = await GetTradesAsync(prevTime, trades.First().Time.ToUnixTimeMilliseconds())
+                .ConfigureAwait(false);
             if (!tmp.Any())
             {
                 break;
@@ -255,7 +265,8 @@ public class TradeCollector : ITradeCollector, IDisposable
 
         try
         {
-            if (!await BulkInsert(tr, marketName, trades, prevTime, wasZero, prevIds, cancellationToken).ConfigureAwait(false))
+            if (!await BulkInsert(tr, marketName, trades, prevTime, wasZero, prevIds, cancellationToken)
+                    .ConfigureAwait(false))
             {
                 return;
             }

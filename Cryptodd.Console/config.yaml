@@ -3,7 +3,7 @@
 Ftx:
   GroupedOrderBook:
     Parquet:
-      Enabled: true
+      Enabled: false
       PairFilter: 
         - BTC-PERP
         - ^BTC-MOVE.*
@@ -14,21 +14,26 @@ Ftx:
         - ^SOL/USDT?$
     Task:
       Period: 60000
-      Enabled: true
+      Enabled: false
       
   RegroupedOrderBook:
     Parquet:
       Enabled: true
       HighCompression: true
+    Task:
+      Enabled: false
       
   FutureStats:
-    Parquet:
-      Enabled: true
+    Task:
+      Enabled: false
       
 Bitfinex:
   OrderBook:
     Parquet:
+      Enabled: false
+    Task:
       Enabled: true
+      Period: 60000
 
 Trade:
   Collector:

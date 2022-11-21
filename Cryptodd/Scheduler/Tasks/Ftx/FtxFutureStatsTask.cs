@@ -20,8 +20,8 @@ public class FtxFutureStatsTask : BasePeriodicScheduledTask
         configuration, container)
     {
         Period = TimeSpan.FromMinutes(1);
-        NextSchedule = DateTimeOffset.Now;
         _pairFilterLoader = pairFilterLoader;
+        OnConfigurationChange();
     }
 
     public override IConfigurationSection Section =>

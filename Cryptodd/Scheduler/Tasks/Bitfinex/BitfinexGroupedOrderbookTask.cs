@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Polly;
 using Serilog;
 
-namespace Cryptodd.Scheduler.Tasks.Ftx;
+namespace Cryptodd.Scheduler.Tasks.Bitfinex;
 
 public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
 {
@@ -18,7 +18,6 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
     {
         _retryPolicy = Policy.NoOpAsync();
         ConfigureRetryPolicy();
-        Period = TimeSpan.FromMinutes(1);
     }
 
     public override IConfigurationSection Section =>
