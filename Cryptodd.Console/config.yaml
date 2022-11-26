@@ -37,9 +37,22 @@ Bitfinex:
       
   OrderBookP0:
     PairFilter:
-      - BTC*
-      - ETH*
-      - XRP*
+      #- ^BTC.*?$
+      #- ^ETH.*?$
+      #- ^XRP.*?$
+      - BTCUSD
+      - BTCUST
+      - ETHBTC
+      - ETHUSD
+      - ETHUST
+      - LTCUSD
+      - LTCBTC
+      - LTCUST
+      - XMRBTC
+      - XMRUSD
+      - XRPBTC
+      - XRPUST
+      - XRPUSD
 
 Trade:
   Collector:
