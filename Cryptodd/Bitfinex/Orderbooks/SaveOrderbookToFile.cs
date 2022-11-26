@@ -30,15 +30,28 @@ public struct
 }
 
 [Singleton]
-public sealed class BitfinexOrderBookWriter :
+public sealed class BitfinexOrderBookWriterP2 :
     OrderBookWriter<PriceCountSizeTuple, PriceSizeCountTriplet, BitfinexFloatSerializableConverterConverter, OrderBookWriterOptions>, IService
 {
     internal const string ConfigurationSection = "Bitfinex:OrderBook:File";
 
-    public BitfinexOrderBookWriter(ILogger logger, IConfiguration configuration, IServiceProvider serviceProvider) :
+    public BitfinexOrderBookWriterP2(ILogger logger, IConfiguration configuration, IServiceProvider serviceProvider) :
         base(logger, configuration.GetSection(ConfigurationSection), serviceProvider)
     {
         Options.CoalesceExchange("Bitfinex");
+    }
+}
+
+[Singleton]
+public sealed class BitfinexOrderBookWriterP0 :
+    OrderBookWriter<PriceCountSizeTuple, PriceSizeCountTriplet, BitfinexFloatSerializableConverterConverter, OrderBookWriterOptions>, IService
+{
+    internal const string ConfigurationSection = "Bitfinex:OrderBookP0:File";
+
+    public BitfinexOrderBookWriterP0(ILogger logger, IConfiguration configuration, IServiceProvider serviceProvider) :
+        base(logger, configuration.GetSection(ConfigurationSection), serviceProvider)
+    {
+        Options.CoalesceExchange("BitfinexP0");
     }
 }
 
@@ -47,27 +60,30 @@ public class SaveOrderbookToFile : IOrderbookHandler
     private readonly IContainer _container;
     private readonly Logger _logger;
     private readonly IConfiguration _configuration;
-    private readonly BitfinexOrderBookWriter _writer;
+    private readonly BitfinexOrderBookWriterP2 _writerP2;
+    private readonly BitfinexOrderBookWriterP0 _writerP0;
 
-    public SaveOrderbookToFile(Logger logger, IContainer container, BitfinexOrderBookWriter writer)
+    public SaveOrderbookToFile(Logger logger, IContainer container, BitfinexOrderBookWriterP2 writerP2, BitfinexOrderBookWriterP0 writerP0)
     {
         _logger = logger;
         _container = container;
+        _writerP2 = writerP2;
+        _writerP0 = writerP0;
         _configuration = _container.GetInstance<IConfiguration>()
-            .GetSection(BitfinexOrderBookWriter.ConfigurationSection);
-        _writer = writer;
+            .GetSection(BitfinexOrderBookWriterP2.ConfigurationSection);
     }
 
     public bool Disabled { get; set; }
 
-    public async Task Handle(IReadOnlyCollection<OrderbookEnvelope> orderbooks, CancellationToken cancellationToken)
+    private async Task DoHandle<T>(T writer, OrderbookHandlerQuery query, IReadOnlyCollection<OrderbookEnvelope> orderbooks,
+        CancellationToken cancellationToken) where T: OrderBookWriter<PriceCountSizeTuple, PriceSizeCountTriplet, BitfinexFloatSerializableConverterConverter, OrderBookWriterOptions>
     {
-        if (Disabled || !_writer.Options.Enabled)
+        if (Disabled || !writer.Options.Enabled)
         {
             return;
         }
 
-        var maxParallelism = _writer.Options.MaxParallelism;
+        var maxParallelism = writer.Options.MaxParallelism;
         if (maxParallelism <= 0)
         {
             maxParallelism += Environment.ProcessorCount;
@@ -86,7 +102,7 @@ public class SaveOrderbookToFile : IOrderbookHandler
 
             try
             {
-                await _writer.WriteAsync(envelope.Symbol, envelope.Orderbook,
+                await writer.WriteAsync(envelope.Symbol, envelope.Orderbook,
                     DateTimeOffset.FromUnixTimeMilliseconds(envelope.Time), token);
             }
             finally
@@ -94,5 +110,20 @@ public class SaveOrderbookToFile : IOrderbookHandler
                 semaphore.Release();
             }
         });
+    }
+
+    public async Task Handle(OrderbookHandlerQuery query, IReadOnlyCollection<OrderbookEnvelope> orderbooks, CancellationToken cancellationToken)
+    {
+        switch (query.Precision)
+        {
+            case 2:
+                await DoHandle(_writerP2, query, orderbooks, cancellationToken);
+                break;
+            case 0:
+                await DoHandle(_writerP0, query, orderbooks, cancellationToken);
+                break;
+            default:
+                throw new ArgumentException("", nameof(query));
+        }
     }
 }

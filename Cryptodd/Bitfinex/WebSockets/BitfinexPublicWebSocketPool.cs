@@ -23,7 +23,7 @@ public class BitfinexPublicWebSocketPoolOptions
     /// 
     public float ConnectionPerMinute { get; set; } = 20;
 
-    public int DefaultSocketInPool { get; set; } = 10;
+    public int DefaultSocketInPool { get; set; } = 20;
     public int MaxSocketInPool { get; set; } = 128;
 }
 

@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Cryptodd.Bitfinex.WebSockets;
 using Cryptodd.FileSystem;
 using Cryptodd.IoC;
 using PetaPoco.SqlKata;
@@ -8,6 +9,8 @@ namespace Cryptodd.Databases.Tables.Bitfinex;
 public class OrderbookTableSchema : BaseTableSchema, INoAutoRegister
 {
     private readonly string _symbol;
+    public int Precision { get; set; } = GroupedOrderBookRequest.DefaultOrderBookLength;
+    public int Length { get; set; } = 25;
 
     public OrderbookTableSchema(string symbol, IResourceResolver resourceResolver) : base(resourceResolver)
     {
@@ -16,7 +19,10 @@ public class OrderbookTableSchema : BaseTableSchema, INoAutoRegister
         ResourceName = "bitfinex_orderbook";
     }
 
-    protected override string GetTableName() => $"bitfinex_ob_{_symbol}";
+    protected override string GetTableName()
+    {
+        return $"bitfinex_ob_{_symbol}_p{Precision}_l{Length}";
+    }
 
     public override async ValueTask<string> CreateQuery(CompilerType compilerType, CancellationToken cancellationToken)
     {

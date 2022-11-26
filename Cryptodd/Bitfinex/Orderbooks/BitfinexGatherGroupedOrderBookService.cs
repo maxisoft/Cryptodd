@@ -11,26 +11,29 @@ using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 using Serilog.Events;
+using GroupedOrderBookRequest = Cryptodd.Bitfinex.WebSockets.GroupedOrderBookRequest;
 
 namespace Cryptodd.Bitfinex;
 
 public class BitfinexGatherGroupedOrderBookService : IService
 {
-    private readonly IConfiguration _configuration;
+    protected readonly IConfiguration Configuration;
     private readonly IContainer _container;
     private readonly ILogger _logger;
-    private readonly IPairFilterLoader _pairFilterLoader;
+    protected readonly IPairFilterLoader PairFilterLoader;
+    protected int Precision { get; set; } = 2;
+    protected int OrderBookLength { get; set; } = GroupedOrderBookRequest.DefaultOrderBookLength;
 
     public BitfinexGatherGroupedOrderBookService(IPairFilterLoader pairFilterLoader, ILogger logger,
         IConfiguration configuration, IContainer container)
     {
         _logger = logger.ForContext(GetType());
-        _pairFilterLoader = pairFilterLoader;
-        _configuration = configuration;
+        PairFilterLoader = pairFilterLoader;
+        Configuration = configuration;
         _container = container;
     }
 
-    public async Task CollectOrderBooks(CancellationToken cancellationToken)
+    public async Task CollectOrderBooks(TimeSpan downloadingTimeout = default, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         await using var container = _container.GetNestedContainer();
@@ -38,11 +41,11 @@ public class BitfinexGatherGroupedOrderBookService : IService
             .ConfigureAwait(false);
         pairs = pairs.OrderBy(a => Guid.NewGuid()).ToList();
         cancellationToken.ThrowIfCancellationRequested();
-        var bitfinexConfig = _configuration.GetSection("Bitfinex");
-        var maxNumWs = bitfinexConfig.GetValue("MaxWebSockets", 30);
+        var bitfinexConfig = GetBitfinexConfig();
+        var maxNumWs = bitfinexConfig.GetValue("MaxWebSockets", 10);
         var webSockets = new List<BitfinexPublicWebSocket>();
-        var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Bitfinex/OrderBook", cancellationToken);
-        var orderBookSection = bitfinexConfig.GetSection("OrderBook");
+        var pairFilter = await GetPairFilterAsync(cancellationToken);
+        var orderBookSection = GetOrderBookSection(bitfinexConfig);
         var tasks = new List<Task>();
         var targetBlock = new BufferBlock<OrderbookEnvelope>();
         var requests = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
@@ -65,7 +68,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
 
             var taskNum = 0;
 
-
+            using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             bool DispatchTasks()
             {
                 async Task RecvLoop(int i)
@@ -79,6 +82,11 @@ public class BitfinexGatherGroupedOrderBookService : IService
                     {
                         _logger.Error(e, "{Method} task {Identifier} failed", nameof(RecvLoop), i);
                         ws.Close();
+                        // prevent to schedule any remaining task
+                        // and early stop
+                        cancellationTokenSource.Cancel();
+                        loopCancellationTokenSource.Cancel();
+                        throw;
                     }
                     finally
                     {
@@ -92,7 +100,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 {
                     if (pairFilter.Match(pair) && !requests.Contains(pair))
                     {
-                        if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(pair, 2))
+                        if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(pair, Precision, OrderBookLength))
                         {
                             res = true;
                             continue;
@@ -112,8 +120,12 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 return res;
             }
 
-            using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cancellationTokenSource.CancelAfter(orderBookSection.GetValue("GatherTimeout", 10 * 1000));
+            if (downloadingTimeout == TimeSpan.Zero)
+            {
+                downloadingTimeout = TimeSpan.FromSeconds(10);
+            }
+            cancellationTokenSource.CancelAfter(orderBookSection.GetValue("GatherTimeout", downloadingTimeout));
+            
 
             while (!cancellationTokenSource.IsCancellationRequested && reDispatch)
             {
@@ -124,7 +136,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 var orderBooks = new List<OrderbookEnvelope>();
                 using var dm = new DisposableManager();
                 var validators = container.GetAllInstances<IValidator<OrderbookEnvelope>>();
-                while (processed < requests.Count && !cancellationToken.IsCancellationRequested)
+                while (processed < requests.Count && !cancellationTokenSource.IsCancellationRequested)
                 {
                     if (recvDone >= tasks.Count)
                     {
@@ -190,7 +202,6 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 {
                     task.Dispose();
                 }
-                
             }
             tasks.Clear();
             await Parallel.ForEachAsync(webSockets, cancellationToken, async (ws, token) =>
@@ -209,13 +220,20 @@ public class BitfinexGatherGroupedOrderBookService : IService
         }
     }
 
+    protected virtual IConfigurationSection GetOrderBookSection(IConfigurationSection bitfinexConfig) => bitfinexConfig.GetSection("OrderBook");
+
+    protected virtual async Task<IPairFilter> GetPairFilterAsync(CancellationToken cancellationToken) => await PairFilterLoader.GetPairFilterAsync("Bitfinex/OrderBook", cancellationToken);
+
+    protected virtual IConfigurationSection GetBitfinexConfig() => Configuration.GetSection("Bitfinex");
+
     private async Task DispatchOrderbookHandler(List<OrderbookEnvelope> groupedOrderBooks, int processed,
         Stopwatch stopWatch, CancellationToken cancellationToken)
     {
         var handlerTasks = new List<Task>();
+        var query = new OrderbookHandlerQuery(Precision, OrderBookLength);
         var handlers = _container.GetAllInstances<IOrderbookHandler>();
         handlerTasks.AddRange(handlers.Where(handler => !handler.Disabled)
-            .Select(handler => handler.Handle(groupedOrderBooks, cancellationToken)));
+            .Select(handler => handler.Handle(query, groupedOrderBooks, cancellationToken)));
 
         var errorCount = 0;
         try
@@ -253,4 +271,18 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 stopWatch.Elapsed);
         }
     }
+}
+
+public class BitfinexGatherGroupedOrderBookServiceP0 : BitfinexGatherGroupedOrderBookService
+{
+    public BitfinexGatherGroupedOrderBookServiceP0(IPairFilterLoader pairFilterLoader, ILogger logger,
+        IConfiguration configuration, IContainer container) : base(pairFilterLoader, logger, configuration, container)
+    {
+        Precision = 0;
+        OrderBookLength = 250;
+    }
+
+    protected override async Task<IPairFilter> GetPairFilterAsync(CancellationToken cancellationToken) => await PairFilterLoader.GetPairFilterAsync("Bitfinex/OrderBookP0", cancellationToken);
+    
+    protected override IConfigurationSection GetOrderBookSection(IConfigurationSection bitfinexConfig) => bitfinexConfig.GetSection("OrderBookP0");
 }

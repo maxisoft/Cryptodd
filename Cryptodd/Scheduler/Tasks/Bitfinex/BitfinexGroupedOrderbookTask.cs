@@ -2,6 +2,8 @@
 using Cryptodd.Bitfinex;
 using Cryptodd.Ftx.Orderbooks;
 using Lamar;
+using Maxisoft.Utils.Collections.Queues;
+using Maxisoft.Utils.Collections.Queues.Specialized;
 using Microsoft.Extensions.Configuration;
 using Polly;
 using Serilog;
@@ -11,12 +13,14 @@ namespace Cryptodd.Scheduler.Tasks.Bitfinex;
 public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
 {
     private AsyncPolicy _retryPolicy;
+    private readonly BoundedDeque<CancellationTokenSource> _cancellationTokenSources = new(8);
 
     public BitfinexGroupedOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration) : base(
         logger,
         configuration, container)
     {
         _retryPolicy = Policy.NoOpAsync();
+        Period = TimeSpan.FromSeconds(15);
         ConfigureRetryPolicy();
     }
 
@@ -25,10 +29,58 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
 
     public override async Task Execute(CancellationToken cancellationToken)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(Period);
-        var orderBookService = Container.GetInstance<BitfinexGatherGroupedOrderBookService>();
-        await orderBookService.CollectOrderBooks(cts.Token).ConfigureAwait(false);
+        var cts = CreateCancellationTokenSource(cancellationToken);
+        var orderBookService = GetOrderBookService();
+        await _retryPolicy.ExecuteAsync(_ => orderBookService.CollectOrderBooks(Period * 0.8, cts.Token),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    protected virtual BitfinexGatherGroupedOrderBookService GetOrderBookService() =>
+        Container.GetInstance<BitfinexGatherGroupedOrderBookService>();
+
+    protected virtual CancellationTokenSource CreateCancellationTokenSource(CancellationToken cancellationToken)
+    {
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        try
+        {
+            cts.CancelAfter(Period);
+            while (_cancellationTokenSources.IsFull)
+            {
+                if (_cancellationTokenSources.TryPopFront(out var old))
+                {
+                    old.Dispose();
+                }
+            }
+
+            var stable = false;
+            while (!stable)
+            {
+                stable = true;
+                foreach (var source in _cancellationTokenSources)
+                {
+                    try
+                    {
+                        source.Cancel();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        _cancellationTokenSources.Remove(source);
+                        stable = false;
+                        break;
+                    }
+                }
+            }
+
+
+            _cancellationTokenSources.Add(cts);
+            return cts;
+        }
+        catch
+        {
+            cts.Dispose();
+            throw;
+        }
     }
 
     private void ConfigureRetryPolicy()
@@ -43,4 +95,31 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
         base.OnConfigurationChange(obj);
         ConfigureRetryPolicy();
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            foreach (var cts in _cancellationTokenSources)
+            {
+                cts.Dispose();
+            }
+
+            _cancellationTokenSources.Clear();
+        }
+
+        base.Dispose(disposing);
+    }
+}
+
+public class BitfinexGroupedOrderbookTaskP0 : BitfinexGroupedOrderbookTask
+{
+    protected override BitfinexGatherGroupedOrderBookService GetOrderBookService() =>
+        Container.GetInstance<BitfinexGatherGroupedOrderBookServiceP0>();
+
+    public BitfinexGroupedOrderbookTaskP0(IContainer container, ILogger logger, IConfiguration configuration) : base(
+        container, logger, configuration) { }
+    
+    public override IConfigurationSection Section =>
+        Configuration.GetSection("Bitfinex").GetSection("OrderBookP0").GetSection("Task");
 }

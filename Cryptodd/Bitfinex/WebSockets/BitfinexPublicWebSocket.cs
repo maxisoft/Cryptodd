@@ -19,7 +19,10 @@ using Serilog;
 
 namespace Cryptodd.Bitfinex.WebSockets;
 
-public readonly record struct GroupedOrderBookRequest(string Symbol, string Precision = "P0") { }
+public readonly record struct GroupedOrderBookRequest(string Symbol, string Precision = "P0", int Length = GroupedOrderBookRequest.DefaultOrderBookLength)
+{
+    internal const int DefaultOrderBookLength = 25;
+}
 
 public class BitfinexPublicWebSocketOptions
 {
@@ -81,10 +84,8 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
         {
             LoopCancellationTokenSource.Cancel();
         }
-        catch (ObjectDisposedException)
-        {
-        }
-        
+        catch (ObjectDisposedException) { }
+
         var ws = _ws;
         if (ws is { State: WebSocketState.Open })
         {
@@ -154,8 +155,8 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
         _targetBlocks.Add(block);
     }
 
-    public bool RegisterGroupedOrderBookRequest(string market, int precision) =>
-        _requests.Post(new GroupedOrderBookRequest($"t{market}", $"P{precision}"));
+    public bool RegisterGroupedOrderBookRequest(string market, int precision, int length = GroupedOrderBookRequest.DefaultOrderBookLength) =>
+        _requests.Post(new GroupedOrderBookRequest($"t{market}", $"P{precision}", length));
 
     internal async ValueTask ProcessRequests(CancellationToken cancellationToken)
     {
@@ -175,14 +176,10 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
                 {
                     var subId = Interlocked.Increment(ref _messageCounter);
                     subId <<= 32;
-                    subId |= PairHasher.Hash(request.Symbol) & int.MaxValue;
+                    subId |= (uint)(HashCode.Combine(PairHasher.Hash(request.Symbol), request) & int.MaxValue);
                     await _ws!.SendAsync(
                         Encoding.UTF8.GetBytes(
-                            "{\"event\":\"subscribe\",\"channel\":\"book\",\"symbol\":\"" +
-                            request.Symbol + "\",\"freq\":\"f1\",\"prec\":\"" + request.Precision +
-                            "\",\"subId\":\"" +
-                            subId +
-                            "\"}"),
+                            $"{{\"event\":\"subscribe\",\"channel\":\"book\",\"symbol\":\"{request.Symbol}\",\"freq\":\"f1\",\"prec\":\"{request.Precision}\",\"subId\":\"{subId}\",\"len\":\"{request.Length}\"}}"),
                         WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception)
@@ -328,7 +325,7 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
                 orderbookEnvelope.Symbol = symbol;
             }
 
-            if (orderbookEnvelope.Orderbook.Count != 50)
+            if (orderbookEnvelope.Orderbook.Count is not (2 or 50 or 200 or 500))
             {
                 return;
             }

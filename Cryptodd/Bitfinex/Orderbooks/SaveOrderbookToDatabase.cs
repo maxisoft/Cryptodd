@@ -24,12 +24,18 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
         _container = container;
     }
 
-    public bool Disabled { get; set; }
+    public bool Disabled { get; set; } = true;
 
-    public async Task Handle(IReadOnlyCollection<OrderbookEnvelope> orderbooks, CancellationToken cancellationToken)
+    public async Task Handle(OrderbookHandlerQuery query, IReadOnlyCollection<OrderbookEnvelope> orderbooks, CancellationToken cancellationToken)
     {
         if (!_container.GetInstance<IFeatureList>().HasPostgres())
         {
+            return;
+        }
+
+        if (query.Length != 25)
+        {
+            _logger.Debug("Unsupported orderbook with length {Length}", query.Length);
             return;
         }
 
@@ -37,11 +43,11 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
         await using var connection = container.GetInstance<NpgsqlConnection>();
         if (connection is not null)
         {
-            await HandlePostgres(container, connection, orderbooks, cancellationToken).ConfigureAwait(false);
+            await HandlePostgres(query, container, connection, orderbooks, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async ValueTask HandlePostgres(INestedContainer container, NpgsqlConnection connection,
+    private async ValueTask HandlePostgres(OrderbookHandlerQuery query, INestedContainer container, NpgsqlConnection connection,
         IReadOnlyCollection<OrderbookEnvelope> orderbooks, CancellationToken cancellationToken)
     {
         Task Reconnect(NpgsqlConnection connection)
@@ -60,6 +66,8 @@ public class SaveOrderbookToDatabase : IOrderbookHandler
         await Parallel.ForEachAsync(orderbooks, cancellationToken, async (orderbook, token) =>
         {
             var table = tableSchemaForSymbol.Resolve(orderbook.Symbol.ToLowerInvariant(), CompilerType.Postgres);
+            table.Precision = query.Precision;
+            table.Length = query.Length;
             await semaphore.WaitAsync(token).ConfigureAwait(false);
             try
             {
