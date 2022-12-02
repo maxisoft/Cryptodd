@@ -43,6 +43,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Folder Include="Binance\Resources" />
       <Folder Include="OrderBooks" />
     </ItemGroup>
 
