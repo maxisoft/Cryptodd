@@ -17,15 +17,15 @@ public record OrderBookEntryWithStat(double Price) : OrderBookEntry(Price), IOrd
         ResetStatistics();
     }
 
-    public new void Update(double qty, DateTimeOffset time)
+    public new void Update(double qty, DateTimeOffset time, long updateId)
     {
-        base.Update(qty, time);
+        base.Update(qty, time, updateId);
         Statistics ??= new RunningStatistics();
         Statistics.Push(qty);
     }
 
-    void IOrderBookEntry.Update(double qty, DateTimeOffset time)
+    void IOrderBookEntry.Update(double qty, DateTimeOffset time, long updateId)
     {
-        Update(qty, time);
+        Update(qty, time, updateId);
     }
 }

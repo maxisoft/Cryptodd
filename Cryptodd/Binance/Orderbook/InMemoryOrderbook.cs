@@ -1,4 +1,7 @@
-﻿using Cryptodd.Binance.Models;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using Cryptodd.Binance.Models;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 using Towel;
 using Towel.DataStructures;
@@ -7,9 +10,9 @@ namespace Cryptodd.Binance.Orderbook;
 
 public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 {
-    private readonly Dictionary<PriceRoundKey, T> _asks = new();
+    private readonly ConcurrentDictionary<PriceRoundKey, T> _asks = new();
     private long _asksVersion;
-    private readonly Dictionary<PriceRoundKey, T> _bids = new();
+    private readonly ConcurrentDictionary<PriceRoundKey, T> _bids = new();
     private long _bidsVersion;
 
     public InMemoryOrderbook() { }
@@ -30,10 +33,11 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         }
     }
 
-    static void UpdatePart(
-        Dictionary<PriceRoundKey, T> dictionary,
+    private static void UpdatePart(
+        ConcurrentDictionary<PriceRoundKey, T> dictionary,
         PooledList<BinancePriceQuantityEntry<double>> update,
         DateTimeOffset time,
+        long updateId,
         ref long version)
     {
         foreach (var entry in update)
@@ -42,11 +46,11 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
             if (dictionary.TryGetValue(key, out var prev))
             {
                 // ReSharper disable once InvertIf
-                if (time > prev.Time)
+                if (updateId >= prev.UpdateId)
                 {
-                    if (entry.Quantity <= 0 && prev.ChangeCounter == 0)
+                    if (entry.Quantity <= 0 && prev.ChangeCounter == 0 && updateId != prev.UpdateId)
                     {
-                        dictionary.Remove(key);
+                        dictionary.TryRemove(key, out _);
                         // ReSharper disable once RedundantOverflowCheckingContext
                         unchecked
                         {
@@ -55,13 +59,13 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
                     }
                     else
                     {
-                        prev.Update(entry.Quantity, time);
+                        prev.Update(entry.Quantity, time, updateId);
                     }
                 }
             }
             else
             {
-                var t = new T() { Price = entry.Price, Quantity = entry.Quantity, Time = time };
+                var t = new T() { Price = entry.Price, Quantity = entry.Quantity, Time = time, UpdateId = updateId };
                 // ReSharper disable once InvertIf
                 if (dictionary.TryAdd(key, t))
                 {
@@ -71,37 +75,97 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
                         Interlocked.Increment(ref version);
                     }
 
-                    t.Update(entry.Quantity, time);
+                    t.Update(entry.Quantity, time, updateId);
                 }
             }
         }
     }
 
-    private void UpdateAsks(PooledList<BinancePriceQuantityEntry<double>> asks, DateTimeOffset dateTime)
+    private void UpdateAsks(PooledList<BinancePriceQuantityEntry<double>> asks, DateTimeOffset dateTime, long updateId)
     {
         lock (_asks)
         {
-            UpdatePart(_asks, asks, dateTime, ref _asksVersion);
+            UpdatePart(_asks, asks, dateTime, updateId, ref _asksVersion);
         }
     }
-    
-    private void UpdateBids(PooledList<BinancePriceQuantityEntry<double>> bids, DateTimeOffset dateTime)
+
+    private void UpdateBids(PooledList<BinancePriceQuantityEntry<double>> bids, DateTimeOffset dateTime, long updateId)
     {
         lock (_bids)
         {
-            UpdatePart(_bids, bids, dateTime, ref _bidsVersion);
+            UpdatePart(_bids, bids, dateTime, updateId, ref _bidsVersion);
         }
     }
 
     public void Update(in BinanceHttpOrderbook orderbook, DateTimeOffset dateTime)
     {
-        UpdateAsks(orderbook.Asks, dateTime);
-        UpdateBids(orderbook.Bids, dateTime);
+        UpdateAsks(orderbook.Asks, dateTime, orderbook.LastUpdateId);
+        UpdateBids(orderbook.Bids, dateTime, orderbook.LastUpdateId);
     }
 
     public void Update(in DepthUpdateMessage updateMessage)
     {
-        UpdateAsks(updateMessage.Asks, updateMessage.DateTimeOffset);
-        UpdateBids(updateMessage.Bids, updateMessage.DateTimeOffset);
+        UpdateAsks(updateMessage.Asks, updateMessage.DateTimeOffset, updateMessage.u);
+        UpdateBids(updateMessage.Bids, updateMessage.DateTimeOffset, updateMessage.u);
+    }
+
+    public (int askCount, int bidCount) DropOutdated(long updateId, double minBuy = double.MinValue,
+        double maxSell = double.MaxValue)
+    {
+        if (minBuy > maxSell)
+        {
+            throw new ArgumentOutOfRangeException(nameof(minBuy), minBuy, "min is greater than max");
+        }
+
+        if (maxSell <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxSell), maxSell, "maxSell is negative");
+        }
+        
+        static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary, long updateId, PriceRoundKey roundMin,
+            PriceRoundKey roundMax, ref long versionCounter)
+        {
+            Debug.Assert(roundMin.Value <= roundMax.Value, "roundMin <= roundMax");
+            using PooledList<PriceRoundKey> toDrop = new();
+            foreach (var (key, bookEntry) in dictionary)
+            {
+                if (bookEntry.UpdateId <= updateId && roundMin <= key && key <= roundMax)
+                {
+                    toDrop.Add(key);
+                }
+            }
+
+            if (toDrop.Count > 0)
+            {
+                unchecked
+                {
+                    Interlocked.Increment(ref versionCounter);
+                }
+            }
+
+            var res = 0;
+            // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
+            foreach (var key in toDrop)
+            {
+                res += dictionary.TryRemove(key, out _) ? 1 : 0;
+            }
+
+            return res;
+        }
+        
+        var roundMin = minBuy > 0 ? PriceRoundKey.CreateFromPrice(minBuy) : new PriceRoundKey(double.MinValue);
+        Debug.Assert(maxSell > 0, "maxSell > 0");
+        var roundMax = PriceRoundKey.CreateFromPrice(maxSell);
+
+        var askCount = Drop(in _asks, updateId, roundMin, roundMax, ref _asksVersion);
+        var bidCount = Drop(in _bids, updateId, roundMin, roundMax, ref _bidsVersion);
+        return (askCount, bidCount);
+    }
+
+    public (int askCount, int bidCount) DropOutdated(in BinanceHttpOrderbook orderbook)
+    {
+        static double PriceSelector(BinancePriceQuantityEntry<double> entry) => entry.Price;
+        return DropOutdated(orderbook.LastUpdateId, PriceSelector(orderbook.Bids.MinBy(PriceSelector)),
+            PriceSelector(orderbook.Asks.MaxBy(PriceSelector)));
     }
 }

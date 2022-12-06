@@ -2,7 +2,7 @@
 
 namespace Cryptodd.Binance.Models;
 
-public readonly record struct BinanceHttpOrderbook(long LastUpdateId, PooledList<BinancePriceQuantityEntry<double>> Bids, PooledList<BinancePriceQuantityEntry<double>> Asks) : IDisposable
+public readonly record struct BinanceHttpOrderbook(long LastUpdateId, PooledList<BinancePriceQuantityEntry<double>> Bids, PooledList<BinancePriceQuantityEntry<double>> Asks, DateTimeOffset? DateTime = null) : IDisposable
 {
     public void Dispose()
     {

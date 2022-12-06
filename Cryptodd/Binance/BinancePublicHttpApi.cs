@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -8,6 +9,7 @@ using Cryptodd.Binance.Models.Json;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
+using Maxisoft.Utils.Collections.LinkedLists;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 
@@ -18,6 +20,13 @@ public enum BinancePublicHttpApiEndPoint
     None,
     ExchangeInfo,
     OrderBook
+}
+
+public class BinancePublicHttpApiOptions
+{
+    public string BaseAddress { get; set; } = "https://api.binance.com";
+    public float UsedWeightMultiplier { get; set; } = 1.0f;
+    public string UsedWeightHeaderName { get; set; } = "X-MBX-USED-WEIGHT-1M";
 }
 
 public class BinancePublicHttpApiCallOptions
@@ -73,16 +82,60 @@ public class BinancePublicHttpApiCallOptionsOrderBook : BinancePublicHttpApiCall
     }
 }
 
-public class BinancePublicHttpApi : INoAutoRegister
+public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
 {
     public const int DefaultOrderbookLimit = 100;
-    public const string BinanceBaseAddress = "https://api.binance.com";
     private readonly HttpClient _httpClient;
 
     private readonly IConfiguration _configuration;
     private readonly IUriRewriteService _uriRewriteService;
+    private readonly Lazy<BinancePublicHttpApiOptions> _options;
+
+    internal BinancePublicHttpApiOptions Options => _options.Value;
+
+    private BinancePublicHttpApiOptions OptionsValueFactory()
+    {
+        var res = new BinancePublicHttpApiOptions();
+        Section.Bind(res);
+        SetupBaseAddress(res.BaseAddress);
+        return res;
+    }
 
     private JsonObject _exchangeInfo = new JsonObject();
+
+    internal static readonly AsyncLocal<LinkedListAsIList<Action<HttpResponseMessage>>> HttpMessageCallbacks = new();
+
+    internal sealed class RemoveCallbackOnDispose<T> : IDisposable
+    {
+        private LinkedListNode<Action<T>>? _node;
+
+        public RemoveCallbackOnDispose(LinkedListNode<Action<T>>? node)
+        {
+            _node = node;
+        }
+
+        public void Dispose()
+        {
+            if (_node is null)
+            {
+                return;
+            }
+
+            lock (this)
+            {
+                _node?.List?.Remove(_node);
+                _node = null;
+            }
+        }
+    }
+
+    internal static RemoveCallbackOnDispose<HttpResponseMessage> AddResponseCallbacks(
+        Action<HttpResponseMessage> action)
+    {
+        HttpMessageCallbacks.Value ??= new LinkedListAsIList<Action<HttpResponseMessage>>();
+        var node = HttpMessageCallbacks.Value.AddLast(action);
+        return new RemoveCallbackOnDispose<HttpResponseMessage>(node);
+    }
 
     public BinancePublicHttpApi(HttpClient httpClient, IConfiguration configuration,
         IUriRewriteService uriRewriteService)
@@ -90,19 +143,25 @@ public class BinancePublicHttpApi : INoAutoRegister
         _httpClient = httpClient;
         _configuration = configuration;
         _uriRewriteService = uriRewriteService;
+        _options = new Lazy<BinancePublicHttpApiOptions>(OptionsValueFactory);
+    }
 
-        if (string.IsNullOrWhiteSpace(httpClient.BaseAddress?.ToString()))
+    protected virtual void SetupBaseAddress(string baseAddress)
+    {
+        if (!string.IsNullOrWhiteSpace(_httpClient.BaseAddress?.ToString()))
         {
-            httpClient.BaseAddress = new Uri(BinanceBaseAddress);
-            var rewriteTask = uriRewriteService.Rewrite(new Uri(BinanceBaseAddress)).AsTask();
-            if (rewriteTask.IsCompleted)
-            {
-                httpClient.BaseAddress = rewriteTask.Result;
-            }
-            else
-            {
-                rewriteTask.ContinueWith(task => httpClient.BaseAddress = task.Result);
-            }
+            return;
+        }
+
+        _httpClient.BaseAddress = new Uri(baseAddress);
+        var rewriteTask = _uriRewriteService.Rewrite(_httpClient.BaseAddress).AsTask();
+        if (rewriteTask.IsCompleted)
+        {
+            _httpClient.BaseAddress = rewriteTask.Result;
+        }
+        else
+        {
+            rewriteTask.ContinueWith(task => _httpClient.BaseAddress = task.Result);
         }
     }
 
@@ -121,7 +180,7 @@ public class BinancePublicHttpApi : INoAutoRegister
     {
         options ??= new BinancePublicHttpApiCallOptionsExchangeInfo();
         var serializerOptions = options.JsonSerializerOptions ?? JsonSerializerOptions.Value;
-        var res = (await _httpClient.GetFromJsonAsync<JsonObject>(await UriCombine(options.Url),
+        var res = (await GetFromJsonAsync<JsonObject>(_httpClient, await UriCombine(options.Url),
             serializerOptions,
             cancellationToken))!;
 
@@ -154,9 +213,16 @@ public class BinancePublicHttpApi : INoAutoRegister
         uri = new UriBuilder(uri).WithParameter("symbol", symbol)
             .WithParameter("limit", limit.ToString(CultureInfo.InvariantCulture)).Uri;
         var serializerOptions = options.JsonSerializerOptions ?? JsonSerializerOptions.Value;
-        var res = await _httpClient.GetFromJsonAsync<BinanceHttpOrderbook>(uri, serializerOptions, cancellationToken);
-        return res;
+        var date = DateTimeOffset.Now;
+        BinanceHttpOrderbook res;
+        using (AddResponseCallbacks(message => date = message.Headers.Date ?? DateTimeOffset.Now))
+        {
+            res = await GetFromJsonAsync<BinanceHttpOrderbook>(_httpClient, uri, serializerOptions, cancellationToken);
+        }
+
+        return res with { DateTime = date };
     }
+
 
     private static JsonSerializerOptions CreateJsonSerializerOptions()
     {
@@ -169,4 +235,55 @@ public class BinancePublicHttpApi : INoAutoRegister
     }
 
     private static readonly Lazy<JsonSerializerOptions> JsonSerializerOptions = new(CreateJsonSerializerOptions);
+
+    #region HttpClientJsonExtensions copy pasted code + adapted
+
+    public Task<TValue?> GetFromJsonAsync<TValue>(HttpClient client, Uri? requestUri,
+        JsonSerializerOptions? options, CancellationToken cancellationToken = default)
+    {
+        var taskResponse = client.GetAsync(requestUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        return GetFromJsonAsyncCore<TValue>(taskResponse, options, cancellationToken);
+    }
+
+    private async Task<T?> GetFromJsonAsyncCore<T>(Task<HttpResponseMessage> taskResponse,
+        JsonSerializerOptions? options, CancellationToken cancellationToken)
+    {
+        using var response = await taskResponse.ConfigureAwait(false);
+        UpdateUsedWeight(response);
+        var callbacks = HttpMessageCallbacks.Value;
+        if (callbacks is not null)
+        {
+            foreach (var callback in callbacks)
+            {
+                callback(response);
+            }
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ReadFromJsonAsyncHelper<T>(response.Content, options, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static Task<T?> ReadFromJsonAsyncHelper<T>(HttpContent content, JsonSerializerOptions? options,
+        CancellationToken cancellationToken)
+        => content.ReadFromJsonAsync<T>(options, cancellationToken);
+
+    #endregion
+
+    private void UpdateUsedWeight(HttpResponseMessage response)
+    {
+        var headers = response.Headers;
+        var usedWeightFloat = 0.0;
+        if (headers.TryGetValues(Options.UsedWeightHeaderName, out var usedWeights))
+        {
+            foreach (var usedWeightString in usedWeights)
+            {
+                if (long.TryParse(usedWeightString, out var usedWeight))
+                {
+                    usedWeightFloat = Math.Max(usedWeightFloat, usedWeight);
+                }
+            }
+        }
+
+        usedWeightFloat *= Options.UsedWeightMultiplier;
+    }
 }

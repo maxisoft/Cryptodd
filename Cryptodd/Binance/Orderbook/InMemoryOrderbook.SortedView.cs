@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 
@@ -17,7 +18,7 @@ public partial class InMemoryOrderbook<T>
             Orderbook = orderbook;
         }
 
-        protected abstract Dictionary<PriceRoundKey, T> Collection { get; }
+        protected abstract ConcurrentDictionary<PriceRoundKey, T> Collection { get; }
         protected abstract long Version { get; }
 
         public bool OutOfDate => _version is null || _version != Version;
@@ -128,17 +129,17 @@ public partial class InMemoryOrderbook<T>
         }
     }
 
-    private class BidSortedView : SortedView
+    private sealed class BidSortedView : SortedView
     {
         public BidSortedView(InMemoryOrderbook<T> orderbook) : base(orderbook) { }
-        protected override Dictionary<PriceRoundKey, T> Collection => Orderbook._bids;
+        protected override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._bids;
         protected override long Version => Orderbook._bidsVersion;
     }
 
-    private class AskSortedView : SortedView
+    private sealed class AskSortedView : SortedView
     {
         public AskSortedView(InMemoryOrderbook<T> orderbook) : base(orderbook) { }
-        protected override Dictionary<PriceRoundKey, T> Collection => Orderbook._asks;
+        protected override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._asks;
         protected override long Version => Orderbook._asksVersion;
     }
 }
