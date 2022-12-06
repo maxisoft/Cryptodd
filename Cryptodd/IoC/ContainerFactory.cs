@@ -1,4 +1,5 @@
-﻿using Cryptodd.Bitfinex;
+﻿using Cryptodd.Binance;
+using Cryptodd.Bitfinex;
 using Cryptodd.Features;
 using Cryptodd.Ftx;
 using Cryptodd.Http;
@@ -94,6 +95,17 @@ public class ContainerFactory : IContainerFactory
                     .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
                 c.AddHttpClient<IBitfinexPublicHttpApi, BitfinexPublicHttpApi>((provider, client) =>
+                    {
+                        var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
+                        httpClientFactoryHelper?.Configure(client);
+                    })
+                    .ConfigurePrimaryHttpMessageHandler(provider =>
+                        provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
+                    .AddPolicyHandler(
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
+                    .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+                
+                c.AddHttpClient<IBinancePublicHttpApi, BinancePublicHttpApi>((provider, client) =>
                     {
                         var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
                         httpClientFactoryHelper?.Configure(client);

@@ -16,6 +16,8 @@ public class OrderBookWriterOptions
 
     public int BookMemoryBufferCount { get; set; } = 8;
 
+    public int WaitForFileLimitTimeout { get; set; } = 500;
+
     public virtual string FormatFile(string symbol, string fileName)
     {
         var symbolEscaped = PairSanitizer.Sanitize(symbol);

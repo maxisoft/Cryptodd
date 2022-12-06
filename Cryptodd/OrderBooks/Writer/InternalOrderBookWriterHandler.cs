@@ -1,5 +1,7 @@
 ﻿using System.Text;
 using Cryptodd.FileSystem;
+using Cryptodd.OrderBooks.Writer.OpenedFileLimiter;
+using Maxisoft.Utils.Empties;
 using Serilog;
 
 namespace Cryptodd.OrderBooks.Writer;
@@ -10,26 +12,44 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
     public readonly string Symbol;
     public readonly OrderBookWriterOptions Options;
     public readonly IPathResolver PathResolver;
+    public readonly IDefaultOpenedFileLimiter FileLimiter;
     public readonly ILogger Logger;
     private FileStream? _obFileStream;
     private FileStream? _timeFileStream;
+    private IDisposable _obFileLimiterDisposable = new EmptyDisposable();
+    private IDisposable _timeFileLimiterDisposable = new EmptyDisposable();
     private long _completedCount;
 
     private string currentObFile = "";
     private long prevTimestamp = 0;
 
     public InternalOrderBookWriterHandler(string symbol, OrderBookWriterOptions options, IPathResolver pathResolver,
-        ILogger logger)
+        ILogger logger, IDefaultOpenedFileLimiter fileLimiter)
     {
         Symbol = symbol;
         Options = options;
         PathResolver = pathResolver;
+        FileLimiter = fileLimiter;
         Logger = logger.ForContext(GetType());
     }
 
-    public ValueTask BeginWrite(int countHint = -1, CancellationToken cancellationToken = default)
+    public async ValueTask BeginWrite(int countHint = -1, CancellationToken cancellationToken = default)
     {
-        return ValueTask.CompletedTask;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(Options.WaitForFileLimitTimeout);
+        try
+        {
+            await FileLimiter.Wait(cts.Token).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is OperationCanceledException or OperationCanceledException)
+        {
+            if (!cts.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            Logger.Warning(e, "File system seems too slow to handle order book writes");
+        }
     }
 
     public async Task FixFileMisalignment(long obSizeInBytes)
@@ -114,25 +134,54 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
 
     public async Task WriteAsync(ReadOnlyMemory<byte> values, long timestamp, CancellationToken cancellationToken)
     {
-        static FileStream OpenAppend(string file)
+        async ValueTask<(FileStream, IDisposable)> OpenAppend(string file, FileAccess fileAccess = FileAccess.Write,
+            FileMode fileMode = FileMode.Append)
         {
+            IDisposable disposable = new EmptyDisposable();
             try
             {
-                return File.Open(file, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-            }
-            catch (DirectoryNotFoundException)
-            {
-                var dir = Path.GetDirectoryName(file);
-                if (dir is not null && !Directory.Exists(dir))
+                OpenedFileLimiterUnregisterOnDispose? unregisterOnDispose;
+                while (!FileLimiter.TryRegister(
+                           new OpenedFileSource(file)
+                           {
+                               Source = nameof(InternalOrderBookWriterHandler<T>),
+                               FileMode = fileMode,
+                               FileAccess = fileAccess
+                           }, out unregisterOnDispose))
                 {
-                    Directory.CreateDirectory(dir);
-                }
-                else
-                {
-                    throw;
+                    await FileLimiter.Wait(cancellationToken).ConfigureAwait(false);
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
                 }
 
-                return File.Open(file, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                disposable = unregisterOnDispose ?? disposable;
+
+
+                try
+                {
+                    return (File.Open(file, fileMode, fileAccess, FileShare.ReadWrite), disposable);
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    var dir = Path.GetDirectoryName(file);
+                    if (dir is not null && !Directory.Exists(dir))
+                    {
+                        Directory.CreateDirectory(dir);
+                    }
+                    else
+                    {
+                        throw;
+                    }
+
+                    return (File.Open(file, fileMode, fileAccess, FileShare.ReadWrite), disposable);
+                }
+            }
+            catch
+            {
+                disposable?.Dispose();
+                throw;
             }
         }
 
@@ -152,7 +201,7 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
         if (_timeFileStream is null)
         {
             var timeFile = GetTimeFilePath();
-            _timeFileStream = OpenAppend(timeFile);
+            (_timeFileStream, _timeFileLimiterDisposable) = await OpenAppend(timeFile).ConfigureAwait(false);
         }
 
 
@@ -161,7 +210,7 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
             try
             {
                 var obFile = GetObFilePath();
-                _obFileStream = OpenAppend(obFile);
+                (_obFileStream, _obFileLimiterDisposable) = await OpenAppend(obFile).ConfigureAwait(false);
             }
             catch
             {
@@ -185,7 +234,7 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
             throw;
         }
 
-        
+
         try
         {
             using var obFileLock = AppendFileLockHelper.CreateLocked(_obFileStream, values.Span);
@@ -223,6 +272,11 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
 
     public async ValueTask EndWrite(CancellationToken cancellationToken)
     {
+        if (100 * FileLimiter.Count >= 80 * FileLimiter.Limit)
+        {
+            await Close(cancellationToken).ConfigureAwait(false);
+        }
+
         if (_timeFileStream is not null)
         {
             await _timeFileStream.FlushAsync(cancellationToken);
@@ -240,14 +294,28 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
     {
         if (_timeFileStream is not null)
         {
-            await _timeFileStream.DisposeAsync().ConfigureAwait(false);
-            _timeFileStream = null;
+            try
+            {
+                await _timeFileStream.DisposeAsync().ConfigureAwait(false);
+                _timeFileStream = null;
+            }
+            finally
+            {
+                _timeFileLimiterDisposable.Dispose();
+            }
         }
 
         if (_obFileStream is not null)
         {
-            await _obFileStream.DisposeAsync().ConfigureAwait(false);
-            _obFileStream = null;
+            try
+            {
+                await _obFileStream.DisposeAsync().ConfigureAwait(false);
+                _obFileStream = null;
+            }
+            finally
+            {
+                _obFileLimiterDisposable.Dispose();
+            }
         }
     }
 
@@ -262,7 +330,11 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
     private void Dispose(bool disposing)
     {
         ReleaseUnmanagedResources();
-        if (disposing) { }
+        if (disposing)
+        {
+            _obFileLimiterDisposable.Dispose();
+            _timeFileLimiterDisposable.Dispose();
+        }
     }
 
     public void Dispose()

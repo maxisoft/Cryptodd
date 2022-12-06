@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using Cryptodd.FileSystem;
+using Cryptodd.OrderBooks.Writer.OpenedFileLimiter;
 using Maxisoft.Utils.Logic;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,7 +55,7 @@ public class OrderBookWriter<TIn, TOut, TConverter, TOptions> : IDisposable, IAs
 
     private InternalOrderBookWriterHandler<TOut> WriterValueFactory(string symbol) =>
         new(symbol, Options, _serviceProvider.GetRequiredService<IPathResolver>(),
-            _serviceProvider.GetRequiredService<ILogger>());
+            _serviceProvider.GetRequiredService<ILogger>(), _serviceProvider.GetRequiredService<IDefaultOpenedFileLimiter>());
 
     private void ReleaseUnmanagedResources()
     {
