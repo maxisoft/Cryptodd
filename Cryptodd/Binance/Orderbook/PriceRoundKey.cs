@@ -9,7 +9,7 @@ public readonly record struct PriceRoundKey(double Value) : IComparable<PriceRou
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static PriceRoundKey CreateFromPrice(double price)
     {
-        var log = Math.Log2(price);
+        var log = Math.Log2(price); // Use log2 as it should be faster than log10
         var value = Math.Round(log, RoundedDigit, MidpointRounding.ToZero);
         return new PriceRoundKey(value);
     }
