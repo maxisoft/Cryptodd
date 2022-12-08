@@ -73,7 +73,8 @@ internal static class PreParsedCombinedStreamEventParser
                                 property.SequenceEqual("stream"))
                             {
                                 done = true;
-                                stream = reader.GetString();
+                                stream = reader.GetString() ?? throw new JsonException("unable to read stream string", string.Empty, 0,
+                                    reader.BytesConsumed);
                                 
                                 return;
                             }
