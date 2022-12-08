@@ -23,8 +23,8 @@ public class BitfinexPublicWebSocketPoolOptions
     /// 
     public float ConnectionPerMinute { get; set; } = 20;
 
-    public int DefaultSocketInPool { get; set; } = 20;
-    public int MaxSocketInPool { get; set; } = 128;
+    public int DefaultSocketInPool { get; set; } = 3;
+    public int MaxSocketInPool { get; set; } = 7;
 }
 
 internal sealed class ConnectionLimiter
@@ -34,7 +34,7 @@ internal sealed class ConnectionLimiter
     public int Available => Math.Max(Limit - _counter, 0);
     private readonly Stopwatch _stopwatch = new();
     private readonly object _lockObject = new();
-    private ConcurrentQueue<TaskCompletionSource> _taskCompletionSourceQueue = new();
+    private readonly ConcurrentQueue<TaskCompletionSource> _taskCompletionSourceQueue = new();
     public int WaiterCount => _taskCompletionSourceQueue.Count;
 
     public ConnectionLimiter(int limit)
@@ -185,6 +185,7 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
     private readonly ConnectionLimiter _connectionLimiter;
     private readonly Lazy<INestedContainer> _nestedContainer;
     private readonly LinkedListAsIList<ClientWebSocket> _webSockets = new();
+    private readonly LinkedListAsIList<WeakReference> _subscribers = new LinkedListAsIList<WeakReference>();
     private float _dynamicWebsocketCount;
 
     public int AvailableWebsocketCount
@@ -192,7 +193,7 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
         get
         {
             var res = _webSockets.Count + _connectionLimiter.Available;
-            return res > 0 ? res : Math.Max((int) _dynamicWebsocketCount, 0);
+            return res > 0 ? res : Math.Max((int)_dynamicWebsocketCount, 0);
         }
     }
 
@@ -231,11 +232,11 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
             {
                 await Task.WhenAny(_connectionLimiter.Wait().WaitAsync(cts.Token), Task.Delay(1000, cancellationToken));
             }
-            catch (Exception e) when(e is OperationCanceledException or TimeoutException)
+            catch (Exception e) when (e is OperationCanceledException or TimeoutException)
             {
                 _logger.Verbose(e, "Polling _connectionLimiter");
             }
-            
+
             res = GetOpenedWebSocket();
             if (res is not null)
             {
@@ -384,4 +385,76 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
             _dynamicWebsocketCount = _options.DefaultSocketInPool;
         }
     }
+
+    # region Subscriber
+
+    public int SubscriberCount => _subscribers.Count;
+
+    public bool AddSubscriber(object subscriber)
+    {
+        var node = _subscribers.First;
+        while (node is not null)
+        {
+            var next = node.Next;
+            if (node.Value.IsAlive)
+            {
+                if (ReferenceEquals(node.Value.Target, subscriber))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                lock (_subscribers)
+                {
+                    _subscribers.Remove(node);
+                }
+            }
+
+
+            node = next;
+        }
+
+        lock (_subscribers)
+        {
+            _subscribers.AddLast(new WeakReference(subscriber));
+        }
+
+        return true;
+    }
+
+    public bool RemoveSubscriber(object subscriber)
+    {
+        var node = _subscribers.First;
+        while (node is not null)
+        {
+            var next = node.Next;
+            if (node.Value.IsAlive)
+            {
+                if (ReferenceEquals(node.Value.Target, subscriber))
+                {
+                    lock (_subscribers)
+                    {
+                        _subscribers.Remove(node);
+                    }
+
+                    return true;
+                }
+            }
+            else
+            {
+                lock (_subscribers)
+                {
+                    _subscribers.Remove(node);
+                }
+            }
+
+
+            node = next;
+        }
+
+        return false;
+    }
+
+    #endregion
 }
