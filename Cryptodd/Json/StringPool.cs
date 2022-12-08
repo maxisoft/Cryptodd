@@ -7,12 +7,12 @@ public class StringPool
 {
     private struct ValueStruct
     {
-        internal FlatString16 flatString { get; set; }
         internal int HashCode { get; set; }
-        internal string? s { get; set; }
+        internal FlatString16 flatString { get; set; }
+        internal string? String { get; set; }
     }
 
-    private ConcurrentLfu<int, ArrayList<ValueStruct>> _lfu;
+    private readonly ConcurrentLfu<int, ArrayList<ValueStruct>> _lfu;
 
     public StringPool(int lfuSize)
     {
@@ -31,20 +31,20 @@ public class StringPool
 
         foreach (ref var valueStruct in arr)
         {
-            if (!valueStruct.flatString.Equals(ref s16))
+            if (valueStruct.HashCode != h || !valueStruct.flatString.Equals(ref s16))
             {
                 continue;
             }
 
-            valueStruct.s ??= s16.ToString();
-            res = valueStruct.s;
+            valueStruct.String ??= s16.ToString();
+            res = valueStruct.String;
             return true;
         }
 
         res = s16.ToString();
         lock (arr)
         {
-            arr.Add(new ValueStruct() { flatString = s16, HashCode = h, s = res });
+            arr.Add(new ValueStruct() { flatString = s16, HashCode = h, String = res });
         }
         return true;
     }
