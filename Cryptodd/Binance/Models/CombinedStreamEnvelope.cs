@@ -1,7 +1,10 @@
 ﻿namespace Cryptodd.Binance.Models;
 
-public record struct CombinedStreamEnvelope<T>(string Steam, T Data) : IDisposable
+// ReSharper disable InconsistentNaming
+public record struct CombinedStreamEnvelope<T>(string steam, T data) : IDisposable
+    // ReSharper restore InconsistentNaming
 {
+    public T Data => data;
     public void Dispose()
     {
         if (Data is IDisposable disposable)
