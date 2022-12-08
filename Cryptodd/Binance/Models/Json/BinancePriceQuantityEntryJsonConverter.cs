@@ -8,7 +8,7 @@ using Cryptodd.Ftx.Models;
 
 namespace Cryptodd.Binance.Models.Json;
 
-public class BinancePriceQuantityEntryConverter : JsonConverter<BinancePriceQuantityEntry<double>>
+public class BinancePriceQuantityEntryJsonConverter : JsonConverter<BinancePriceQuantityEntry<double>>
 {
 
     private static bool TryGetDouble(ref Utf8JsonReader reader, out double res)
@@ -70,7 +70,7 @@ public class BinancePriceQuantityEntryConverter : JsonConverter<BinancePriceQuan
 
         if (!reader.Read() || reader.TokenType != JsonTokenType.EndArray)
         {
-            throw new JsonException("JsonArray expected to have only 2 elements", null, null,
+            throw new JsonException("JsonArray expected to only have 2 elements", null, null,
                 reader.Position.GetInteger());
         }
 
