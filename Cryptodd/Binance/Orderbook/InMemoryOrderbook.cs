@@ -83,6 +83,10 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
     private void UpdateAsks(PooledList<BinancePriceQuantityEntry<double>> asks, DateTimeOffset dateTime, long updateId)
     {
+        if (asks.Count == 0)
+        {
+            return;
+        }
         lock (_asks)
         {
             UpdatePart(_asks, asks, dateTime, updateId, ref _asksVersion);
@@ -91,6 +95,10 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
     private void UpdateBids(PooledList<BinancePriceQuantityEntry<double>> bids, DateTimeOffset dateTime, long updateId)
     {
+        if (bids.Count == 0)
+        {
+            return;
+        }
         lock (_bids)
         {
             UpdatePart(_bids, bids, dateTime, updateId, ref _bidsVersion);
@@ -168,4 +176,6 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         return DropOutdated(orderbook.LastUpdateId, PriceSelector(orderbook.Bids.MinBy(PriceSelector)),
             PriceSelector(orderbook.Asks.MaxBy(PriceSelector)));
     }
+
+    public bool IsEmpty() => _asks.IsEmpty && _bids.IsEmpty;
 }
