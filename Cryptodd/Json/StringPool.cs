@@ -1,4 +1,5 @@
-﻿using BitFaster.Caching.Lfu;
+﻿using System.Numerics;
+using BitFaster.Caching.Lfu;
 using Maxisoft.Utils.Collections.Lists;
 
 namespace Cryptodd.Json;

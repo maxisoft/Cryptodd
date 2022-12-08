@@ -2,6 +2,9 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Text.Unicode;
 
@@ -12,6 +15,7 @@ public struct FlatString16 : IEquatable<FlatString16>, IComparable<FlatString16>
 {
     private byte length;
     private byte c0;
+    private byte c1;
     private byte c2;
     private byte c3;
     private byte c4;
@@ -21,6 +25,7 @@ public struct FlatString16 : IEquatable<FlatString16>, IComparable<FlatString16>
     private byte c8;
     private byte c9;
     private byte c10;
+    private byte c11;
     private byte c12;
     private byte c13;
     private byte c14;
@@ -44,7 +49,7 @@ public struct FlatString16 : IEquatable<FlatString16>, IComparable<FlatString16>
         this.length = checked((byte)length);
         if (length < MaxLength)
         {
-            AsSpan(ref this, MaxLength)[length] = 0;
+            AsSpan(ref this, MaxLength)[length..].Clear();
         }
     }
 
@@ -128,8 +133,67 @@ public struct FlatString16 : IEquatable<FlatString16>, IComparable<FlatString16>
 
     public bool Equals(FlatString16 other) => Equals(ref other);
 
-    public bool Equals(ref FlatString16 other) => c0 == other.c0 && length == other.length &&
-                                                  AsSpan(ref other).SequenceEqual(AsSpan(ref this));
+    # region Intrisics
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    private static unsafe bool SSe41Equals(ref FlatString16 left, ref FlatString16 right)
+    {
+        var lptr = (byte*)Unsafe.AsPointer(ref left.c0);
+        var rptr = (byte*)Unsafe.AsPointer(ref right.c0);
+        var lv = Sse2.LoadVector128(lptr);
+        var rv = Sse2.LoadVector128(rptr);
+
+        var neq = Sse2.Xor(lv, rv);
+        return Sse41.TestZ(neq, neq);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    private static unsafe bool SSe2Equals(ref FlatString16 left, ref FlatString16 right)
+    {
+        var lptr = (ulong*)Unsafe.AsPointer(ref left.c0);
+        var rptr = (ulong*)Unsafe.AsPointer(ref right.c0);
+        var lv = Sse2.LoadVector128(lptr);
+        var rv = Sse2.LoadVector128(rptr);
+        return lv == rv;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    private static unsafe bool ArmEquals(ref FlatString16 left, ref FlatString16 right)
+    {
+        var lptr = (ulong*)Unsafe.AsPointer(ref left.c0);
+        var rptr = (ulong*)Unsafe.AsPointer(ref right.c0);
+        var lv = AdvSimd.LoadVector128(lptr);
+        var rv = AdvSimd.LoadVector128(rptr);
+        //AdvSimd.CompareEqual(lv, rv);
+        return lv == rv;
+    }
+
+    #endregion
+
+    public bool Equals(ref FlatString16 other)
+    {
+        if (length != other.length)
+        {
+            return false;
+        }
+
+        if (Sse41.IsSupported)
+        {
+            return SSe41Equals(ref this, ref other);
+        }
+
+        if (Sse2.IsSupported)
+        {
+            return SSe2Equals(ref this, ref other);
+        }
+
+        if (AdvSimd.IsSupported)
+        {
+            return ArmEquals(ref this, ref other);
+        }
+
+        return AsSpan(ref other).SequenceEqual(AsSpan(ref this));
+    }
 
     public override bool Equals(object? obj) => obj is FlatString16 other && Equals(ref other);
 
