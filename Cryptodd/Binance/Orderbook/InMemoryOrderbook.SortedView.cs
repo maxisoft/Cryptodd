@@ -93,6 +93,11 @@ public partial class InMemoryOrderbook<T>
             return res;
         }
 
+        public void EnforceKeysEnumeration()
+        {
+            CreateKeys();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private static int PriceRoundKeyComparison(PriceRoundKey left, PriceRoundKey right) =>
             left.CompareTo(right);
