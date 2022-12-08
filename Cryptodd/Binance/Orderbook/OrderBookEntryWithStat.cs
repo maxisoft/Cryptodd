@@ -1,31 +1,36 @@
-﻿using MathNet.Numerics.Statistics;
+﻿using System.Diagnostics;
+using MathNet.Numerics.Statistics;
 
 namespace Cryptodd.Binance.Orderbook;
 
-public record OrderBookEntryWithStat(double Price) : OrderBookEntry(Price), IOrderBookEntry
+public record OrderBookEntryWithStat(double Price) : IOrderBookEntry
 {
-    public RunningStatistics? Statistics { get; protected set; } = null;
+    public OrderBookEntryWithStat() : this(0) { }
 
-    public new void ResetStatistics()
+    public double Quantity { get; set; }
+
+    public DateTimeOffset Time { get; set; }
+
+    public long UpdateId { get; set; } = long.MinValue;
+
+    public int ChangeCounter { get; set; }
+
+    public RunningStatistics? Statistics { get; protected set; }
+
+    public void ResetStatistics()
     {
-        base.ResetStatistics();
+        var that = this;
+        IOrderBookEntry.DoResetStatistics(ref that);
+        Debug.Assert(ReferenceEquals(this, that));
         Statistics = null;
     }
 
-    void IOrderBookEntry.ResetStatistics()
+    public void Update(double qty, DateTimeOffset time, long updateId)
     {
-        ResetStatistics();
-    }
-
-    public new void Update(double qty, DateTimeOffset time, long updateId)
-    {
-        base.Update(qty, time, updateId);
+        var that = this;
+        IOrderBookEntry.DoUpdate(ref that, qty, time, updateId);
+        Debug.Assert(ReferenceEquals(this, that));
         Statistics ??= new RunningStatistics();
         Statistics.Push(qty);
-    }
-
-    void IOrderBookEntry.Update(double qty, DateTimeOffset time, long updateId)
-    {
-        Update(qty, time, updateId);
     }
 }
