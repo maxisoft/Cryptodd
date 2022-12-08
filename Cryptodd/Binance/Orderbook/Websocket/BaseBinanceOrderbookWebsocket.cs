@@ -52,7 +52,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
     protected BaseBinanceOrderbookWebsocket(ILogger logger, IClientWebSocketFactory webSocketFactory,
         Boxed<CancellationToken> cancellationToken)
     {
-        Logger = logger;
+        Logger = logger.ForContext(GetType());
         WebSocketFactory = webSocketFactory;
         LoopCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _orderBookJsonSerializerOptions = new Lazy<JsonSerializerOptions>(CreateOrderBookJsonSerializerOptions);
@@ -103,8 +103,9 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
     {
         var res = new JsonSerializerOptions
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = false };
-        res.Converters.Add(new BinancePriceQuantityEntryConverter());
+        res.Converters.Add(new BinancePriceQuantityEntryJsonConverter());
         res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>() { DefaultCapacity = 256 });
+        res.Converters.Add(new DepthUpdateMessageJsonConverter());
         return res;
     }
 
@@ -213,6 +214,10 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
                     catch (TaskCanceledException)
                     {
                         continue;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        break;
                     }
 
                     if (resp.Count == 0)
@@ -347,7 +352,6 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
 
     public async ValueTask DisposeAsync()
     {
-        GC.SuppressFinalize(this);
         LoopCancellationTokenSource.Cancel();
         var ws = _ws;
         if (ws is { State: WebSocketState.Open })
@@ -362,13 +366,14 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
             {
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
             }
-            catch (Exception e) when (e is OperationCanceledException or WebSocketException)
+            catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException)
             {
                 Logger.Debug(e, "Error when closing ws");
             }
         }
 
         Dispose();
+        GC.SuppressFinalize(this);
     }
 
     public void Dispose()
