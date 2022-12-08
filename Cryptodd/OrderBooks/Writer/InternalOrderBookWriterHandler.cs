@@ -132,7 +132,8 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
         }
     }
 
-    public async Task WriteAsync(ReadOnlyMemory<byte> values, long timestamp, CancellationToken cancellationToken)
+    private async Task DoWriteAsync(ReadOnlyMemory<byte> values, long timestamp, int callRecursion,
+        CancellationToken cancellationToken)
     {
         async ValueTask<(FileStream, IDisposable)> OpenAppend(string file, FileAccess fileAccess = FileAccess.Write,
             FileMode fileMode = FileMode.Append)
@@ -185,16 +186,24 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
             }
         }
 
-        if (_obFileStream is null || _obFileStream.Length >= Options.MaxFileSize)
+        if (_obFileStream is null)
         {
             await Close(cancellationToken).ConfigureAwait(false);
             await FixFileMisalignment(values.Length).ConfigureAwait(false);
             var obFile = Options.FormatFile(Symbol, $"{timestamp:D14}");
             if (obFile != currentObFile)
             {
-                currentObFile = obFile;
-                prevTimestamp = timestamp;
-                await FixFileMisalignment(values.Length).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(currentObFile) || 0 >= prevTimestamp ||
+                    !(Math.Abs(prevTimestamp - timestamp) < TimeSpan.FromHours(2).TotalMilliseconds))
+                {
+                    currentObFile = obFile;
+                    prevTimestamp = timestamp;
+                    await FixFileMisalignment(values.Length).ConfigureAwait(false);
+                }
+                else
+                {
+                    Logger.Verbose("Reusing previous file {FileName}", currentObFile);
+                }
             }
         }
 
@@ -216,6 +225,20 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
             {
                 await Close(cancellationToken);
                 throw;
+            }
+        }
+
+        if (Options.MaxFileSize > 0 && _obFileStream.Length >= Options.MaxFileSize && callRecursion <= 1)
+        {
+            await Close(cancellationToken).ConfigureAwait(false);
+            await FixFileMisalignment(values.Length).ConfigureAwait(false);
+            var obFile = Options.FormatFile(Symbol, $"{timestamp:D14}");
+            if (obFile != currentObFile)
+            {
+                currentObFile = obFile;
+                prevTimestamp = timestamp;
+                await DoWriteAsync(values, timestamp, callRecursion + 1, cancellationToken).ConfigureAwait(false);
+                return;
             }
         }
 
@@ -246,6 +269,11 @@ internal class InternalOrderBookWriterHandler<T> : IOrderBookWriterHandler<T>, I
             await FixFileMisalignment(values.Length).ConfigureAwait(false);
             throw;
         }
+    }
+
+    public async Task WriteAsync(ReadOnlyMemory<byte> values, long timestamp, CancellationToken cancellationToken)
+    {
+        await DoWriteAsync(values, timestamp, 0, cancellationToken);
     }
 
     private string GetObFilePath()
