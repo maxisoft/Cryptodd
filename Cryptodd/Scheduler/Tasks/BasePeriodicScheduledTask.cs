@@ -29,7 +29,7 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
     {
         var section = Section;
         Period = TimeSpan.FromMilliseconds(section.GetValue("Period", Period.TotalMilliseconds));
-        PeriodOffset = TimeSpan.FromMilliseconds(section.GetValue("PeriodOffset", 0));
+        PeriodOffset = TimeSpan.FromMilliseconds(section.GetValue("PeriodOffset", PeriodOffset.TotalMilliseconds));
         if (!section.GetValue<bool>("Enabled", !section.GetValue<bool>("Disabled", false)))
         {
             NextSchedule = DateTimeOffset.MaxValue;
@@ -68,11 +68,12 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
 
             for (var i = 0; i < 10; i++)
             {
-                var nextSchedule = Math.Ceiling((DateTimeOffset.UtcNow + PeriodOffset).ToUnixTimeMilliseconds() /
+                var nextSchedule = Math.Ceiling((DateTimeOffset.UtcNow).ToUnixTimeMilliseconds() /
                                                 Period.TotalMilliseconds) +
                                    i;
                 nextSchedule *= (long)Period.TotalMilliseconds;
                 nextSchedule -= Math.Min(mean + 0.5 * PrevExecutionStd, mean * 2);
+                nextSchedule += PeriodOffset.TotalMilliseconds;
                 var next = DateTimeOffset.FromUnixTimeMilliseconds((long)nextSchedule);
                 if (next > NextSchedule && (next - NextSchedule).Duration() > Period / 2)
                 {
@@ -87,7 +88,7 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
             ms += 1;
             ms *= Period.TotalMilliseconds;
             ms += PeriodOffset.TotalMilliseconds;
-            NextSchedule =  DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
+            NextSchedule = DateTimeOffset.FromUnixTimeMilliseconds((long)ms);
         }
         
 
