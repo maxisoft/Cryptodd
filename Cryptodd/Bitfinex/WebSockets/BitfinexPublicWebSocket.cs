@@ -231,6 +231,14 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
                     {
                         continue;
                     }
+                    catch (OperationCanceledException)
+                    {
+                        continue;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        break;
+                    }
 
                     if (resp.Count == 0)
                     {
@@ -286,6 +294,22 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
                         _logger.Warning("Considering websocket in buggy state => closing it");
                         Close();
                     }
+                }
+                catch (ObjectDisposedException e)
+                {
+                    try
+                    {
+                        if (!CancellationToken.IsCancellationRequested)
+                        {
+                            _logger.Warning(e, "");
+                        }
+                    }
+                    catch (ObjectDisposedException e2)
+                    {
+                        _logger.Verbose(e2, "");
+                    }
+                    
+                    return;
                 }
                 finally
                 {
