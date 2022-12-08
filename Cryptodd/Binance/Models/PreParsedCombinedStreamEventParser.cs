@@ -1,10 +1,13 @@
 ﻿using System.Text.Json;
 using System.Text.Unicode;
+using Cryptodd.Json;
 
 namespace Cryptodd.Binance.Models;
 
 internal static class PreParsedCombinedStreamEventParser
 {
+    internal static readonly StringPool StringPool = new StringPool(16 << 10);
+
     private static readonly JsonReaderOptions Options = new()
     {
         CommentHandling = JsonCommentHandling.Disallow,
@@ -61,21 +64,23 @@ internal static class PreParsedCombinedStreamEventParser
                         if (startObjectCounter == 1)
                         {
                             var propertyBytes = reader.ValueSpan;
-                            Utf8.ToUtf16(propertyBytes, buffer, out var bytesRead, out var propertyLength);
-
-                            var property = buffer[..propertyLength].Trim();
                             if (!reader.Read())
                             {
                                 return;
                             }
 
-                            if (bytesRead == propertyBytes.Length && reader.TokenType == JsonTokenType.String &&
-                                property.SequenceEqual("stream"))
+                            if (reader.TokenType == JsonTokenType.String &&
+                                propertyBytes.SequenceEqual("stream"u8))
                             {
+                                if (!StringPool.TryGetString(reader.ValueSpan, out stream))
+                                {
+                                    stream = reader.GetString() ?? throw new JsonException(
+                                        "unable to read stream string", string.Empty, 0,
+                                        reader.BytesConsumed);
+                                }
+
                                 done = true;
-                                stream = reader.GetString() ?? throw new JsonException("unable to read stream string", string.Empty, 0,
-                                    reader.BytesConsumed);
-                                
+
                                 return;
                             }
                             else

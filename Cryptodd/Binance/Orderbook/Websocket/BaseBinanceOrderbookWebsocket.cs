@@ -106,6 +106,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         res.Converters.Add(new BinancePriceQuantityEntryJsonConverter());
         res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>() { DefaultCapacity = 256 });
         res.Converters.Add(new DepthUpdateMessageJsonConverter());
+        res.Converters.Add(new CombinedStreamEnvelopeJsonConverter<DepthUpdateMessage>());
         return res;
     }
 

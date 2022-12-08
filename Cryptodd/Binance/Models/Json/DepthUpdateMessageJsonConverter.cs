@@ -13,7 +13,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
     private static readonly PooledListConverter<BinancePriceQuantityEntry<double>>? PooledListConverter =
         new() { DefaultCapacity = 64 };
 
-    private static readonly StringPool StringPool = new StringPool(8 << 10);
+    internal static readonly StringPool StringPool = new StringPool(8 << 10);
 
     public override DepthUpdateMessage Read(ref Utf8JsonReader reader, Type typeToConvert,
         JsonSerializerOptions options)
