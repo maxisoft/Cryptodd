@@ -24,7 +24,8 @@ public enum BinancePublicHttpApiEndPoint
 
 public class BinancePublicHttpApiOptions
 {
-    public string BaseAddress { get; set; } = "https://api.binance.com";
+    public const string DefaultBaseAddress = "https://api.binance.com";
+    public string BaseAddress { get; set; } = DefaultBaseAddress;
     public float UsedWeightMultiplier { get; set; } = 1.0f;
     public string UsedWeightHeaderName { get; set; } = "X-MBX-USED-WEIGHT-1M";
 }
@@ -153,15 +154,20 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
             return;
         }
 
-        _httpClient.BaseAddress = new Uri(baseAddress);
+        try
+        {
+            _httpClient.BaseAddress = new Uri(baseAddress);
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+        
         var rewriteTask = _uriRewriteService.Rewrite(_httpClient.BaseAddress).AsTask();
+        rewriteTask.Wait();
         if (rewriteTask.IsCompleted)
         {
             _httpClient.BaseAddress = rewriteTask.Result;
-        }
-        else
-        {
-            rewriteTask.ContinueWith(task => _httpClient.BaseAddress = task.Result);
         }
     }
 
@@ -170,7 +176,9 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
     private ValueTask<Uri> UriCombine(string url)
     {
         var uri =
-            new UriBuilder(Section.GetValue("Url", _httpClient.BaseAddress!.ToString())!).WithPathSegment(url)
+            new UriBuilder(Section.GetValue("Url",
+                    (_httpClient.BaseAddress ?? new Uri(BinancePublicHttpApiOptions.DefaultBaseAddress)).ToString())!)
+                .WithPathSegment(url)
                 .Uri;
         return _uriRewriteService.Rewrite(uri);
     }
@@ -228,7 +236,7 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
     {
         var res = new JsonSerializerOptions
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
-        res.Converters.Add(new BinancePriceQuantityEntryConverter());
+        res.Converters.Add(new BinancePriceQuantityEntryJsonConverter());
         res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>()
             { DefaultCapacity = DefaultOrderbookLimit });
         return res;
