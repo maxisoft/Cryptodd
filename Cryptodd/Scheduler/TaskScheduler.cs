@@ -274,6 +274,10 @@ public class TaskScheduler : IService
                         }
 
                         _logger.Error(exception, "{Task} faulted", execTask);
+#if DEBUG
+                        _logger.Error("{DemystifiedException}", exception?.ToStringDemystified());
+#endif
+                        
                         s._exceptions.Add(exception!);
                         Interlocked.Increment(ref s._errorCounter);
                     }
