@@ -24,6 +24,8 @@ public class BitfinexGatherGroupedOrderBookService : IService
     protected int Precision { get; set; } = 2;
     protected int OrderBookLength { get; set; } = GroupedOrderBookRequest.DefaultOrderBookLength;
 
+    private int previousNumberOfPairs = -1;
+
     public BitfinexGatherGroupedOrderBookService(IPairFilterLoader pairFilterLoader, ILogger logger,
         IConfiguration configuration, IContainer container)
     {
@@ -53,7 +55,13 @@ public class BitfinexGatherGroupedOrderBookService : IService
         var reDispatch = true;
         var processed = 0;
         var wsPool = container.GetInstance<BitfinexPublicWebSocketPool>();
+        wsPool.AddSubscriber(GetType());
         maxNumWs = Math.Min(maxNumWs, wsPool.AvailableWebsocketCount);
+        maxNumWs /= Math.Max(wsPool.SubscriberCount, 1);
+        if (previousNumberOfPairs > 0)
+        {
+            maxNumWs = Math.Min((int)MathF.Log2(previousNumberOfPairs), maxNumWs);
+        }
         maxNumWs = Math.Max(maxNumWs, 1);
         using var loopCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
@@ -192,6 +200,14 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 await DispatchOrderbookHandler(orderBooks, processed, sw, cancellationToken);
                 _logger.Debug("Processed {Count} orderbooks", processed);
                 await Task.Delay(100, cancellationToken);
+                if (previousNumberOfPairs > 0)
+                {
+                    previousNumberOfPairs = (previousNumberOfPairs + processed + 1) / 2;
+                }
+                else
+                {
+                    previousNumberOfPairs = processed;
+                }
             }
         }
         finally
