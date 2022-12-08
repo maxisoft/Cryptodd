@@ -3,7 +3,7 @@
 
 namespace Cryptodd.Binance.Models;
 // ReSharper disable InconsistentNaming
-public record DepthUpdateMessage(string e, long E, string s, long U, long u,
+public sealed record DepthUpdateMessage(string e, long E, string s, long U, long u,
         PooledList<BinancePriceQuantityEntry<double>> b, PooledList<BinancePriceQuantityEntry<double>> a) : IDisposable
     // ReSharper restore InconsistentNaming
 {
