@@ -46,11 +46,11 @@ public abstract class TopK<T, TComparer, THeap>: IEnumerable<T> where TComparer 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
 
-public class TopK<T, TComparer> : TopK<T, TComparer, ArrayHeap<T, TComparer>> where TComparer : IComparer<T>
+public class TopK<T, TComparer> : TopK<T, TComparer, RedBlackTreeHeap<T, TComparer>> where TComparer : IComparer<T>
 {
     public TopK(int k, TComparer comparer) : base(k, comparer)
     {
-        Heap = new ArrayHeap<T, TComparer>(this);
+        Heap = new RedBlackTreeHeap<T, TComparer>(this);
     }
 }
 
@@ -67,7 +67,7 @@ public interface IHeap<T>: IEnumerable<T>
     public int CopyTo(Span<T> span);
 }
 
-public struct SortedHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
+public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
 {
     private struct InternalComparer : IFunc<T, T, CompareResult>
     {
@@ -84,38 +84,63 @@ public struct SortedHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
             return res > 0 ? CompareResult.Greater : (res < 0 ? CompareResult.Less : CompareResult.Equal);
         }
     }
-
-    private readonly HeapArray<T, InternalComparer> _heap;
+    
+    private readonly RedBlackTreeLinked<T, InternalComparer> _tree;
     private readonly int _k;
     private readonly TComparer _comparer;
+    private T? _minValue = default;
 
-    internal SortedHeap(TopK<T, TComparer> topK)
+    internal RedBlackTreeHeap(TopK<T, TComparer> topK)
     {
         _k = topK.K;
         _comparer = topK.Comparer;
-        _heap = new HeapArray<T, InternalComparer>(new InternalComparer(topK.Comparer));
+        _tree = new RedBlackTreeLinked<T, InternalComparer>(new InternalComparer(topK.Comparer));
     }
 
-    public int Count => _heap.Count;
+    public int Count => _tree.Count;
 
     public void Add(in T value)
     {
-        if (_heap.Count == _k && _comparer.Compare(value, _heap.Peek()) <= 0)
+        bool recheckMinValue, insert;
+        recheckMinValue = insert = Count < _k;
+        if (!insert)
+        {
+            insert = _comparer.Compare(value, _minValue!) > 0;
+            recheckMinValue = true;
+        }
+
+        if (!insert)
         {
             return;
         }
 
-        _heap.Enqueue(value);
-        if (_heap.Count > _k)
+        var (success, exception) = _tree.TryAdd(value);
+        if (!success)
         {
-            _heap.Dequeue();
+            if (exception is not null)
+            {
+                throw new ArgumentException("unable to insert value", nameof(value), exception);
+            }
+
+            throw new ArgumentException("unable to insert value", nameof(value));
         }
+
+        if (Count > _k)
+        {
+            _tree.TryRemove(_minValue!);
+        }
+
+        if (recheckMinValue)
+        {
+            _minValue = _tree.CurrentLeast;
+        }
+
     }
 
     public int CopyTo(Span<T> span)
     {
         var i = 0;
-        foreach (var elem in _heap)
+        foreach (var elem in _tree)
         {
             span[i] = elem;
             i++;
@@ -126,7 +151,7 @@ public struct SortedHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
         return i;
     }
 
-    public IEnumerator<T> GetEnumerator() => _heap.GetEnumerator();
+    public IEnumerator<T> GetEnumerator() => _tree.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
