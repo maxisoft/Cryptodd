@@ -6,7 +6,7 @@ using Maxisoft.Utils.Collections.Lists;
 namespace Cryptodd.Algorithms.Topk;
 
 /// <summary>
-/// 1.5 * N * LogN complexity for Add() => really bad for large array, good for small ones
+///     1.5 * N * LogN complexity for Add() => really bad for large array, good for small ones
 /// </summary>
 /// <typeparam name="T"></typeparam>
 /// <typeparam name="TComparer"></typeparam>

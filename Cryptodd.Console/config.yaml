@@ -126,10 +126,12 @@ Bitfinex:
     Parquet:
       Enabled: false
     Task:
-      Enabled: true
+      Enabled: false
       Period: 60000
       
   OrderBookP0:
+    Task:
+      Enabled: false
     PairFilter:
       #- ^BTC.*?$
       #- ^ETH.*?$

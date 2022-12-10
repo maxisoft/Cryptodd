@@ -2,15 +2,8 @@
 
 namespace Cryptodd.Algorithms.Topk;
 
-public abstract class TopK<T, TComparer, THeap>: IEnumerable<T> where TComparer : IComparer<T> where THeap : IHeap<T>
+public abstract class TopK<T, TComparer, THeap> : IEnumerable<T> where TComparer : IComparer<T> where THeap : IHeap<T>
 {
-    private readonly TComparer _comparer;
-    public TComparer Comparer => _comparer;
-    private readonly int _k;
-    protected THeap Heap { get; init; }
-
-    public int K => _k;
-
     public TopK(int k, TComparer comparer)
     {
         if (k <= 0)
@@ -18,9 +11,21 @@ public abstract class TopK<T, TComparer, THeap>: IEnumerable<T> where TComparer 
             throw new ArgumentOutOfRangeException(nameof(k), k, "k need to be positive integer");
         }
 
-        _k = k;
-        _comparer = comparer;
+        K = k;
+        Comparer = comparer;
     }
+
+    public TComparer Comparer { get; }
+
+    protected THeap Heap { get; init; }
+
+    public int K { get; }
+
+    public int Count => Heap.Count;
+
+    public IEnumerator<T> GetEnumerator() => Heap.GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public T[] ToArray()
     {
@@ -33,12 +38,6 @@ public abstract class TopK<T, TComparer, THeap>: IEnumerable<T> where TComparer 
     {
         Heap.Add(in value);
     }
-
-    public int Count => Heap.Count;
-    
-    public IEnumerator<T> GetEnumerator() => Heap.GetEnumerator();
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
 
 public class TopK<T, TComparer> : TopK<T, TComparer, RedBlackTreeHeap<T, TComparer>> where TComparer : IComparer<T>

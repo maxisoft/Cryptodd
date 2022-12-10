@@ -20,10 +20,10 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
         public CompareResult Invoke(T arg1, T arg2)
         {
             var res = _comparer.Compare(arg1, arg2);
-            return res > 0 ? CompareResult.Greater : (res < 0 ? CompareResult.Less : CompareResult.Equal);
+            return res > 0 ? CompareResult.Greater : res < 0 ? CompareResult.Less : CompareResult.Equal;
         }
     }
-    
+
     private readonly RedBlackTreeLinked<T, InternalComparer> _tree;
     private readonly int _k;
     private readonly TComparer _comparer;
@@ -89,7 +89,6 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
         {
             _minValue = _tree.CurrentLeast;
         }
-
     }
 
     public int CopyTo(Span<T> span)
