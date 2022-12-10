@@ -1,8 +1,7 @@
 ﻿namespace Cryptodd.Algorithms.Topk;
 
-public interface IHeap<T> : IEnumerable<T>
+public interface IHeap<T> : IReadOnlyCollection<T>
 {
-    public int Count { get; }
     public void Add(in T value);
     public int CopyTo(Span<T> span);
 }
