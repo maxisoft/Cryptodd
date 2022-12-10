@@ -1,9 +1,103 @@
 ﻿Http:
 # Proxy: socks5://127.0.0.1:39050
+Binance:
+  Orderbook:
+    PairFilter:
+      - BTCUSDT
+      - BTCBUSD
+      - BTCUSD
+      - BUSDUSDT
+      - ETHBUSD
+      - ETHUSDT
+      - DOGEUSDT
+      - BNBUSDT
+      - XRPUSDT
+      - XRP/BUSD
+      - MATICUSDT
+      - BNBBUSD
+      - LTCUSDT
+      - USDTTRY
+      - ETHBTC
+      - SOLUSDT
+      - BTCEUR
+      - DOGEBUSD
+      - LINKUSDT
+      - GRTUSDT
+      - BTCGBP
+      - BTCTRY
+      - TRXUSDT
+      - ADAUSDT
+      - DOTUSDT
+      - BUSDTRY
+      - SHIBUSDT
+      - XMRUSDT
+      - ETCUSDT
+      - BTCBRL
+      - BNBBTC
+      - ALGOUSDT
+      - AVAXUSDT
+      - LTCBTC
+      - FTMBUSD
+      - BTCAUD
+      - FILUSDT
+      - WBTCBTC
+      - ETHEUR
+      - XRPBTC
+      - BCHUSDT
+      - DOTBTC
+      - MANAUSDT
+      - PAXGUSDT
+      - XLMUSDT
+      - ATOMBUSD
+      - BTCSTUSDT
+      - BNBETH
+      - USDTRUB
+      - BUSDDAI
+      - OMGUSDT
+      - RSRUSDT
+      - ETHDOWNUSDT
+      - RVNUSDT
+      - ICPBUSD
+      - MINAUSDT
+      - BTCRUB
+      - USDTUAH
+      - DODOUSDT
+      - ENSBNB
+      - CTXCBUSD
+      - FTTBUSD
+      - FETUSDT
+      - OPUSDT
+      - APEUSDT
+      - MATICBUSD
+      - FTMUSDT
+      - EOSUSDT
+      - APEBUSD
+      - SANDUSDT
+      - ATOMUSDT
+      - ENSUSDT
+      - WAVESUSDT
+      - AXSBUSD
+      - OCEANUSDT
+      - LRCUSDT
+      - UNIUSDT
+      - CHZUSDT
+      - CRVUSDT
+      - AAVEUSDT
+      - BANDUSDT
+      - RENUSDT
+      - NEARUSDT
+      - DYDXUSDT
+      - AUDIOUSDT
+      - BATUSDT
+      - YFIUSDT
+      - XTZUSDT
+      - KAVAUSDT
+      - KSMUSDT
+
 Ftx:
   GroupedOrderBook:
     Parquet:
-      Enabled: true
+      Enabled: false
       PairFilter: 
         - BTC-PERP
         - ^BTC-MOVE.*
@@ -14,21 +108,45 @@ Ftx:
         - ^SOL/USDT?$
     Task:
       Period: 60000
-      Enabled: true
+      Enabled: false
       
   RegroupedOrderBook:
     Parquet:
       Enabled: true
       HighCompression: true
+    Task:
+      Enabled: false
       
   FutureStats:
-    Parquet:
-      Enabled: true
+    Task:
+      Enabled: false
       
 Bitfinex:
   OrderBook:
     Parquet:
+      Enabled: false
+    Task:
       Enabled: true
+      Period: 60000
+      
+  OrderBookP0:
+    PairFilter:
+      #- ^BTC.*?$
+      #- ^ETH.*?$
+      #- ^XRP.*?$
+      - BTCUSD
+      - BTCUST
+      - ETHBTC
+      - ETHUSD
+      - ETHUST
+      - LTCUSD
+      - LTCBTC
+      - LTCUST
+      - XMRBTC
+      - XMRUSD
+      - XRPBTC
+      - XRPUST
+      - XRPUSD
 
 Trade:
   Collector:

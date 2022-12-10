@@ -15,7 +15,7 @@ public interface IHttpClientFactoryHelper
 // ReSharper disable once UnusedType.Global
 public class HttpClientFactoryHelper : IHttpClientFactoryHelper
 {
-    private readonly IConfigurationSection? _httpConfig;
+    private readonly IConfigurationSection _httpConfig;
 
     public HttpClientFactoryHelper(IConfiguration configuration)
     {

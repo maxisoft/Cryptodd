@@ -4,7 +4,7 @@ namespace Cryptodd.Databases.Tables;
 
 public abstract class TableSchema : IEquatable<TableSchema>
 {
-    public string Schema { get; protected internal init; } = string.Empty;
+    public string Schema { get; protected internal set; } = string.Empty;
 
     public string Table => TableNameStandardize.Standardize(GetTableName());
 
