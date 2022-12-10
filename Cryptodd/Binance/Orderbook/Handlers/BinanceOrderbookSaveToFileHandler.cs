@@ -6,7 +6,6 @@ using Cryptodd.Bitfinex.Orderbooks;
 using Cryptodd.IoC;
 using Cryptodd.OrderBooks;
 using Cryptodd.OrderBooks.Writer;
-using Cryptodd.Utils.Topk;
 using Lamar;
 using MathNet.Numerics.Random;
 using MathNet.Numerics.Statistics;
