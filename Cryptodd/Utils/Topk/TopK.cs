@@ -101,12 +101,17 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
 
     public void Add(in T value)
     {
+        var count = Count;
         bool recheckMinValue, insert;
-        recheckMinValue = insert = Count < _k;
+        insert = count < _k;
         if (!insert)
         {
             insert = _comparer.Compare(value, _minValue!) > 0;
-            recheckMinValue = true;
+            recheckMinValue = insert;
+        }
+        else
+        {
+            recheckMinValue = count == _k - 1;
         }
 
         if (!insert)
@@ -114,20 +119,31 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
             return;
         }
 
-        var (success, exception) = _tree.TryAdd(value);
-        if (!success)
+        [Conditional("DEBUG")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static void ThrowOnFail(bool success, Exception? exception, string message)
         {
-            if (exception is not null)
+            if (!success)
             {
-                throw new ArgumentException("unable to insert value", nameof(value), exception);
-            }
+                if (exception is not null)
+                {
+                    throw new ArgumentException(message, nameof(value), exception);
+                }
 
-            throw new ArgumentException("unable to insert value", nameof(value));
+                throw new ArgumentException(message, nameof(value));
+            }
         }
+
+        // ReSharper disable RedundantAssignment
+        var (success, exception) = _tree.TryAdd(value);
+
+        ThrowOnFail(success, exception, "unable to insert value");
 
         if (Count > _k)
         {
-            _tree.TryRemove(_minValue!);
+            (success, exception) = _tree.TryRemove(_minValue!);
+            // ReSharper restore RedundantAssignment
+            ThrowOnFail(success, exception, "unable to remove value");
         }
 
         if (recheckMinValue)
