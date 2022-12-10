@@ -9,16 +9,18 @@ public partial class InMemoryOrderbook<T>
 {
     public abstract class SortedView : IReadOnlyCollection<T>, IDisposable
     {
-        protected readonly InMemoryOrderbook<T> Orderbook;
+        private readonly InMemoryOrderbook<T> _orderbook;
+        // ReSharper disable once ConvertToAutoProperty
+        public InMemoryOrderbook<T> Orderbook => _orderbook;
         private long? _version;
         private PooledList<PriceRoundKey>? _keys;
 
         protected SortedView(InMemoryOrderbook<T> orderbook)
         {
-            Orderbook = orderbook;
+            _orderbook = orderbook;
         }
 
-        protected abstract ConcurrentDictionary<PriceRoundKey, T> Collection { get; }
+        public abstract ConcurrentDictionary<PriceRoundKey, T> Collection { get; }
         protected abstract long Version { get; }
 
         public bool OutOfDate => _version is null || _version != Version;
@@ -64,6 +66,21 @@ public partial class InMemoryOrderbook<T>
                 return _keys.Count;
             }
         }
+
+        public PriceRoundKey this[int index] => At(index);
+
+        private PriceRoundKey At(int index)
+        {
+            // ReSharper disable once InvertIf
+            if (_keys is null)
+            {
+                _keys = CreateKeys();
+                CheckConcurrentModification();
+            }
+
+            return _keys[index];
+        }
+        
 
         private PooledList<PriceRoundKey> CreateKeys()
         {
@@ -137,14 +154,14 @@ public partial class InMemoryOrderbook<T>
     private sealed class BidSortedView : SortedView
     {
         public BidSortedView(InMemoryOrderbook<T> orderbook) : base(orderbook) { }
-        protected override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._bids;
+        public override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._bids;
         protected override long Version => Orderbook._bidsVersion;
     }
 
     private sealed class AskSortedView : SortedView
     {
         public AskSortedView(InMemoryOrderbook<T> orderbook) : base(orderbook) { }
-        protected override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._asks;
+        public override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._asks;
         protected override long Version => Orderbook._asksVersion;
     }
 }

@@ -2,9 +2,9 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Cryptodd.Binance.Models;
+using Cryptodd.Utils.FastMapFork;
+using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Collections.Lists.Specialized;
-using Towel;
-using Towel.DataStructures;
 
 namespace Cryptodd.Binance.Orderbook;
 
@@ -87,6 +87,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         {
             return;
         }
+
         lock (_asks)
         {
             UpdatePart(_asks, asks, dateTime, updateId, ref _asksVersion);
@@ -99,6 +100,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         {
             return;
         }
+
         lock (_bids)
         {
             UpdatePart(_bids, bids, dateTime, updateId, ref _bidsVersion);
@@ -129,7 +131,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         {
             throw new ArgumentOutOfRangeException(nameof(maxSell), maxSell, "maxSell is negative");
         }
-        
+
         static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary, long updateId, PriceRoundKey roundMin,
             PriceRoundKey roundMax, ref long versionCounter)
         {
@@ -160,7 +162,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
             return res;
         }
-        
+
         var roundMin = minBuy > 0 ? PriceRoundKey.CreateFromPrice(minBuy) : new PriceRoundKey(double.MinValue);
         Debug.Assert(maxSell > 0, "maxSell > 0");
         var roundMax = PriceRoundKey.CreateFromPrice(maxSell);
@@ -175,6 +177,47 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         static double PriceSelector(BinancePriceQuantityEntry<double> entry) => entry.Price;
         return DropOutdated(orderbook.LastUpdateId, PriceSelector(orderbook.Bids.MinBy(PriceSelector)),
             PriceSelector(orderbook.Asks.MaxBy(PriceSelector)));
+    }
+
+    public (int askCount, int bidCount) DropOutdated(in DateTimeOffset minDate)
+    {
+        static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary, in DateTimeOffset minDate,
+            ref long version)
+        {
+            ArrayList<PriceRoundKey> toRemove = new();
+            foreach (var (key, value) in dictionary)
+            {
+                if (value.Time < minDate)
+                {
+                    toRemove.Add(key);
+                }
+            }
+
+            var res = toRemove.Count;
+
+            if (res <= 0)
+            {
+                return 0;
+            }
+
+
+            Interlocked.Increment(ref version);
+            lock (dictionary)
+            {
+                foreach (var key in toRemove)
+                {
+                    if (dictionary.TryRemove(key, out var value))
+                    {
+                        value.ResetStatistics();
+                    }
+                }
+            }
+
+
+            return res;
+        }
+
+        return (Drop(_asks, minDate, ref _asksVersion), Drop(_bids, minDate, ref _bidsVersion));
     }
 
     public bool IsEmpty() => _asks.IsEmpty && _bids.IsEmpty;

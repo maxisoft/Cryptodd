@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Binance.Models;
+using Cryptodd.Binance.Orderbook.Handlers;
 using Cryptodd.Binance.Orderbook.Websocket;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
@@ -16,12 +17,15 @@ using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+using Serilog.Events;
 
 namespace Cryptodd.Binance.Orderbook;
 
 public class BinanceOrderbookCollectorOptions
 {
     public int SymbolsExpiry { get; set; } = checked((int)TimeSpan.FromMinutes(5).TotalMilliseconds);
+
+    public int EntryExpiry { get; set; } = checked((int)TimeSpan.FromDays(10).TotalMilliseconds);
 }
 
 public class BinanceWebsocketCollection : IAsyncDisposable
@@ -85,9 +89,9 @@ public class BinanceWebsocketCollection : IAsyncDisposable
             {
                 websocket.StopReceiveLoop();
             }
+
             throw;
         }
-        
     }
 
     public bool SymbolHashMatch<TEnumerable>(in TEnumerable symbols) where TEnumerable : IEnumerable<string>
@@ -215,6 +219,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                     {
                         _logger.Error(_websocketTask.Exception, "error with previous websocket tasks");
                     }
+
                     await webSockets.DisposeAsync();
                     webSockets = CreateWebsockets(symbols);
                     _logger.Debug("Created {Count} websockets for {SymbolCount} symbols", webSockets.Count,
@@ -339,6 +344,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                     _logger.Verbose(exception, "");
                 }
             }
+
             if (e is ObjectDisposedException or OperationCanceledException or TaskCanceledException)
             {
                 try
@@ -492,12 +498,87 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                 bids.EnforceKeysEnumeration();
             }
 
-            //NestedContainer?.GetAllInstances<>()
+            await DispatchToHandlers(symbol, asks, bids, cancellationToken).ConfigureAwait(false);
+
             lock (rawOb)
             {
                 rawOb.ResetStatistics();
+                if (Options.EntryExpiry > 0)
+                {
+                    rawOb.DropOutdated(DateTimeOffset.Now - TimeSpan.FromMilliseconds(Options.EntryExpiry));
+                }
             }
         }
+    }
+
+    private async ValueTask WaitForHandlers<T>(string name, IReadOnlyList<T> handlers, Task[] tasks, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch
+        {
+            for (var index = 0; index < tasks.Length; index++)
+            {
+                var task = tasks[index];
+                try
+                {
+                    await task.ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    var verbosity = LogEventLevel.Error;
+                    if (e is OperationCanceledException or TaskCanceledException &&
+                        cancellationToken.IsCancellationRequested)
+                    {
+                        verbosity = LogEventLevel.Debug;
+                    }
+
+                    _logger.Write(verbosity, e, "{Handler} for {Name} threw up", handlers[index]?.GetType(), name);
+                }
+                finally
+                {
+                    task.Dispose();
+                }
+            }
+        }
+    }
+
+    private async ValueTask DispatchToObHandlers(IServiceContext container, BinanceOrderbookHandlerArguments arg,
+        CancellationToken cancellationToken)
+    {
+        var handlers = container.GetAllInstances<IBinanceOrderbookHandler>();
+        var tasks = handlers.Select(handler => handler.Handle(arg, cancellationToken)).ToArray();
+
+        await WaitForHandlers("Raw Orderbooks", handlers, tasks, cancellationToken);
+    }
+
+    private async ValueTask CreateAggregateAndDispatch(IServiceContext container, BinanceOrderbookHandlerArguments arg,
+        CancellationToken cancellationToken)
+    {
+        var handlers = container.GetAllInstances<IBinanceAggregatedOrderbookHandler>();
+        if (handlers.Count > 0)
+        {
+            var aggregator =
+                container.GetRequiredService<IOrderbookAggregator>();
+            var aggregate = await aggregator.Handle(arg, cancellationToken);
+
+            var tasks = handlers.Select(handler => handler.Handle(aggregate, cancellationToken)).ToArray();
+            await WaitForHandlers("Aggregated Orderbooks", handlers, tasks, cancellationToken);
+        }
+    }
+
+    private async ValueTask DispatchToHandlers(string symbol, InMemoryOrderbook<OrderBookEntryWithStat>.SortedView asks,
+        InMemoryOrderbook<OrderBookEntryWithStat>.SortedView bids,
+        CancellationToken cancellationToken)
+    {
+        Debug.Assert(ReferenceEquals(asks.Orderbook, bids.Orderbook));
+        await using var container = _container.GetNestedContainer();
+        var arg = new BinanceOrderbookHandlerArguments(symbol, Asks: asks, Bids: bids);
+
+        await DispatchToObHandlers(container, arg, cancellationToken).ConfigureAwait(false);
+        await CreateAggregateAndDispatch(container, arg, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()

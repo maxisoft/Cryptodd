@@ -6,6 +6,9 @@ public readonly record struct PriceRoundKey(double Value) : IComparable<PriceRou
 {
     public const int RoundedDigit = 8;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public override int GetHashCode() => Value.GetHashCode();
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static PriceRoundKey CreateFromPrice(double price)
     {
