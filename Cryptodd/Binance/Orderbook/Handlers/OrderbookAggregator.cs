@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Cryptodd.Algorithms;
 using Cryptodd.Algorithms.Topk;
 using Cryptodd.Binance.Orderbook.Handlers;
 using Cryptodd.IoC;
@@ -159,7 +160,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                     var sumSize = entry.Quantity;
                     var sumPriceVolume = entry.Price * entry.Quantity;
                     var aggregateCount = 1;
-                    var sizeStd = 0d;
+                    var sizeStd = ExponentialMovingAverage.FromSpan(Math.Abs(nextIndex - index));
                     var totalChangeCounter = entry.ChangeCounter;
 
                     for (var j = nextIndex - (correctNext ? 1 : 0); j > index; j--)
@@ -182,9 +183,12 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         var istats = intermediateEntry.Statistics;
                         if (istats is { Count: > 2 })
                         {
-                            sizeStd = sizeStd <= 0
-                                ? istats.PopulationStandardDeviation
-                                : 0.9 * sizeStd + 0.1 * istats.PopulationStandardDeviation;
+                            var std = (float) istats.PopulationStandardDeviation;
+                            if (sizeStd.Value <= 0)
+                            {
+                                sizeStd.Value = std;
+                            }
+                            sizeStd.Push(std);
                         }
 
                         aggregateCount++;
@@ -194,16 +198,16 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                     if (stats is { Count: >= 2 })
                     {
                         var std = stats.StandardDeviation;
-                        if (sizeStd > 0)
+                        if (sizeStd.Value > 0)
                         {
                             if (std > 0)
                             {
-                                sizeStd = (0.8 * std + 0.2 * sizeStd);
+                                sizeStd.Value = (float)(0.8 * std + 0.2 * sizeStd.Value);
                             }
                         }
                         else
                         {
-                            sizeStd = std;
+                            sizeStd.Value = (float)std;
                         }
                     }
 
@@ -214,7 +218,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         MeanPrice: (float)(sumPriceVolume / sumSize),
                         ChangeCounter: entry.ChangeCounter,
                         TotalChangeCounter: totalChangeCounter,
-                        SizeStd: (float)sizeStd,
+                        SizeStd: sizeStd.Value,
                         AggregateCount: aggregateCount
                     );
                 }
@@ -278,7 +282,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                     var sumSize = entry.Quantity;
                     var sumPriceVolume = entry.Price * entry.Quantity;
                     var aggregateCount = 1;
-                    var sizeStd = 0d;
+                    var sizeStd = ExponentialMovingAverage.FromSpan(Math.Abs(nextIndex - index));
                     var totalChangeCounter = entry.ChangeCounter;
 
                     for (var j = index - 1; j > (correctNext ? nextIndex : -1); j--)
@@ -301,9 +305,12 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         var istats = intermediateEntry.Statistics;
                         if (istats is { Count: > 2 })
                         {
-                            sizeStd = sizeStd <= 0
-                                ? istats.PopulationStandardDeviation
-                                : 0.9 * sizeStd + 0.1 * istats.PopulationStandardDeviation;
+                            var std = (float) istats.PopulationStandardDeviation;
+                            if (sizeStd.Value <= 0)
+                            {
+                                sizeStd.Value = std;
+                            }
+                            sizeStd.Push(std);
                         }
 
                         aggregateCount++;
@@ -313,16 +320,16 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                     if (stats is { Count: >= 2 })
                     {
                         var std = stats.StandardDeviation;
-                        if (sizeStd > 0)
+                        if (sizeStd.Value > 0)
                         {
                             if (std > 0)
                             {
-                                sizeStd = (0.8 * std + 0.2 * sizeStd);
+                                sizeStd.Value = (float)(0.8 * std + 0.2 * sizeStd.Value);
                             }
                         }
                         else
                         {
-                            sizeStd = std;
+                            sizeStd.Value = (float)std;
                         }
                     }
 
@@ -333,7 +340,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         MeanPrice: (float)(sumPriceVolume / sumSize),
                         ChangeCounter: entry.ChangeCounter,
                         TotalChangeCounter: totalChangeCounter,
-                        SizeStd: (float)sizeStd,
+                        SizeStd: sizeStd.Value,
                         AggregateCount: aggregateCount
                     );
                 }
