@@ -157,7 +157,7 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
 }
 
 /// <summary>
-/// 1.5 * N * N * LogN complexity => really bad for large array, good for small ones
+/// 1.5 * N * LogN complexity for Add() => really bad for large array, good for small ones
 /// </summary>
 /// <typeparam name="T"></typeparam>
 /// <typeparam name="TComparer"></typeparam>
