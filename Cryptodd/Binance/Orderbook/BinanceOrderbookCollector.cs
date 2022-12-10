@@ -428,7 +428,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
             var pairFilterLoader = NestedContainer.GetRequiredService<IPairFilterLoader>();
             var pairFilter = await pairFilterLoader.GetPairFilterAsync(PairFilterName, cancellationToken);
 
-            static ArrayList<string> FilterSymbols(ArrayList<string> symbols, IPairFilter pairFilter)
+            static ArrayList<string> FilterSymbols(List<string> symbols, IPairFilter pairFilter)
             {
                 var res = new ArrayList<string>(symbols.Count);
                 // ReSharper disable once ForeachCanBePartlyConvertedToQueryUsingAnotherGetEnumerator
@@ -449,32 +449,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
         }
     }
 
-    protected virtual async Task<ArrayList<string>> ListSymbols(CancellationToken cancellationToken)
-    {
-        var exchangeInfo =
-            await _httpApi.GetExchangeInfoAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        ArrayList<string> res = new();
-        // ReSharper disable InvertIf
-        if (exchangeInfo["symbols"] is JsonArray symbols)
-        {
-            res.EnsureCapacity(symbols.Count);
-            foreach (var symbolInfoNode in symbols)
-            {
-                if (symbolInfoNode is JsonObject symbolInfo)
-                {
-                    if (symbolInfo["symbol"] is JsonValue symbol && symbolInfo["status"] is JsonValue status &&
-                        status.GetValue<string>() == "TRADING")
-                    {
-                        res.Add(symbol.GetValue<string>());
-                    }
-                }
-            }
-        }
-        // ReSharper restore InvertIf
-
-        return res;
-    }
+    protected virtual async Task<List<string>> ListSymbols(CancellationToken cancellationToken) => await _httpApi.ListSymbols(useCache:false, checkStatus:true, cancellationToken);
 
     public async Task CollectOrderBook(CancellationToken cancellationToken)
     {
