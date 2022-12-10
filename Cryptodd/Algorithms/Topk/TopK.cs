@@ -53,3 +53,17 @@ public class TopK<T> : TopK<T, Comparer<T>>
     public TopK(int k) : base(k, Comparer<T>.Default) { }
     public TopK(int k, Comparer<T> comparer) : base(k, comparer) { }
 }
+
+public class TopKArrayHeap<T, TComparer> : TopK<T, TComparer, ArrayHeap<T, TComparer>> where TComparer : IComparer<T>
+{
+    public TopKArrayHeap(int k, TComparer comparer) : base(k, comparer)
+    {
+        Heap = new ArrayHeap<T, TComparer>(this);
+    }
+}
+
+public class TopKArrayHeap<T> : TopKArrayHeap<T, Comparer<T>>
+{
+    public TopKArrayHeap(int k) : base(k, Comparer<T>.Default) { }
+    public TopKArrayHeap(int k, Comparer<T> comparer) : base(k, comparer) { }
+}

@@ -17,7 +17,7 @@ public struct ArrayHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
     private readonly int _k;
     private readonly TComparer _comparer;
 
-    internal ArrayHeap(TopK<T, TComparer> topK)
+    internal ArrayHeap(TopK<T, TComparer, ArrayHeap<T, TComparer>> topK)
     {
         _k = topK.K;
         _content = new ArrayList<T>();
