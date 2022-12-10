@@ -6,9 +6,11 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Cryptodd.Binance;
 using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.Pairs;
+using Microsoft.Extensions.Configuration;
 using xRetry;
 using Xunit;
 
@@ -46,9 +48,9 @@ public class PairHasherTest
     public async Task TestRealHash()
     {
         using var httpclient = new HttpClient();
-        using var markets = await new FtxPublicHttpApi(httpclient, new UriRewriteService()).GetAllMarketsAsync();
-        Assert.NotEmpty(markets);
-        var marketsUnique = markets.Select(market => market.Name).Where(s => !string.IsNullOrEmpty(s)).ToImmutableHashSet();
+        var symbols = await new BinancePublicHttpApi(httpclient, new ConfigurationManager(), new UriRewriteService()).ListSymbols();
+        Assert.NotEmpty(symbols);
+        var marketsUnique = symbols.Where(s => !string.IsNullOrEmpty(s)).ToImmutableHashSet();
 
         var hashes = new ConcurrentBag<long>();
         Parallel.ForEach(marketsUnique, s => hashes.Add(PairHasher.Hash(s)));
