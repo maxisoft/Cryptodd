@@ -21,7 +21,9 @@ public class PairHasherTest
     [Fact]
     public void TestHashPreconditions()
     {
+#pragma warning disable xUnit2000
         Assert.Equal(SHA256.HashData(Encoding.UTF8.GetBytes("test")).Length, PairHasher.Sha256ByteCount);
+#pragma warning restore xUnit2000
         Assert.True(PairHasher.Sha256ByteCount / sizeof(long) > 0);
         Assert.True(PairHasher.Sha256ByteCount % sizeof(long) == 0);
         Assert.True(BitConverter.IsLittleEndian);
