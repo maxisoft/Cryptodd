@@ -53,7 +53,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                     var stats = entry.Statistics;
                     if (stats is { Count: >= 3 })
                     {
-                        varianceTopK.Add((stats.Variance, stats.Mean, iT));
+                        varianceTopK.Add((stats.PopulationVariance, stats.Mean, iT));
                     }
 
                     if (maxTime < entry.Time)
@@ -97,7 +97,6 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
             var originalFlatIndices = flatIndices.Data();
             flatIndices.AsSpan().Sort();
 
-
             if (flatIndices.Count > Size)
             {
                 var originalLength = flatIndices.Count;
@@ -109,7 +108,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
 
             Debug.Assert(flatIndices.Count <= Size);
             var obDict = view.Collection;
-            var triplets = new DetailedOrderbookEntryFloatTuple[Size];
+            var tuples = new DetailedOrderbookEntryFloatTuple[Size];
 
             // for ask
             if (!isDirect)
@@ -208,7 +207,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         }
                     }
 
-                    triplets[i] = new DetailedOrderbookEntryFloatTuple(
+                    tuples[i] = new DetailedOrderbookEntryFloatTuple(
                         Price: (float)entry.Price,
                         Size: (float)sumSize,
                         RawSize: (float)entry.Quantity,
@@ -221,12 +220,12 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                 }
 
                 // fill to have a nice representation
-                for (var j = Math.Max(i + 1, 1); j < triplets.Length; j++)
+                for (var j = Math.Max(i + 1, 1); j < tuples.Length; j++)
                 {
-                    triplets[j] = triplets[j - 1] with { Size = 0, RawSize = 0 };
+                    tuples[j] = tuples[j - 1] with { Size = 0, RawSize = 0 };
                 }
 
-                return (triplets, i + 1, maxTime);
+                return (tuples, i + 1, maxTime);
             }
             else
             {
@@ -327,7 +326,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         }
                     }
 
-                    triplets[i] = new DetailedOrderbookEntryFloatTuple(
+                    tuples[i] = new DetailedOrderbookEntryFloatTuple(
                         Price: (float)entry.Price,
                         Size: (float)sumSize,
                         RawSize: (float)entry.Quantity,
@@ -340,13 +339,13 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                 }
 
                 // fill to have a nice representation
-                for (var j = Math.Max(i + 1, 1); j < triplets.Length; j++)
+                for (var j = Math.Max(i + 1, 1); j < tuples.Length; j++)
                 {
-                    triplets[j] = triplets[j - 1] with { Size = 0, RawSize = 0 };
+                    tuples[j] = tuples[j - 1] with { Size = 0, RawSize = 0 };
                 }
 
-                triplets.AsSpan().Reverse();
-                return (triplets, i + 1, maxTime);
+                tuples.AsSpan().Reverse();
+                return (tuples, i + 1, maxTime);
             }
         }
 
