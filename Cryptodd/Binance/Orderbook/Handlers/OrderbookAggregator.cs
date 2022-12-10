@@ -16,6 +16,7 @@ public interface IOrderbookAggregator : IBinanceOrderbookHandler<BinanceAggregat
 public class OrderbookAggregator : IService, IOrderbookAggregator
 {
     internal const int Size = 128;
+
     public ValueTask<BinanceAggregatedOrderbookHandlerArguments> Handle(BinanceOrderbookHandlerArguments arguments,
         CancellationToken cancellationToken)
     {
@@ -183,11 +184,12 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         var istats = intermediateEntry.Statistics;
                         if (istats is { Count: > 2 })
                         {
-                            var std = (float) istats.PopulationStandardDeviation;
+                            var std = (float)istats.PopulationStandardDeviation;
                             if (sizeStd.Value <= 0)
                             {
                                 sizeStd.Value = std;
                             }
+
                             sizeStd.Push(std);
                         }
 
@@ -197,17 +199,17 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                     var stats = entry.Statistics;
                     if (stats is { Count: >= 2 })
                     {
-                        var std = stats.StandardDeviation;
+                        var std = (float)stats.StandardDeviation;
                         if (sizeStd.Value > 0)
                         {
                             if (std > 0)
                             {
-                                sizeStd.Value = (float)(0.8 * std + 0.2 * sizeStd.Value);
+                                sizeStd.Value = (0.8f * std + 0.2f * sizeStd.Value);
                             }
                         }
                         else
                         {
-                            sizeStd.Value = (float)std;
+                            sizeStd.Value = std;
                         }
                     }
 
@@ -305,11 +307,12 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                         var istats = intermediateEntry.Statistics;
                         if (istats is { Count: > 2 })
                         {
-                            var std = (float) istats.PopulationStandardDeviation;
+                            var std = (float)istats.PopulationStandardDeviation;
                             if (sizeStd.Value <= 0)
                             {
                                 sizeStd.Value = std;
                             }
+
                             sizeStd.Push(std);
                         }
 
@@ -319,17 +322,17 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                     var stats = entry.Statistics;
                     if (stats is { Count: >= 2 })
                     {
-                        var std = stats.StandardDeviation;
+                        var std = (float)stats.StandardDeviation;
                         if (sizeStd.Value > 0)
                         {
                             if (std > 0)
                             {
-                                sizeStd.Value = (float)(0.8 * std + 0.2 * sizeStd.Value);
+                                sizeStd.Value = (0.8f * std + 0.2f * sizeStd.Value);
                             }
                         }
                         else
                         {
-                            sizeStd.Value = (float)std;
+                            sizeStd.Value = std;
                         }
                     }
 
