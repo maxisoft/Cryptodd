@@ -118,24 +118,51 @@ public class RentedBitfinexPublicWebSocket : BitfinexPublicWebSocket
     private readonly AtomicBoolean _safeToReuse = new AtomicBoolean();
 
     private readonly ConcurrentBag<ClientWebSocket> _webSockets = new();
+    private readonly BitfinexPublicWebSocket429Handler _429Handler;
+    private readonly ILogger _logger;
 
     public RentedBitfinexPublicWebSocket(IClientWebSocketFactory webSocketFactory, IConfiguration configuration,
-        ILogger logger, Boxed<CancellationToken> cancellationToken) : base(webSocketFactory, configuration, logger,
-        cancellationToken) { }
+        ILogger logger, Boxed<CancellationToken> cancellationToken, BitfinexPublicWebSocket429Handler handler) : base(webSocketFactory, configuration, logger,
+        cancellationToken)
+    {
+        _429Handler = handler;
+        _logger = logger.ForContext(GetType());
+    }
 
 
     protected override async ValueTask<ClientWebSocket> CreateWebSocket()
     {
         ClientWebSocket? res = null;
 
+        var throttle = _429Handler.ShouldThrottle;
+
         if (Pool is not null)
         {
             res = await Pool.RentWebSocket(CancellationToken);
         }
 
-        res ??= await base.CreateWebSocket();
+        try
+        {
+            res ??= await base.CreateWebSocket();
+        }
+        catch (WebSocketException e)
+        {
+            if (_429Handler.HandleConnectException(in e))
+            {
+                if (!throttle)
+                {
+                    _logger.Warning("Throttling bitfinex ws connections as limit reached");
+                    Debug.Assert(_429Handler.ShouldThrottle, "_429Handler.ShouldThrottle");
+                    throttle = true;
+                }
+            }
+            _safeToReuse.Value = false;
+            throw;
+        }
+
 
         _webSockets.Add(res);
+        _429Handler.SignalWorking();
         return res;
     }
 
@@ -153,7 +180,7 @@ public class RentedBitfinexPublicWebSocket : BitfinexPublicWebSocket
         {
             while (_webSockets.TryTake(out var ws))
             {
-                Pool.ReturnWebSocket(ws, _safeToReuse.Value && SubscriptionsCount <= 0);
+                Pool.ReturnWebSocket(ws, _safeToReuse.Value && (_429Handler.ShouldThrottle || SubscriptionsCount <= 0));
             }
         }
         catch
@@ -165,15 +192,18 @@ public class RentedBitfinexPublicWebSocket : BitfinexPublicWebSocket
 
     protected override void Dispose(bool disposing)
     {
-        _safeToReuse.FalseToTrue();
+        _safeToReuse.Value = !IsClosed;
         try
         {
             base.Dispose(disposing);
         }
-        finally
+        catch
         {
-            _safeToReuse.TrueToFalse();
+            _safeToReuse.Value = false;
+            throw;
         }
+        
+        _safeToReuse.Value = !IsClosed;
     }
 }
 
@@ -187,19 +217,21 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
     private readonly LinkedListAsIList<ClientWebSocket> _webSockets = new();
     private readonly LinkedListAsIList<WeakReference> _subscribers = new LinkedListAsIList<WeakReference>();
     private float _dynamicWebsocketCount;
+    private readonly BitfinexPublicWebSocket429Handler _429Handler;
 
     public int AvailableWebsocketCount
     {
         get
         {
-            var res = _webSockets.Count + _connectionLimiter.Available;
+            var res = _webSockets.Count + (_429Handler.ShouldThrottle ? 0 : _connectionLimiter.Available);
             return res > 0 ? res : Math.Max((int)_dynamicWebsocketCount, 0);
         }
     }
 
-    public BitfinexPublicWebSocketPool(ILogger logger, IContainer container, IConfiguration configuration)
+    public BitfinexPublicWebSocketPool(ILogger logger, IContainer container, IConfiguration configuration, BitfinexPublicWebSocket429Handler handler)
     {
-        _logger = logger;
+        _logger = logger.ForContext(GetType());
+        _429Handler = handler;
         configuration.GetSection("Bitfinex:Websocket:Pool").Bind(_options);
         _connectionLimiter = new ConnectionLimiter(checked((int)(uint)_options.ConnectionPerMinute));
         _nestedContainer = new Lazy<INestedContainer>(container.GetNestedContainer);
@@ -222,25 +254,32 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
             return res;
         }
 
-        var increment = true;
-        while (!_connectionLimiter.TryRegisterConnection())
+        var increment = !_429Handler.ShouldThrottle;
+        while (!_connectionLimiter.TryRegisterConnection() || _429Handler.ShouldThrottle)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // retry to get an opened websocket if any
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(1000);
             try
             {
                 await Task.WhenAny(_connectionLimiter.Wait().WaitAsync(cts.Token), Task.Delay(1000, cancellationToken));
             }
-            catch (Exception e) when (e is OperationCanceledException or TimeoutException)
+            catch (Exception e) when (e is OperationCanceledException or TimeoutException or TaskCanceledException)
             {
                 _logger.Verbose(e, "Polling _connectionLimiter");
             }
-
             res = GetOpenedWebSocket();
             if (res is not null)
             {
                 return res;
+            }
+            
+            if (_429Handler.ShouldThrottle)
+            {
+                increment = false;
+                // prevent spamming cpu
+                await Task.Delay(100, cancellationToken);
             }
         }
 
@@ -326,7 +365,7 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
             {
                 var ws = node.Value;
                 var next = node.Next;
-                if (ws.State != WebSocketState.Open)
+                if (ws.State is not (WebSocketState.Open or WebSocketState.Connecting))
                 {
                     ws.Abort();
                     ws.Dispose();
@@ -342,7 +381,7 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
     public void ReturnWebSocket(ClientWebSocket webSocket, bool reusable)
     {
         // ReSharper disable once InconsistentlySynchronizedField
-        if (!reusable || webSocket.State != WebSocketState.Open || _webSockets.Count >= _dynamicWebsocketCount)
+        if (!reusable || webSocket.State != WebSocketState.Open || (!_429Handler.ShouldThrottle && _webSockets.Count >= _dynamicWebsocketCount))
         {
             webSocket.Abort();
             webSocket.Dispose();

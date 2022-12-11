@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Cryptodd.Bitfinex;
+using Cryptodd.Bitfinex.Models;
 using Cryptodd.Ftx.Orderbooks;
 using Lamar;
 using Maxisoft.Utils.Collections.Queues;
@@ -21,6 +22,7 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
     {
         _retryPolicy = Policy.NoOpAsync();
         Period = TimeSpan.FromSeconds(15);
+        OnConfigurationChange();
         ConfigureRetryPolicy();
     }
 
@@ -31,9 +33,28 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
     {
         var cts = CreateCancellationTokenSource(cancellationToken);
         var orderBookService = GetOrderBookService();
-        await _retryPolicy.ExecuteAsync(_ => orderBookService.CollectOrderBooks(Period * 0.8, cts.Token),
-                cancellationToken)
-            .ConfigureAwait(false);
+        await _retryPolicy.ExecuteAsync(_ =>
+            {
+                void OrderbookContinuation(List<OrderbookEnvelope>? obs)
+                {
+                    if (obs?.Count is null or 0)
+                    {
+                        return;
+                    }
+
+                    var ctx = TaskRunningContext;
+                    if (ctx is null)
+                    {
+                        return;
+                    }
+
+                    ctx.Hooks.TimeElapsed = new Lazy<TimeSpan?>(ctx.TimeElapsed);
+                }
+
+                return orderBookService.CollectOrderBooks(OrderbookContinuation, Period * 0.95, cts.Token);
+            },
+            cancellationToken);
+        cts.Cancel();
     }
 
     protected virtual BitfinexGatherGroupedOrderBookService GetOrderBookService() =>
@@ -44,7 +65,7 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            cts.CancelAfter(Period);
+            cts.CancelAfter(Period * 1.5);
             while (_cancellationTokenSources.IsFull)
             {
                 if (_cancellationTokenSources.TryPopFront(out var old))

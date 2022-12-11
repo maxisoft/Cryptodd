@@ -1,12 +1,13 @@
 ﻿using System.Collections;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using JasperFx.CodeGeneration;
 using Towel;
 using Towel.DataStructures;
 
 namespace Cryptodd.Algorithms.Topk;
 
-public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
+public sealed class RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
 {
     private struct InternalComparer : IFunc<T, T, CompareResult>
     {
@@ -27,7 +28,7 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
     private readonly RedBlackTreeLinked<T, InternalComparer> _tree;
     private readonly int _k;
     private readonly TComparer _comparer;
-    private T? _minValue = default;
+    private T? _minValue;
 
     internal RedBlackTreeHeap(TopK<T, TComparer> topK)
     {
@@ -46,11 +47,11 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
         if (!insert)
         {
             insert = _comparer.Compare(value, _minValue!) > 0;
-            recheckMinValue = insert;
+            recheckMinValue = true;
         }
         else
         {
-            recheckMinValue = count == _k - 1;
+            recheckMinValue = count + 1 >= _k;
         }
 
         if (!insert)
@@ -81,6 +82,12 @@ public struct RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : ICompa
         if (Count > _k)
         {
             (success, exception) = _tree.TryRemove(_minValue!);
+            if (!success && Count > _k)
+            {
+                Debug.WriteLine($"{GetType().NameInCode()} Invalid {nameof(_tree.TryRemove)}() ! Count: {Count}, k: {_k}, Value: {_minValue}, ActualMin: {_tree.CurrentLeast}");
+                (success, exception) = _tree.TryRemove(_tree.CurrentLeast);
+                recheckMinValue = success;
+            }
             // ReSharper restore RedundantAssignment
             ThrowOnFail(success, exception, "unable to remove value");
         }

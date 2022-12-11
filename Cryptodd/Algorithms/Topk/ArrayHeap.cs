@@ -10,7 +10,7 @@ namespace Cryptodd.Algorithms.Topk;
 /// </summary>
 /// <typeparam name="T"></typeparam>
 /// <typeparam name="TComparer"></typeparam>
-public struct ArrayHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
+public class ArrayHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
 {
     private readonly ArrayList<T> _content = new();
     private bool _isSorted = false;
