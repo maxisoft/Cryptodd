@@ -19,7 +19,8 @@ using Serilog;
 
 namespace Cryptodd.Bitfinex.WebSockets;
 
-public readonly record struct GroupedOrderBookRequest(string Symbol, string Precision = "P0", int Length = GroupedOrderBookRequest.DefaultOrderBookLength)
+public readonly record struct GroupedOrderBookRequest(string Symbol, string Precision = "P0",
+    int Length = GroupedOrderBookRequest.DefaultOrderBookLength)
 {
     internal const int DefaultOrderBookLength = 25;
 }
@@ -42,7 +43,13 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
     private readonly SemaphoreSlim _subscribedSemaphore;
-    public int SubscriptionsCount => _options.MaxChannel - _subscribedSemaphore.CurrentCount;
+    public int SubscriptionsCount => MaxChannel - _subscribedSemaphore.CurrentCount;
+
+    public int MaxChannel => _options.MaxChannel;
+
+    public int ActiveAndPendingRequestCount => SubscriptionsCount + _requests.Count;
+
+    public int RequestSlotAvailable => Math.Max(MaxChannel - ActiveAndPendingRequestCount, 0);
 
     private readonly List<ITargetBlock<OrderbookEnvelope>> _targetBlocks = new();
     private readonly IClientWebSocketFactory _webSocketFactory;
@@ -52,7 +59,7 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
     internal ClientWebSocket? _ws;
 
     private long _messageCounter;
-    private readonly BufferBlock<GroupedOrderBookRequest> _requests = new();
+    private readonly BufferBlock<GroupedOrderBookRequest> _requests;
 
     public BitfinexPublicWebSocket(IClientWebSocketFactory webSocketFactory, IConfiguration configuration,
         ILogger logger, Boxed<CancellationToken> cancellationToken)
@@ -61,7 +68,9 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
         _webSocketFactory = webSocketFactory;
         _logger = logger;
         LoopCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _subscribedSemaphore = new SemaphoreSlim(_options.MaxChannel, _options.MaxChannel);
+        _subscribedSemaphore = new SemaphoreSlim(MaxChannel, MaxChannel);
+        _requests = new BufferBlock<GroupedOrderBookRequest>(new DataflowBlockOptions()
+            { BoundedCapacity = Math.Max(1024, MaxChannel) });
     }
 
 
@@ -155,7 +164,8 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
         _targetBlocks.Add(block);
     }
 
-    public bool RegisterGroupedOrderBookRequest(string market, int precision, int length = GroupedOrderBookRequest.DefaultOrderBookLength) =>
+    public bool RegisterGroupedOrderBookRequest(string market, int precision,
+        int length = GroupedOrderBookRequest.DefaultOrderBookLength) =>
         _requests.Post(new GroupedOrderBookRequest($"t{market}", $"P{precision}", length));
 
     internal async ValueTask ProcessRequests(CancellationToken cancellationToken)
@@ -308,7 +318,7 @@ public class BitfinexPublicWebSocket : IService, IDisposable, IAsyncDisposable
                     {
                         _logger.Verbose(e2, "");
                     }
-                    
+
                     return;
                 }
                 finally

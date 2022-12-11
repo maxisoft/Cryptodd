@@ -25,9 +25,11 @@ public class TaskSchedulerOptions
 
 public class TaskScheduler : IService
 {
+    internal static readonly AsyncLocal<TaskRunningContext> AsyncLocalTaskRunningContext = new AsyncLocal<TaskRunningContext>();
+    
     private readonly DisposableManager _disposableManager = new();
 
-    private readonly ILogger _logger;
+    internal readonly ILogger Logger;
     private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     internal PriorityQueue<BaseScheduledTask, BaseScheduledTask> Tasks =
@@ -39,7 +41,7 @@ public class TaskScheduler : IService
 
     public TaskScheduler(ILogger logger, IConfiguration configuration)
     {
-        _logger = logger;
+        Logger = logger.ForContext(GetType());
         configuration.GetSection("TaskScheduler").Bind(Options);
         TickQueue = new BoundedDeque<Task>(Options.MaxTickQueue);
         _disposableManager.LinkDisposableAsWeak(_semaphoreSlim);
@@ -51,6 +53,9 @@ public class TaskScheduler : IService
         {
             Tasks.Enqueue(task, task);
         }
+        
+        Debug.Assert(task.TaskRunningContextAsyncLocal is null || ReferenceEquals(task.TaskRunningContextAsyncLocal, AsyncLocalTaskRunningContext));
+        task.TaskRunningContextAsyncLocal = AsyncLocalTaskRunningContext;
 
         var disposable = task.RescheduleEvent.Subscribe(
             args => OnTaskRescheduleEvent(task, args),
@@ -66,7 +71,7 @@ public class TaskScheduler : IService
 
     private void OnTaskRescheduleEvent<TTask>(TTask task, RescheduleEventArgs obj) where TTask : BaseScheduledTask
     {
-        _logger.Verbose("Task {Task} reschedule", task);
+        Logger.Verbose("Task {Task} reschedule", task);
 
         lock (Tasks)
         {
@@ -76,12 +81,12 @@ public class TaskScheduler : IService
 
     private void OnTaskRescheduleError<TTask>(TTask task, Exception e) where TTask : BaseScheduledTask
     {
-        _logger.Error(e, "Task {Task} reschedule error", task);
+        Logger.Error(e, "Task {Task} reschedule error", task);
     }
 
     private void OnTaskRescheduleCompleted<TTask>(TTask task) where TTask : BaseScheduledTask
     {
-        _logger.Debug("Task {Task} reschedule completed", task);
+        Logger.Debug("Task {Task} reschedule completed", task);
 
         Debug.Assert(!Tasks.TryPeek(out var head, out _) || !ReferenceEquals(head, task));
     }
@@ -131,7 +136,7 @@ public class TaskScheduler : IService
 
     public async ValueTask<int> Tick(CancellationToken cancellationToken)
     {
-        _logger.Verbose("Tick()");
+        Logger.Verbose("Tick()");
 
         await _semaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -148,7 +153,7 @@ public class TaskScheduler : IService
                             continue;
                         }
 
-                        sched._logger.Error(task.Exception, "DoTick() Error. This isn't normal");
+                        sched.Logger.Error(task.Exception, "DoTick() Error. This isn't normal");
 #if DEBUG
                         throw task.Exception!;
 #endif
@@ -183,9 +188,9 @@ public class TaskScheduler : IService
         var hasElement = Tasks.Count > 0;
         var now = DateTimeOffset.Now; // use of non monotonic datapoint => need system clock to be synced
         var processed = 0;
-        using var runningTasks = new PooledList<Task>();
+        var runningTasks = new ArrayList<Task>();
         var postExecutes = new ConcurrentBag<Task>();
-        using var toReschedule = new PooledList<BaseScheduledTask>();
+        var toReschedule = new ArrayList<BaseScheduledTask>();
 
         void Cleanup()
         {
@@ -230,15 +235,16 @@ public class TaskScheduler : IService
 
                     stats = task.ExecutionStatistics;
                 }
-
                 var sw = Stopwatch.StartNew();
+                var hooks = new TaskRunningContextHook();
+                AsyncLocalTaskRunningContext.Value = new TaskRunningContext(this){Stopwatch = sw, Hooks = hooks, Task = task};
                 try
                 {
                     await task.PreExecute(cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
-                    _logger.Warning(e, "Task {Task}.PreExecute() failed", task);
+                    Logger.Warning(e, "Task {Task}.PreExecute() failed", task);
                     stats._exceptions.Add(e);
                     Interlocked.Increment(ref stats._errorCounter);
                     toReschedule.Add(task);
@@ -247,12 +253,12 @@ public class TaskScheduler : IService
 
                 if (sw.ElapsedMilliseconds > 1_000)
                 {
-                    _logger.Warning("{Task} Task.PreExecute() should be faster", task);
+                    Logger.Warning("{Task} Task.PreExecute() should be faster", task);
                 }
 
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    _logger.Debug("Cancellation Requested before reaching {Task}.Execute()", task);
+                    Logger.Debug("Cancellation Requested before reaching {Task}.Execute()", task);
                 }
 
                 var execTask = task.Execute(cancellationToken);
@@ -273,9 +279,9 @@ public class TaskScheduler : IService
                             exception = execTask.Exception.InnerExceptions.First();
                         }
 
-                        _logger.Error(exception, "{Task} faulted", execTask);
+                        Logger.Error(exception, "{Task} faulted", execTask);
 #if DEBUG
-                        _logger.Error("{DemystifiedException}", exception?.ToStringDemystified());
+                        Logger.Error("{DemystifiedException}", exception?.ToStringDemystified());
 #endif
                         
                         s._exceptions.Add(exception!);
@@ -283,14 +289,14 @@ public class TaskScheduler : IService
                     }
                     else if (execTask.IsCanceled)
                     {
-                        _logger.Warning("{Task} cancelled", execTask);
+                        Logger.Warning("{Task} cancelled", execTask);
                         Interlocked.Increment(ref s._errorCounter);
                     }
                     else
                     {
                         Debug.Assert(execTask.IsCompletedSuccessfully);
-                        _logger.Verbose("{Task} done", execTask);
-                        s._executionTimes.Add(sw.Elapsed);
+                        Logger.Verbose("{Task} done", execTask);
+                        s._executionTimes.Add(hooks.TimeElapsed?.Value ?? sw.Elapsed);
                         Interlocked.Increment(ref s._successCounter);
                         Interlocked.Increment(ref processed);
                     }
@@ -310,7 +316,7 @@ public class TaskScheduler : IService
         }
         catch (Exception e) when (e is (TaskCanceledException or OperationCanceledException))
         {
-            _logger.Debug(e, "Running tasks {Count} cancelled", runningTasks.Count);
+            Logger.Debug(e, "Running tasks {Count} cancelled", runningTasks.Count);
         }
 
         for (var index = 0; index < runningTasks.Count; index++)
@@ -318,7 +324,7 @@ public class TaskScheduler : IService
             var runningTask = runningTasks[index];
             if (runningTask.IsFaulted)
             {
-                _logger.Error(runningTask.Exception, "A task continuation failed");
+                Logger.Error(runningTask.Exception, "A task continuation failed");
             }
         }
 
@@ -328,7 +334,7 @@ public class TaskScheduler : IService
         }
         catch (Exception e) when (e is (TaskCanceledException or OperationCanceledException))
         {
-            _logger.Debug(e, "Post execute {Count} cancelled", postExecutes.Count);
+            Logger.Debug(e, "Post execute {Count} cancelled", postExecutes.Count);
         }
 
 
@@ -336,7 +342,7 @@ public class TaskScheduler : IService
         {
             if (postExecute.IsFaulted)
             {
-                _logger.Error(postExecute.Exception!, "PostExecute must not throw !");
+                Logger.Error(postExecute.Exception!, "PostExecute must not throw !");
             }
         }
 

@@ -35,7 +35,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
         _container = container;
     }
 
-    public async Task CollectOrderBooks(TimeSpan downloadingTimeout = default, CancellationToken cancellationToken = default)
+    public async Task CollectOrderBooks(Action<List<OrderbookEnvelope>?> orderbookContinuation,TimeSpan downloadingTimeout = default, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         await using var container = _container.GetNestedContainer();
@@ -108,7 +108,8 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 {
                     if (pairFilter.Match(pair) && !requests.Contains(pair))
                     {
-                        if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(pair, Precision, OrderBookLength))
+                        var ws = webSockets[taskNum % maxNumWs];
+                        if (!ws.RegisterGroupedOrderBookRequest(pair, Precision, OrderBookLength))
                         {
                             res = true;
                             continue;
@@ -134,16 +135,16 @@ public class BitfinexGatherGroupedOrderBookService : IService
             }
             cancellationTokenSource.CancelAfter(orderBookSection.GetValue("GatherTimeout", downloadingTimeout));
             
-
+            var validators = container.GetAllInstances<IValidator<OrderbookEnvelope>>();
             while (!cancellationTokenSource.IsCancellationRequested && reDispatch)
             {
                 reDispatch = DispatchTasks();
-                await Parallel.ForEachAsync(webSockets, cancellationTokenSource.Token,
+                var processTask = Parallel.ForEachAsync(webSockets, cancellationTokenSource.Token,
                     (ws, token) => ws.ProcessRequests(token));
 
                 var orderBooks = new List<OrderbookEnvelope>();
                 using var dm = new DisposableManager();
-                var validators = container.GetAllInstances<IValidator<OrderbookEnvelope>>();
+
                 while (processed < requests.Count && !cancellationTokenSource.IsCancellationRequested)
                 {
                     if (recvDone >= tasks.Count)
@@ -195,11 +196,12 @@ public class BitfinexGatherGroupedOrderBookService : IService
                 cancellationTokenSource.Cancel();
                 loopCancellationTokenSource.Cancel();
                 // send a ping to recv a pong message and stop RecvLoop
-                await Task.WhenAll(webSockets.Select(ws => ws.Ping().AsTask()));
+                var pingTask = Task.WhenAll(webSockets.Select(ws => ws.Ping().AsTask()));
                 requests.ExceptWith(orderBooks.Select(envelope => envelope.Symbol.TrimStart('t')));
+                orderbookContinuation(orderBooks);
                 await DispatchOrderbookHandler(orderBooks, processed, sw, cancellationToken);
                 _logger.Debug("Processed {Count} orderbooks", processed);
-                await Task.Delay(100, cancellationToken);
+                await Task.WhenAll(processTask, pingTask, Task.Delay(100, cancellationToken));
                 if (previousNumberOfPairs > 0)
                 {
                     previousNumberOfPairs = (previousNumberOfPairs + processed + 1) / 2;
