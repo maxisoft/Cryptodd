@@ -115,7 +115,15 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         var res = false;
         if (IsClosed)
         {
-            await _semaphoreSlim.WaitAsync(CancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _semaphoreSlim.WaitAsync(CancellationToken).ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException e)
+            {
+                Logger.Verbose(e, "semaphore got disposed before WaitAsync() call");
+                return false;
+            }
             try
             {
                 if (!IsClosed)
@@ -133,7 +141,14 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
             }
             finally
             {
-                _semaphoreSlim.Release();
+                try
+                {
+                    _semaphoreSlim.Release();
+                }
+                catch (ObjectDisposedException e)
+                {
+                    Logger.Error(e, "semaphore got disposed before Release() call");
+                }
             }
         }
 
