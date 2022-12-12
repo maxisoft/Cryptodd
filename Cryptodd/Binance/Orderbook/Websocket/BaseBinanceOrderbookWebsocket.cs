@@ -21,6 +21,7 @@ namespace Cryptodd.Binance.Orderbook.Websocket;
 public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAsyncDisposable
     where TOptions : BaseBinanceOrderbookWebsocketOptions, new()
 {
+    public BinanceWebsocketStats DepthWebsocketStats { get; protected set; } = new BinanceWebsocketStats();
     protected IClientWebSocketFactory WebSocketFactory { get; }
     protected ILogger Logger { get; init; }
     protected CancellationTokenSource LoopCancellationTokenSource { get; }
@@ -312,6 +313,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         if (pre.Stream.EndsWith("@depth", StringComparison.InvariantCulture) ||
             pre.Stream.EndsWith("@depth@100ms", StringComparison.InvariantCultureIgnoreCase))
         {
+            DepthWebsocketStats.RegisterTick();
             if (_depthTargetBlocks.IsEmpty)
             {
                 return;
@@ -320,6 +322,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
             var envelope =
                 JsonSerializer.Deserialize<CombinedStreamEnvelope<DepthUpdateMessage>>(memory.Span,
                     JsonSerializerOptions);
+
             var envelopeSafe = new ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>(envelope)
                 { DisposeOnDeletion = true };
 
@@ -363,6 +366,8 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
                     }
                 }
             }
+            
+            DepthWebsocketStats.RegisterSymbol(envelope.Data.Symbol);
         }
     }
 
