@@ -15,6 +15,7 @@ using Cryptodd.Utils;
 using Maxisoft.Utils.Empties;
 using Maxisoft.Utils.Objects;
 using Serilog;
+using Serilog.Events;
 
 namespace Cryptodd.Binance.Orderbook.Websocket;
 
@@ -78,7 +79,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
 
     public CancellationToken CancellationToken => LoopCancellationTokenSource.Token;
 
-    public virtual void StopReceiveLoop()
+    public virtual void StopReceiveLoop(string reason = "", LogEventLevel logLevel = LogEventLevel.Information)
     {
         try
         {
@@ -87,6 +88,11 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         catch (ObjectDisposedException e)
         {
             Logger.Verbose(e, "");
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            Logger.Write(logLevel, "Stopping websocket {Reason}", reason);
         }
     }
 

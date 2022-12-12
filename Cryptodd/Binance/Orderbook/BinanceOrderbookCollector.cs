@@ -119,19 +119,81 @@ public class BinanceWebsocketCollection : IAsyncDisposable
             throw new Exception("at least 1 websocket is already running.");
         }
 
-        var tasks = websockets.Select(websocket => websocket.RecvLoop()).ToArray();
+        var tasks = new Task[websockets.Length];
+
+        for (var i = 0; i < websockets.Length; i++)
+        {
+            var websocket = websockets[i];
+            tasks[i] = websocket.RecvLoop();
+        }
+
+        using var cts = new CancellationTokenSource();
         try
         {
+            var monitor = MonitorWebsockets(cts.Token);
             await Task.WhenAny(tasks);
+            cts.Cancel();
+            await monitor;
         }
         catch
         {
+            var i = 0;
             foreach (var websocket in websockets)
             {
-                websocket.StopReceiveLoop();
+                websocket.StopReceiveLoop("because trying to start all websockets failed",
+                    i == 0 ? LogEventLevel.Warning : LogEventLevel.Verbose);
+                i++;
             }
 
             throw;
+        }
+        finally
+        {
+            cts.Cancel();
+        }
+    }
+
+    private async Task MonitorWebsockets(CancellationToken cancellationToken)
+    {
+        var h = SymbolsHash;
+        var startDate = DateTimeOffset.Now;
+        var stop = false;
+        while (h == SymbolsHash && !stop && !cancellationToken.IsCancellationRequested)
+        {
+            var i = 0;
+            var now = DateTimeOffset.Now;
+            foreach (var websocket in _websockets)
+            {
+                var globalLastCall = websocket.DepthWebsocketStats.LastCall;
+                if ((now - globalLastCall).Duration() > TimeSpan.FromSeconds(20))
+                {
+                    websocket.StopReceiveLoop("due to no activity last 20 seconds",
+                        stop ? LogEventLevel.Verbose : LogEventLevel.Warning);
+                    stop = true;
+                }
+
+                if (!stop && (globalLastCall - startDate).Duration() > TimeSpan.FromSeconds(120))
+                {
+                    foreach (var symbol in websocket.TrackedDepthSymbols)
+                    {
+                        if ((now - websocket.DepthWebsocketStats.GetStatsForSymbol(symbol).LastCall).Duration() <=
+                            TimeSpan.FromMinutes(1))
+                        {
+                            continue;
+                        }
+
+                        websocket.StopReceiveLoop($"due to no activity for {symbol} last minute",
+                            stop ? LogEventLevel.Verbose : LogEventLevel.Warning);
+                        // TODO add a low priority queue for this symbol
+                        stop = true;
+                        break;
+                    }
+                }
+
+                i++;
+            }
+
+            await Task.Delay(10_000, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -335,11 +397,14 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                 var depthUpdateMessage = referenceCounterDisposable.ValueRef.Data;
                 var symbol = depthUpdateMessage.Symbol;
                 var orderbook = _orderbooks[symbol];
-                if (orderbook.IsEmpty())
+                if (depthUpdateMessage.U - orderbook.LastUpdateId > 1 || orderbook.IsEmpty())
                 {
                     lock (pendingSymbolsForHttp)
                     {
-                        pendingSymbolsForHttp.Add(symbol);
+                        if (pendingSymbolsForHttp.Add(symbol))
+                        {
+                            _logger.Debug("Scheduling orderbook http update for {Symbol}", symbol);
+                        }
                     }
                 }
 
