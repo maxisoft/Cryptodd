@@ -11,6 +11,7 @@ using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
 using Lamar;
+using MathNet.Numerics.Random;
 using Maxisoft.Utils.Collections.LinkedLists;
 using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Disposables;
@@ -24,19 +25,22 @@ namespace Cryptodd.Binance.Orderbook;
 
 public class BinanceOrderbookCollectorOptions
 {
-    public int SymbolsExpiry { get; set; } = checked((int)TimeSpan.FromMinutes(5).TotalMilliseconds);
+    public TimeSpan SymbolsExpiry { get; set; } = TimeSpan.FromMinutes(5);
 
-    public int EntryExpiry { get; set; } = checked((int)TimeSpan.FromDays(10).TotalMilliseconds);
+    public TimeSpan EntryExpiry { get; set; } = TimeSpan.FromHours(10);
 }
 
 public class BinanceWebsocketCollection : IAsyncDisposable
 {
+    private static Xorshift _random = new Xorshift();
     private const int MaxNumberOfConnections = 256;
 
     private readonly LinkedListAsIList<BinanceOrderbookWebsocket> _websockets =
         new LinkedListAsIList<BinanceOrderbookWebsocket>();
 
     private readonly DisposableManager _disposableManager = new();
+
+    private readonly HashSet<string> _slowToUpdateSymbol = new HashSet<string>();
 
     public int SymbolsHash { get; private set; }
     public int Count => _websockets.Count;
@@ -137,12 +141,9 @@ public class BinanceWebsocketCollection : IAsyncDisposable
         }
         catch
         {
-            var i = 0;
             foreach (var websocket in websockets)
             {
-                websocket.StopReceiveLoop("because trying to start all websockets failed",
-                    i == 0 ? LogEventLevel.Warning : LogEventLevel.Verbose);
-                i++;
+                websocket.StopReceiveLoop();
             }
 
             throw;
@@ -155,38 +156,93 @@ public class BinanceWebsocketCollection : IAsyncDisposable
 
     private async Task MonitorWebsockets(CancellationToken cancellationToken)
     {
-        var h = SymbolsHash;
         var startDate = DateTimeOffset.Now;
         var stop = false;
-        while (h == SymbolsHash && !stop && !cancellationToken.IsCancellationRequested)
+        while (!stop && !cancellationToken.IsCancellationRequested)
         {
             var i = 0;
             var now = DateTimeOffset.Now;
             foreach (var websocket in _websockets)
             {
+                
                 var globalLastCall = websocket.DepthWebsocketStats.LastCall;
-                if ((now - globalLastCall).Duration() > TimeSpan.FromSeconds(20))
+                const int maxInactivitySecond = 20;
+                if ((now - globalLastCall).Duration() > TimeSpan.FromSeconds(maxInactivitySecond))
                 {
-                    websocket.StopReceiveLoop("due to no activity last 20 seconds",
+                    websocket.StopReceiveLoop($"due to inactivity for {maxInactivitySecond} seconds",
                         stop ? LogEventLevel.Verbose : LogEventLevel.Warning);
                     stop = true;
                 }
 
                 if (!stop && (globalLastCall - startDate).Duration() > TimeSpan.FromSeconds(120))
                 {
-                    foreach (var symbol in websocket.TrackedDepthSymbols)
+                    var symbols = websocket.TrackedDepthSymbols;
+                    var issueCount = 0;
+                    foreach (var symbol in symbols)
                     {
-                        if ((now - websocket.DepthWebsocketStats.GetStatsForSymbol(symbol).LastCall).Duration() <=
-                            TimeSpan.FromMinutes(1))
+                        if (websocket.IsBlacklistedSymbol(symbol))
                         {
                             continue;
                         }
 
-                        websocket.StopReceiveLoop($"due to no activity for {symbol} last minute",
-                            stop ? LogEventLevel.Verbose : LogEventLevel.Warning);
-                        // TODO add a low priority queue for this symbol
-                        stop = true;
-                        break;
+                        var isSlow = _slowToUpdateSymbol.Contains(symbol);
+
+                        if ((now - websocket.DepthWebsocketStats.GetStatsForSymbol(symbol).LastCall).Duration() <=
+                            TimeSpan.FromMinutes(1) * (isSlow ? 5 : 1))
+                        {
+                            continue;
+                        }
+
+                        issueCount++;
+                        if (3 * issueCount > symbols.Count + 1)
+                        {
+                            websocket.StopReceiveLoop(
+                                $"due to too much inactivity: {issueCount}/{symbols.Count} issues last minute",
+                                stop ? LogEventLevel.Verbose : LogEventLevel.Warning);
+                            stop = true;
+                            break;
+                        }
+                        
+                        if (!isSlow)
+                        {
+                            _slowToUpdateSymbol.Add(symbol);
+                        }
+
+                        // try to fix slow issue by pushing symbol to other websocket (should recreate the connection automatically)
+                        var websockets = _websockets.ToArray();
+                        var issueFixed = false;
+                        var shift = _random.Next(websockets.Length);
+                        for (var j = 0; j < websockets.Length; j++)
+                        {
+                            var otherWs = websockets[(i + j + shift) % websockets.Length];
+                            if (ReferenceEquals(websocket, otherWs))
+                            {
+                                continue;
+                            }
+
+                            if (otherWs.IsBlacklistedSymbol(symbol))
+                            {
+                                continue;
+                            }
+
+                            if (!otherWs.AddDepthSymbol(symbol))
+                            {
+                                continue;
+                            }
+
+                            issueFixed = true;
+                            break;
+                        }
+
+                        if (!issueFixed)
+                        {
+                            websocket.StopReceiveLoop($"due to no activity for {symbol} last minute",
+                                stop ? LogEventLevel.Verbose : LogEventLevel.Warning);
+                            stop = true;
+                            break;
+                        }
+                        
+                        websocket.BlacklistSymbol(symbol);
                     }
                 }
 
@@ -219,6 +275,7 @@ public class BinanceWebsocketCollection : IAsyncDisposable
         _websockets.Clear();
         _disposableManager.Dispose();
         SymbolsHash = 0;
+        _slowToUpdateSymbol.Clear();
 
         GC.SuppressFinalize(this);
     }
@@ -257,7 +314,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
 
     public OrderbookCollection Orderbooks => _orderbooks;
 
-    private readonly HashSet<string> pendingSymbolsForHttp =
+    private readonly HashSet<string> _pendingSymbolsForHttp =
         new HashSet<string>(comparer: StringComparer.InvariantCultureIgnoreCase);
 
     private readonly CancellationTokenSource _cancellationTokenSource;
@@ -271,6 +328,8 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
 
     private Task _websocketTask = Task.CompletedTask;
     private Task? _backgroundTasks;
+
+    private readonly Stopwatch _expiryCleanupStopwatch = new();
 
     protected string ConfigurationSection { get; init; } = "Binance:OrderbookCollector";
     protected string PairFilterName { get; init; } = "Binance:Orderbook";
@@ -314,7 +373,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
 
         bool ShouldRecreate()
         {
-            return webSockets.Count == 0 || !_websockets.SymbolHashMatch(symbols) || _websocketTask.IsCompleted;
+            return webSockets.Count == 0 || _websocketTask.IsCompleted || !_websockets.SymbolHashMatch(symbols);
         }
 
         if (ShouldRecreate())
@@ -399,13 +458,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                 var orderbook = _orderbooks[symbol];
                 if (depthUpdateMessage.U - orderbook.LastUpdateId > 1 || orderbook.IsEmpty())
                 {
-                    lock (pendingSymbolsForHttp)
-                    {
-                        if (pendingSymbolsForHttp.Add(symbol))
-                        {
-                            _logger.Debug("Scheduling orderbook http update for {Symbol}", symbol);
-                        }
-                    }
+                    ScheduleSymbolForHttpUpdate(symbol);
                 }
 
                 lock (orderbook)
@@ -429,6 +482,17 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
             if (items.Count > 0)
             {
                 await Task.Delay(10, cancellationToken);
+            }
+        }
+    }
+
+    private void ScheduleSymbolForHttpUpdate(string symbol, LogEventLevel logLevel = LogEventLevel.Debug)
+    {
+        lock (_pendingSymbolsForHttp)
+        {
+            if (_pendingSymbolsForHttp.Add(symbol))
+            {
+                _logger.Write(logLevel, "Scheduling orderbook http update for {Symbol}", symbol);
             }
         }
     }
@@ -483,16 +547,19 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
         while (!cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(5_000, cancellationToken); // FIXME reduce the delay once _httpApi handle request limits
-            if (pendingSymbolsForHttp.Count <= 0)
+            lock (_pendingSymbolsForHttp)
             {
-                continue;
+                if (_pendingSymbolsForHttp.Count <= 0)
+                {
+                    continue;
+                }
             }
 
             string symbol;
-            lock (pendingSymbolsForHttp)
+            lock (_pendingSymbolsForHttp)
             {
-                symbol = pendingSymbolsForHttp.FirstOrDefault("");
-                pendingSymbolsForHttp.Remove(symbol);
+                symbol = _pendingSymbolsForHttp.FirstOrDefault("");
+                _pendingSymbolsForHttp.Remove(symbol);
             }
 
             if (string.IsNullOrWhiteSpace(symbol))
@@ -513,16 +580,16 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                     orderbook.Update(in remoteOb, dateTime);
                 }
 
-                lock (pendingSymbolsForHttp)
+                lock (_pendingSymbolsForHttp)
                 {
-                    pendingSymbolsForHttp.Remove(symbol);
+                    _pendingSymbolsForHttp.Remove(symbol);
                 }
             }
             catch (Exception e)
             {
-                lock (pendingSymbolsForHttp)
+                lock (_pendingSymbolsForHttp)
                 {
-                    pendingSymbolsForHttp.Add(symbol);
+                    _pendingSymbolsForHttp.Add(symbol);
                 }
 
                 _logger.Error(e, "Unable to update orderbook for {Symbol} from http", symbol);
@@ -533,7 +600,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
 
     protected virtual async Task UpdateCachedSymbols(CancellationToken cancellationToken)
     {
-        if (!_cachedSymbolsStopwatch.IsRunning || _cachedSymbolsStopwatch.ElapsedMilliseconds > Options.SymbolsExpiry)
+        if (!_cachedSymbolsStopwatch.IsRunning || _cachedSymbolsStopwatch.Elapsed > Options.SymbolsExpiry)
         {
             var symbols = await ListSymbols(cancellationToken).ConfigureAwait(false);
             NestedContainer ??= _container.GetNestedContainer();
@@ -591,9 +658,22 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
             lock (rawOb)
             {
                 rawOb.ResetStatistics();
-                if (Options.EntryExpiry > 0)
+                if (Options.EntryExpiry <= TimeSpan.Zero)
                 {
-                    rawOb.DropOutdated(DateTimeOffset.Now - TimeSpan.FromMilliseconds(Options.EntryExpiry));
+                    continue;
+                }
+
+                if (_expiryCleanupStopwatch.IsRunning &&
+                    _expiryCleanupStopwatch.Elapsed <= Options.EntryExpiry / 10)
+                {
+                    continue;
+                }
+
+                var (askCount, bidCount) = rawOb.DropOutdated(DateTimeOffset.Now - Options.EntryExpiry);
+                _expiryCleanupStopwatch.Restart();
+                if (askCount + bidCount > 0)
+                {
+                    ScheduleSymbolForHttpUpdate(symbol);
                 }
             }
         }

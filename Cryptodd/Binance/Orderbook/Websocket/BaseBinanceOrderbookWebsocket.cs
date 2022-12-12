@@ -42,6 +42,8 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
 
     private readonly ConcurrentDictionary<string, EmptyStruct> _trackedDepthSymbols = new();
 
+    private readonly HashSet<string> _symbolBlackList = new();
+
     protected IDictionary<string, EmptyStruct> TrackedDepthSymbolsDictionary => _trackedDepthSymbols;
     public ICollection<string> TrackedDepthSymbols => _trackedDepthSymbols.Keys;
 
@@ -131,6 +133,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
                 Logger.Verbose(e, "semaphore got disposed before WaitAsync() call");
                 return false;
             }
+
             try
             {
                 if (!IsClosed)
@@ -185,6 +188,10 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         sb.Append("/stream?streams=");
         foreach (var (symbol, _) in _trackedDepthSymbols)
         {
+            if (IsBlacklistedSymbol(symbol))
+            {
+                continue;
+            }
             sb.Append(symbol.ToLowerInvariant());
             sb.Append("@depth");
             sb.Append('/');
@@ -240,7 +247,21 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
                     }
                     catch (ObjectDisposedException)
                     {
-                        break;
+                        if (IsClosed && !LoopCancellationTokenSource.IsCancellationRequested)
+                        {
+                            Logger.Debug("Restarting connection");
+                            Close();
+                            continue;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    catch (WebSocketException e) when (IsClosed)
+                    {
+                        Logger.Warning(e, "{Name}", nameof(ws.ReceiveAsync));
+                        continue;
                     }
 
                     if (resp.Count == 0)
@@ -359,6 +380,11 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
 
             using (envelopeSafe.NewDecrementOnDispose(increment: true))
             {
+                if (IsBlacklistedSymbol(envelope.Data.Symbol))
+                {
+                    return;
+                }
+
                 if (_depthTargetBlocks.Count > 1)
                 {
                     await Parallel.ForEachAsync(_depthTargetBlocks, cancellationToken, SendToTargetBlock)
@@ -372,8 +398,20 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
                     }
                 }
             }
-            
+
             DepthWebsocketStats.RegisterSymbol(envelope.Data.Symbol);
+        }
+    }
+
+    public bool IsBlacklistedSymbol(string symbol) =>
+        // ReSharper disable once InconsistentlySynchronizedField
+        _symbolBlackList.Contains(symbol);
+
+    public bool BlacklistSymbol(string symbol)
+    {
+        lock (_symbolBlackList)
+        {
+            return _symbolBlackList.Add(symbol);
         }
     }
 
