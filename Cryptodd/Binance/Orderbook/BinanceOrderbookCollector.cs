@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Binance.Models;
@@ -30,38 +31,78 @@ public class BinanceOrderbookCollectorOptions
 
 public class BinanceWebsocketCollection : IAsyncDisposable
 {
+    private const int MaxNumberOfConnections = 256;
+
     private readonly LinkedListAsIList<BinanceOrderbookWebsocket> _websockets =
         new LinkedListAsIList<BinanceOrderbookWebsocket>();
 
     private readonly DisposableManager _disposableManager = new();
 
-    public int SymbolsHash { get; private set; } = 0;
+    public int SymbolsHash { get; private set; }
     public int Count => _websockets.Count;
 
     private BinanceWebsocketCollection() { }
 
+    private static int GuessIdealNumberOfConnection(int numSymbols) =>
+        numSymbols < 10 ? 1 : Math.Min(int.Log2(numSymbols) + 1, MaxNumberOfConnections);
+
     public static BinanceWebsocketCollection Create(ArrayList<string> symbols, Func<BinanceOrderbookWebsocket> factory)
     {
         var res = new BinanceWebsocketCollection();
-        var list = res._websockets;
-        var ws = factory();
-        list.AddLast(ws);
+        var websockets = new BinanceOrderbookWebsocket?[GuessIdealNumberOfConnection(symbols.Count)];
         var h = new HashCode();
-        foreach (var symbol in symbols)
+        var i = 0;
+        try
         {
-            while (!ws.AddDepthSymbol(symbol))
+            if (websockets.Length > 0)
             {
-                ws = factory();
-                list.AddLast(ws);
+                ref var ws = ref websockets[0];
+                foreach (var symbol in symbols)
+                {
+                    var tryCount = 0;
+                    do
+                    {
+                        ws = ref websockets[i % websockets.Length];
+                        i++;
+                        if (ws is null)
+                        {
+                            ws = factory();
+                        }
+
+                        if (tryCount++ > websockets.Length)
+                        {
+                            throw new ArgumentException(
+                                $"unable to add depth symbol {symbol} of out {symbols.Count} symbols probably because there's not enough active websocket",
+                                nameof(symbols));
+                        }
+                    } while (!ws.AddDepthSymbol(symbol));
+
+                    h.Add(symbol);
+                }
             }
 
-            h.Add(symbol);
-        }
 
-        res.SymbolsHash = h.ToHashCode();
-        foreach (var websocket in list)
+            res.SymbolsHash = h.ToHashCode();
+            var list = res._websockets;
+            foreach (var websocket in websockets)
+            {
+                if (websocket is null)
+                {
+                    continue;
+                }
+
+                list.AddLast(websocket);
+                res._disposableManager.LinkDisposableAsWeak(websocket);
+            }
+        }
+        catch
         {
-            res._disposableManager.LinkDisposableAsWeak(websocket);
+            foreach (var websocket in websockets)
+            {
+                websocket?.Dispose();
+            }
+
+            throw;
         }
 
         return res;
@@ -208,12 +249,18 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
         }
 
         var webSockets = _websockets;
-        if (webSockets.Count == 0 || !_websockets.SymbolHashMatch(symbols))
+
+        bool ShouldRecreate()
+        {
+            return webSockets.Count == 0 || !_websockets.SymbolHashMatch(symbols) || _websocketTask.IsCompleted;
+        }
+
+        if (ShouldRecreate())
         {
             await _semaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                if (webSockets.Count == 0 || !_websockets.SymbolHashMatch(symbols))
+                if (ShouldRecreate())
                 {
                     if (_websocketTask.IsFaulted)
                     {
@@ -449,7 +496,8 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
         }
     }
 
-    protected virtual async Task<List<string>> ListSymbols(CancellationToken cancellationToken) => await _httpApi.ListSymbols(useCache:false, checkStatus:true, cancellationToken);
+    protected virtual async Task<List<string>> ListSymbols(CancellationToken cancellationToken) =>
+        await _httpApi.ListSymbols(useCache: false, checkStatus: true, cancellationToken);
 
     public async Task CollectOrderBook(CancellationToken cancellationToken)
     {
@@ -486,7 +534,8 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
         }
     }
 
-    private async ValueTask WaitForHandlers<T>(string name, IReadOnlyList<T> handlers, Task[] tasks, CancellationToken cancellationToken)
+    private async ValueTask WaitForHandlers<T>(string name, IReadOnlyList<T> handlers, Task[] tasks,
+        CancellationToken cancellationToken)
     {
         try
         {
