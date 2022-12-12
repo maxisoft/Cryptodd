@@ -6,7 +6,7 @@ using Maxisoft.Utils.Collections.Lists;
 namespace Cryptodd.Algorithms.Topk;
 
 /// <summary>
-///     1.5 * N + Log(N) complexity for Add() => really bad for large array, good for small ones
+///     K + Log(K) complexity for Add() => really bad for large array, good for small ones
 /// </summary>
 /// <typeparam name="T"></typeparam>
 /// <typeparam name="TComparer"></typeparam>
@@ -42,7 +42,7 @@ public class ArrayHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
             }
             else
             {
-                _content.Insert(_content.Count - 1, value);
+                _content.Add(value);
                 _isSorted = false;
             }
         }
@@ -69,15 +69,15 @@ public class ArrayHeap<T, TComparer> : IHeap<T> where TComparer : IComparer<T>
             ref var tail = ref GetTail();
             if (_comparer.Compare(value, tail) >= 0)
             {
-                _content.RemoveAt(0);
-                _content.AddSorted(value);
+                _content[0] = value;
+                _content.AsSpan().Sort(_comparer);
                 return;
             }
         }
 
         EnsureSorted();
-        _content.AddSorted(value);
-        _content.RemoveAt(0);
+        _content[0] = value;
+        _content.AsSpan().Sort(_comparer);
     }
 
     public int CopyTo(Span<T> span)
