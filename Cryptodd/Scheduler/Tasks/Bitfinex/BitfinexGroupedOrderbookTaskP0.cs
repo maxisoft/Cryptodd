@@ -19,6 +19,6 @@ public class BitfinexGroupedOrderbookTaskP0 : BitfinexGroupedOrderbookTask
     }
     
     public override IConfigurationSection Section =>
-        Configuration.GetSection("Bitfinex").GetSection("OrderBookP0").GetSection("Task");
+        Configuration.GetSection("Bitfinex:OrderBookP0:Task");
     
 }

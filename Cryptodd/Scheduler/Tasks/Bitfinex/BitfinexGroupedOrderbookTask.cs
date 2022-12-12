@@ -27,7 +27,7 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
     }
 
     public override IConfigurationSection Section =>
-        Configuration.GetSection("Bitfinex").GetSection("OrderBook").GetSection("Task");
+        Configuration.GetSection("Bitfinex:OrderBook:Task");
 
     public override async Task Execute(CancellationToken cancellationToken)
     {

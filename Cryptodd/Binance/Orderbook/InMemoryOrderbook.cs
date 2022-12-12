@@ -15,6 +15,14 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
     private readonly ConcurrentDictionary<PriceRoundKey, T> _bids = new();
     private long _bidsVersion;
 
+    private long _lastUpdateId = long.MinValue;
+
+    public long LastUpdateId
+    {
+        get => _lastUpdateId;
+        protected internal set => _lastUpdateId = Math.Max(_lastUpdateId, value);
+    }
+
     public InMemoryOrderbook() { }
 
     public SortedView Asks => new AskSortedView(this);
@@ -111,12 +119,14 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
     {
         UpdateAsks(orderbook.Asks, dateTime, orderbook.LastUpdateId);
         UpdateBids(orderbook.Bids, dateTime, orderbook.LastUpdateId);
+        LastUpdateId = orderbook.LastUpdateId;
     }
 
     public void Update(in DepthUpdateMessage updateMessage)
     {
         UpdateAsks(updateMessage.Asks, updateMessage.DateTimeOffset, updateMessage.u);
         UpdateBids(updateMessage.Bids, updateMessage.DateTimeOffset, updateMessage.u);
+        LastUpdateId = Math.Max(updateMessage.u, updateMessage.U);
     }
 
     public (int askCount, int bidCount) DropOutdated(long updateId, double minBuy = double.MinValue,
