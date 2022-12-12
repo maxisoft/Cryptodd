@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections;
+using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Bitfinex.Models;
 using Cryptodd.Bitfinex.Orderbooks;
@@ -7,6 +8,8 @@ using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Lamar;
+using MathNet.Numerics.Random;
+using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
 using Serilog;
@@ -26,6 +29,8 @@ public class BitfinexGatherGroupedOrderBookService : IService
 
     private int previousNumberOfPairs = -1;
 
+    private static readonly Xorshift _random = new Xorshift(threadSafe: true);
+
     public BitfinexGatherGroupedOrderBookService(IPairFilterLoader pairFilterLoader, ILogger logger,
         IConfiguration configuration, IContainer container)
     {
@@ -35,13 +40,26 @@ public class BitfinexGatherGroupedOrderBookService : IService
         _container = container;
     }
 
+    private static ArrayList<T> CopyShuffle<T, TEnumerable>(in TEnumerable l) where TEnumerable: IEnumerable<T>
+    {
+        var res = new ArrayList<T>(l.ToArray());
+        var span = res.AsSpan();
+        for (var i = 0; i < span.Length; i++)
+        {
+            var j = (int)((uint) _random.Next() % (uint) span.Length);
+            (span[i], span[j]) = (span[j], span[i]);
+        }
+
+        return res;
+    }
+
     public async Task CollectOrderBooks(Action<List<OrderbookEnvelope>?> orderbookContinuation,TimeSpan downloadingTimeout = default, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         await using var container = _container.GetNestedContainer();
-        var pairs = await container.GetInstance<IBitfinexPublicHttpApi>().GetAllPairs(cancellationToken)
+        var pairs = await container.GetInstance<IBitfinexCachedPairProvider>().GetAllPairs(cancellationToken)
             .ConfigureAwait(false);
-        pairs = pairs.OrderBy(a => Guid.NewGuid()).ToList();
+        pairs = CopyShuffle<string, ArrayList<string>>(in pairs);
         cancellationToken.ThrowIfCancellationRequested();
         var bitfinexConfig = GetBitfinexConfig();
         var maxNumWs = bitfinexConfig.GetValue("MaxWebSockets", 10);
