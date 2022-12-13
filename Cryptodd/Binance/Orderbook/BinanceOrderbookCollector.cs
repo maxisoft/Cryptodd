@@ -28,6 +28,8 @@ public class BinanceOrderbookCollectorOptions
     public TimeSpan SymbolsExpiry { get; set; } = TimeSpan.FromMinutes(5);
 
     public TimeSpan EntryExpiry { get; set; } = TimeSpan.FromHours(10);
+
+    public bool FullCleanupOrderbookOnReconnect { get; set; } = true;
 }
 
 public class BinanceWebsocketCollection : IAsyncDisposable
@@ -551,7 +553,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
 
     protected virtual async Task PollPendingSymbolsForHttp(CancellationToken cancellationToken)
     {
-        const int maxOrderbookLimit = 5000;
+        const int maxOrderbookLimit = IBinancePublicHttpApi.MaxOrderbookLimit;
         const int expWaitInitialValue = 1000;
         var expWait = expWaitInitialValue;
         var httpCallOption = new BinancePublicHttpApiCallOptionsOrderBook();
@@ -603,7 +605,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                 var orderbook = _orderbooks[symbol];
                 lock (orderbook)
                 {
-                    orderbook.DropOutdated(remoteOb);
+                    orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect);
                     orderbook.Update(in remoteOb, dateTime);
                 }
 

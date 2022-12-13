@@ -7,11 +7,14 @@ namespace Cryptodd.Binance;
 
 public interface IBinancePublicHttpApi
 {
+    public const int DefaultOrderbookLimit = 100;
+    public const int MaxOrderbookLimit = 5000;
+    
     public IBinanceRateLimiter RateLimiter { get; }
     Task<JsonObject> GetExchangeInfoAsync(BinancePublicHttpApiCallOptionsExchangeInfo? options = null,
         CancellationToken cancellationToken = default);
 
-    Task<BinanceHttpOrderbook> GetOrderbook(string symbol, int limit = BinancePublicHttpApi.DefaultOrderbookLimit,
+    Task<BinanceHttpOrderbook> GetOrderbook(string symbol, int limit = DefaultOrderbookLimit,
         BinancePublicHttpApiCallOptionsOrderBook? options = null,
         CancellationToken cancellationToken = default);
 

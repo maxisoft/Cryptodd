@@ -130,7 +130,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
     }
 
     public (int askCount, int bidCount) DropOutdated(long updateId, double minBuy = double.MinValue,
-        double maxSell = double.MaxValue)
+        double maxSell = double.MaxValue, bool cleanupAsks = false, bool cleanupBids = false)
     {
         if (minBuy > maxSell)
         {
@@ -177,19 +177,23 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         Debug.Assert(maxSell > 0, "maxSell > 0");
         var roundMax = PriceRoundKey.CreateFromPrice(maxSell);
 
-        var askCount = Drop(in _asks, updateId, roundMin, roundMax, ref _asksVersion);
-        var bidCount = Drop(in _bids, updateId, roundMin, roundMax, ref _bidsVersion);
+        var max = cleanupAsks ? new PriceRoundKey(double.MaxValue) : roundMax;
+        var askCount = Drop(in _asks, updateId, new PriceRoundKey(double.MinValue), max, ref _asksVersion);
+        var min = cleanupBids ? new PriceRoundKey(double.MinValue) : roundMin;
+        var bidCount = Drop(in _bids, updateId, min, new PriceRoundKey(double.MaxValue), ref _bidsVersion);
         return (askCount, bidCount);
     }
 
-    public (int askCount, int bidCount) DropOutdated(in BinanceHttpOrderbook orderbook)
+    public (int askCount, int bidCount) DropOutdated(in BinanceHttpOrderbook orderbook, bool fullCleanup)
     {
         static double PriceSelector(BinancePriceQuantityEntry<double> entry) => entry.Price;
+        var cleanupAsks = fullCleanup || orderbook.Asks.Count >= IBinancePublicHttpApi.MaxOrderbookLimit;
+        var cleanupBids = fullCleanup || orderbook.Bids.Count >= IBinancePublicHttpApi.MaxOrderbookLimit;
         return DropOutdated(orderbook.LastUpdateId, PriceSelector(orderbook.Bids.MinBy(PriceSelector)),
-            PriceSelector(orderbook.Asks.MaxBy(PriceSelector)));
+            PriceSelector(orderbook.Asks.MaxBy(PriceSelector)), cleanupAsks: cleanupAsks, cleanupBids: cleanupBids);
     }
 
-    public (int askCount, int bidCount) DropOutdated(in DateTimeOffset minDate)
+    public (int askCount, int bidCount) DropOutdated(DateTimeOffset minDate)
     {
         static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary, in DateTimeOffset minDate,
             ref long version)
