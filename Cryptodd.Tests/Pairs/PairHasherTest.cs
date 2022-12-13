@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Cryptodd.Binance;
+using Cryptodd.Binance.RateLimiter;
 using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.Pairs;
@@ -50,7 +51,7 @@ public class PairHasherTest
     public async Task TestRealHash()
     {
         using var httpclient = new HttpClient();
-        var symbols = await new BinancePublicHttpApi(httpclient, new ConfigurationManager(), new UriRewriteService()).ListSymbols();
+        var symbols = await new BinancePublicHttpApi(httpclient, new ConfigurationManager(), new UriRewriteService(), new EmptyBinanceRateLimiter()).ListSymbols();
         Assert.NotEmpty(symbols);
         var marketsUnique = symbols.Where(s => !string.IsNullOrEmpty(s)).ToImmutableHashSet();
 

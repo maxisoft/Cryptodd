@@ -32,7 +32,7 @@ public class BinanceOrderbookCollectorOptions
 
 public class BinanceWebsocketCollection : IAsyncDisposable
 {
-    private static Xorshift _random = new Xorshift();
+    private static readonly Xoshiro256StarStar Random = new Xoshiro256StarStar(threadSafe: true);
     private const int MaxNumberOfConnections = 256;
 
     private readonly LinkedListAsIList<BinanceOrderbookWebsocket> _websockets =
@@ -164,7 +164,6 @@ public class BinanceWebsocketCollection : IAsyncDisposable
             var now = DateTimeOffset.Now;
             foreach (var websocket in _websockets)
             {
-                
                 var globalLastCall = websocket.DepthWebsocketStats.LastCall;
                 const int maxInactivitySecond = 20;
                 if ((now - globalLastCall).Duration() > TimeSpan.FromSeconds(maxInactivitySecond))
@@ -202,7 +201,7 @@ public class BinanceWebsocketCollection : IAsyncDisposable
                             stop = true;
                             break;
                         }
-                        
+
                         if (!isSlow)
                         {
                             _slowToUpdateSymbol.Add(symbol);
@@ -211,7 +210,7 @@ public class BinanceWebsocketCollection : IAsyncDisposable
                         // try to fix slow issue by pushing symbol to other websocket (should recreate the connection automatically)
                         var websockets = _websockets.ToArray();
                         var issueFixed = false;
-                        var shift = _random.Next(websockets.Length);
+                        var shift = Random.Next(websockets.Length);
                         for (var j = 0; j < websockets.Length; j++)
                         {
                             var otherWs = websockets[(i + j + shift) % websockets.Length];
@@ -241,7 +240,7 @@ public class BinanceWebsocketCollection : IAsyncDisposable
                             stop = true;
                             break;
                         }
-                        
+
                         websocket.BlacklistSymbol(symbol);
                     }
                 }
@@ -316,6 +315,8 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
 
     private readonly HashSet<string> _pendingSymbolsForHttp =
         new HashSet<string>(comparer: StringComparer.InvariantCultureIgnoreCase);
+
+    private readonly ConcurrentBag<TaskCompletionSource<string>> _newPendingSymbolForHttpCompletionSources = new ();
 
     private readonly CancellationTokenSource _cancellationTokenSource;
 
@@ -493,6 +494,10 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
             if (_pendingSymbolsForHttp.Add(symbol))
             {
                 _logger.Write(logLevel, "Scheduling orderbook http update for {Symbol}", symbol);
+                while (_newPendingSymbolForHttpCompletionSources.TryTake(out var tcs))
+                {
+                    tcs.TrySetResult(symbol);
+                }
             }
         }
     }
@@ -542,17 +547,35 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
         }
     }
 
+    private static readonly Xoshiro256StarStar Random = new(threadSafe: true);
+
     protected virtual async Task PollPendingSymbolsForHttp(CancellationToken cancellationToken)
     {
+        const int maxOrderbookLimit = 5000;
+        const int expWaitInitialValue = 1000;
+        var expWait = expWaitInitialValue;
+        var httpCallOption = new BinancePublicHttpApiCallOptionsOrderBook();
         while (!cancellationToken.IsCancellationRequested)
         {
-            await Task.Delay(5_000, cancellationToken); // FIXME reduce the delay once _httpApi handle request limits
-            lock (_pendingSymbolsForHttp)
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+            var availableWeight = _httpApi.RateLimiter.AvailableWeight;
+            var callWeight = httpCallOption.ComputeWeight(maxOrderbookLimit);
+            Debug.Assert(callWeight > 0, "callWeight > 0");
+
+            if (availableWeight <= callWeight)
             {
-                if (_pendingSymbolsForHttp.Count <= 0)
-                {
-                    continue;
-                }
+                expWait += expWait;
+                await Task.Delay(expWait, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+            else if (availableWeight < Random.Next(1, 5) * callWeight)
+            {
+                await Task.Delay(expWait, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+            else
+            {
+                expWait = expWaitInitialValue;
             }
 
             string symbol;
@@ -564,14 +587,18 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
 
             if (string.IsNullOrWhiteSpace(symbol))
             {
+                var tcs = new TaskCompletionSource<string>();
+                _newPendingSymbolForHttpCompletionSources.Add(tcs);
+                await Task.WhenAny(Task.Delay(expWaitInitialValue, cancellationToken), tcs.Task).ConfigureAwait(false);
+                tcs.TrySetCanceled(cancellationToken);
                 continue;
             }
 
             try
             {
-                const int maxOrderbookLimit = 5000;
                 using var remoteOb =
-                    await _httpApi.GetOrderbook(symbol, maxOrderbookLimit, cancellationToken: cancellationToken);
+                    await _httpApi.GetOrderbook(symbol, maxOrderbookLimit, httpCallOption,
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
                 var dateTime = remoteOb.DateTime ?? DateTimeOffset.Now;
                 var orderbook = _orderbooks[symbol];
                 lock (orderbook)

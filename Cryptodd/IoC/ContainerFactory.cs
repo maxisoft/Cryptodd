@@ -1,4 +1,5 @@
 ﻿using Cryptodd.Binance;
+using Cryptodd.Binance.RateLimiter;
 using Cryptodd.Bitfinex;
 using Cryptodd.Features;
 using Cryptodd.Ftx;
@@ -120,6 +121,9 @@ public class ContainerFactory : IContainerFactory
             x.Use(featureList).Singleton()
                 .For<IFeatureList>()
                 .For<IFeatureListRegistry>();
+
+            x.ForSingletonOf<IInternalBinanceRateLimiter>().Use<BinanceRateLimiter>();
+            x.For<IBinanceRateLimiter>().Use(context => context.GetInstance<IInternalBinanceRateLimiter>());
 
             options.PostConfigure(x);
         });

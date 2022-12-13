@@ -384,7 +384,7 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
         ));
     }
 
-    private static readonly Xorshift Random = new Xorshift(threadSafe: true);
+    private static readonly Xoshiro256StarStar Random = new Xoshiro256StarStar(threadSafe: true);
 
     #region IndexTransformer
 

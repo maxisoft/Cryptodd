@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json.Nodes;
 using Cryptodd.Binance;
+using Cryptodd.Binance.RateLimiter;
 using Cryptodd.Http;
 using Microsoft.Extensions.Configuration;
 using xRetry;
@@ -17,7 +18,7 @@ public class BinancePublicHttpApiRealTest
     {
         using var httpclient = new HttpClient();
         var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>()).Build();
-        var res = await new BinancePublicHttpApi(httpclient, config, new UriRewriteService()).GetExchangeInfoAsync();
+        var res = await new BinancePublicHttpApi(httpclient, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetExchangeInfoAsync();
         Assert.NotEmpty(res);
         Assert.NotEmpty(res["symbols"] as JsonArray ?? new JsonArray());
     }
@@ -27,7 +28,7 @@ public class BinancePublicHttpApiRealTest
     {
         using var httpclient = new HttpClient();
         var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>()).Build();
-        var res = await new BinancePublicHttpApi(httpclient, config, new UriRewriteService()).GetOrderbook("ETHBTC");
+        var res = await new BinancePublicHttpApi(httpclient, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetOrderbook("ETHBTC");
         Assert.NotEmpty(res.Asks);
         Assert.NotEmpty(res.Bids);
     }
