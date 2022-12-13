@@ -160,7 +160,7 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
                 break;
             }
 
-            if (!ReferenceEquals(tmp, tmp2)) // concurrent modification stuff
+            if (!ReferenceEquals(tmp, tmp2)) // concurrent modification edge case
             {
                 _taskCompletionSources.Add(tmp2);
                 break;
