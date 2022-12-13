@@ -29,7 +29,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
 
     private int previousNumberOfPairs = -1;
 
-    private static readonly Xorshift _random = new Xorshift(threadSafe: true);
+    private static readonly Xoshiro256StarStar Random = new Xoshiro256StarStar(threadSafe: true);
 
     public BitfinexGatherGroupedOrderBookService(IPairFilterLoader pairFilterLoader, ILogger logger,
         IConfiguration configuration, IContainer container)
@@ -46,7 +46,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
         var span = res.AsSpan();
         for (var i = 0; i < span.Length; i++)
         {
-            var j = (int)((uint) _random.Next() % (uint) span.Length);
+            var j = (int)((uint) Random.Next() % (uint) span.Length);
             (span[i], span[j]) = (span[j], span[i]);
         }
 

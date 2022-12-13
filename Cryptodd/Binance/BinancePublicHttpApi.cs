@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -6,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Models.Json;
+using Cryptodd.Binance.RateLimiter;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
@@ -39,7 +41,7 @@ public class BinancePublicHttpApiCallOptions
     public string Url { get; set; } = "";
     public JsonSerializerOptions? JsonSerializerOptions { get; set; }
 
-    public virtual int ComputeWeigh(double factor) => BaseWeight;
+    public virtual int ComputeWeight(double factor) => BaseWeight;
 }
 
 public class BinancePublicHttpApiCallOptionsExchangeInfo : BinancePublicHttpApiCallOptions
@@ -65,7 +67,7 @@ public class BinancePublicHttpApiCallOptionsOrderBook : BinancePublicHttpApiCall
         Url = DefaultUrl;
     }
 
-    public override int ComputeWeigh(double factor)
+    public override int ComputeWeight(double factor)
     {
         var weight = BaseWeight;
         if (weight >= 0)
@@ -93,6 +95,9 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
     private readonly IConfiguration _configuration;
     private readonly IUriRewriteService _uriRewriteService;
     private readonly Lazy<BinancePublicHttpApiOptions> _options;
+    private readonly IInternalBinanceRateLimiter _rateLimiter;
+
+    public IBinanceRateLimiter RateLimiter => _rateLimiter;
 
     internal BinancePublicHttpApiOptions Options => _options.Value;
 
@@ -141,11 +146,12 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
     }
 
     public BinancePublicHttpApi(HttpClient httpClient, IConfiguration configuration,
-        IUriRewriteService uriRewriteService)
+        IUriRewriteService uriRewriteService, IInternalBinanceRateLimiter rateLimiter)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _uriRewriteService = uriRewriteService;
+        _rateLimiter = rateLimiter;
         _options = new Lazy<BinancePublicHttpApiOptions>(OptionsValueFactory);
     }
 
@@ -190,9 +196,15 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
     {
         options ??= new BinancePublicHttpApiCallOptionsExchangeInfo();
         var serializerOptions = options.JsonSerializerOptions ?? JsonSerializerOptions.Value;
-        var res = (await GetFromJsonAsync<JsonObject>(_httpClient, await UriCombine(options.Url),
+        var uri = await UriCombine(options.Url);
+        var weight = options.ComputeWeight(1.0);
+        using var registration = await _rateLimiter.WaitForSlot(uri, weight, cancellationToken);
+
+        var res = (await GetFromJsonAsync<JsonObject>(_httpClient, uri,
             serializerOptions,
             cancellationToken))!;
+
+        registration.SetRegistrationDate();
 
         static bool TryGetServerTime<T>(T? o, out long serverTime) where T : JsonNode
         {
@@ -225,9 +237,12 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
         var serializerOptions = options.JsonSerializerOptions ?? JsonSerializerOptions.Value;
         var date = DateTimeOffset.Now;
         BinanceHttpOrderbook res;
+        var weight = options.ComputeWeight(limit);
+        using var registration = await _rateLimiter.WaitForSlot(uri, weight, cancellationToken);
         using (AddResponseCallbacks(message => date = message.Headers.Date ?? DateTimeOffset.Now))
         {
             res = await GetFromJsonAsync<BinanceHttpOrderbook>(_httpClient, uri, serializerOptions, cancellationToken);
+            registration.SetRegistrationDate();
         }
 
         return res with { DateTime = date };
@@ -349,8 +364,23 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
                     usedWeightFloat = Math.Max(usedWeightFloat, usedWeight);
                 }
             }
+
+            usedWeightFloat *= Options.UsedWeightMultiplier;
+            var now =  DateTimeOffset.Now;
+            var date = headers.Date ?? now;
+            if ((date - now).Duration() > TimeSpan.FromMinutes(1))
+            {
+                date = now;
+            }
+            _rateLimiter.UpdateUsedWeightFromBinance(checked((int)usedWeightFloat), date);
         }
 
-        usedWeightFloat *= Options.UsedWeightMultiplier;
+        if (response.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429)
+        {
+            _rateLimiter.UpdateUsedWeightFromBinance((int)((ulong)_rateLimiter.MaxUsableWeight + 1 > int.MaxValue
+                ? int.MaxValue
+                : (ulong)_rateLimiter.MaxUsableWeight + 1));
+            _rateLimiter.AvailableWeightMultiplier *= 0.9f;
+        }
     }
 }

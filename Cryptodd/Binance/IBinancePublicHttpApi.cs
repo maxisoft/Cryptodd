@@ -1,11 +1,13 @@
 ﻿using System.Text.Json.Nodes;
 using Cryptodd.Binance.Models;
+using Cryptodd.Binance.RateLimiter;
 using Maxisoft.Utils.Collections.Lists;
 
 namespace Cryptodd.Binance;
 
 public interface IBinancePublicHttpApi
 {
+    public IBinanceRateLimiter RateLimiter { get; }
     Task<JsonObject> GetExchangeInfoAsync(BinancePublicHttpApiCallOptionsExchangeInfo? options = null,
         CancellationToken cancellationToken = default);
 
