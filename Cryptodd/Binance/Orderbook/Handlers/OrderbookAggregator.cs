@@ -97,7 +97,6 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
             }
 
             var originalFlatIndices = flatIndices.Data();
-            flatIndices.AsSpan().Sort();
 
             if (flatIndices.Count > Size)
             {
@@ -105,8 +104,9 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                 flatIndices = new ArrayList<int>(Size) { isDirect ? lastIndex : 0 };
                 Random.NextUnique(count: Size - 1, minValue: 1, maxValue: originalLength - 1,
                     i => flatIndices.Add(originalFlatIndices[i]));
-                flatIndices.AsSpan().Sort();
             }
+            
+            flatIndices.AsSpan().Sort();
 
             Debug.Assert(flatIndices.Count <= Size);
             var obDict = view.Collection;
@@ -228,7 +228,12 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                 // fill to have a nice representation
                 for (var j = Math.Max(i + 1, 1); j < tuples.Length; j++)
                 {
-                    tuples[j] = tuples[j - 1] with { Size = 0, RawSize = 0 };
+                    ref var prev = ref tuples[j - 1];
+                    tuples[j] = prev with
+                    {
+                        Size = 0, RawSize = 0, Price = prev.MeanPrice, ChangeCounter = 0, TotalChangeCounter = 0,
+                        SizeStd = 0, AggregateCount = 0
+                    };
                 }
 
                 return (tuples, i + 1, maxTime);
@@ -351,7 +356,12 @@ public class OrderbookAggregator : IService, IOrderbookAggregator
                 // fill to have a nice representation
                 for (var j = Math.Max(i + 1, 1); j < tuples.Length; j++)
                 {
-                    tuples[j] = tuples[j - 1] with { Size = 0, RawSize = 0 };
+                    ref var prev = ref tuples[j - 1];
+                    tuples[j] = prev with
+                    {
+                        Size = 0, RawSize = 0, Price = prev.MeanPrice, ChangeCounter = 0, TotalChangeCounter = 0,
+                        SizeStd = 0, AggregateCount = 0
+                    };
                 }
 
                 tuples.AsSpan().Reverse();
