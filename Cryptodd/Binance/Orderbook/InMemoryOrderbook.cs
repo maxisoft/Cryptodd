@@ -177,8 +177,8 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         Debug.Assert(maxSell > 0, "maxSell > 0");
         var roundMax = PriceRoundKey.CreateFromPrice(maxSell);
 
-        var askCount = Drop(in _asks, updateId, roundMin, roundMax, ref _asksVersion);
-        var bidCount = Drop(in _bids, updateId, roundMin, roundMax, ref _bidsVersion);
+        var askCount = Drop(in _asks, updateId, new PriceRoundKey(double.MinValue), roundMax, ref _asksVersion);
+        var bidCount = Drop(in _bids, updateId, roundMin, new PriceRoundKey(double.MaxValue), ref _bidsVersion);
         return (askCount, bidCount);
     }
 
