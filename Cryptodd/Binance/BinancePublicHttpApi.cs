@@ -89,7 +89,6 @@ public class BinancePublicHttpApiCallOptionsOrderBook : BinancePublicHttpApiCall
 
 public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
 {
-    public const int DefaultOrderbookLimit = 100;
     private readonly HttpClient _httpClient;
 
     private readonly IConfiguration _configuration;
@@ -226,7 +225,7 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
 
     internal JsonObject? GetCachedExchangeInfo() => _exchangeInfo.Count > 0 ? _exchangeInfo : null;
 
-    public async Task<BinanceHttpOrderbook> GetOrderbook(string symbol, int limit = DefaultOrderbookLimit,
+    public async Task<BinanceHttpOrderbook> GetOrderbook(string symbol, int limit = IBinancePublicHttpApi.DefaultOrderbookLimit,
         BinancePublicHttpApiCallOptionsOrderBook? options = null,
         CancellationToken cancellationToken = default)
     {
@@ -312,7 +311,7 @@ public class BinancePublicHttpApi : IBinancePublicHttpApi, INoAutoRegister
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
         res.Converters.Add(new BinancePriceQuantityEntryJsonConverter());
         res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>()
-            { DefaultCapacity = DefaultOrderbookLimit });
+            { DefaultCapacity = IBinancePublicHttpApi.DefaultOrderbookLimit });
         return res;
     }
 
