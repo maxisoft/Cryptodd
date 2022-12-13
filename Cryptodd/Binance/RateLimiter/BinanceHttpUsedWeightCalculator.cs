@@ -43,10 +43,14 @@ public class BinanceHttpUsedWeightCalculator : IService
 
         lock (_lockObject)
         {
-            if (dateTimeOffset >= _usedWeightDate)
+            if (dateTimeOffset > _usedWeightDate)
             {
                 _usedWeight = value;
                 _usedWeightDate = dateTimeOffset;
+            }
+            else if (dateTimeOffset == _usedWeightDate)
+            {
+                _usedWeight = Math.Max(value, _usedWeight);
             }
         }
     }
