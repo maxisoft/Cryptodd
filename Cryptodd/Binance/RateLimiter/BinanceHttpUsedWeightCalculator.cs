@@ -1,34 +1,36 @@
 ﻿using System.Diagnostics;
 using Cryptodd.IoC;
 using Maxisoft.Utils.Collections.LinkedLists;
+using Serilog;
 
 namespace Cryptodd.Binance.RateLimiter;
 
 public class BinanceHttpUsedWeightCalculator : IService
 {
+    private const int MinuteToSecond = 60;
     private readonly object _lockObject = new();
 
-    private long _pendingTotalWeight;
+    private readonly ILogger _logger;
     private readonly LinkedListAsIList<WeakReference<ApiCallRegistration>> _registrations = new();
-
-    public long PendingTotalWeight
-    {
-        get => _pendingTotalWeight;
-        private set => _pendingTotalWeight = Math.Max(value, 0);
-    }
 
     private long _computedUsedWeight;
     private DateTimeOffset _internalDate = DateTimeOffset.Now;
+
+    private long _pendingTotalWeight;
     private DateTimeOffset _previousInternalDate = DateTimeOffset.Now;
 
     private long _usedWeight;
     private DateTimeOffset _usedWeightDate = DateTimeOffset.UnixEpoch;
 
-    private readonly Serilog.ILogger _logger;
-
-    public BinanceHttpUsedWeightCalculator(Serilog.ILogger logger)
+    public BinanceHttpUsedWeightCalculator(ILogger logger)
     {
         _logger = logger.ForContext(GetType());
+    }
+
+    public long PendingTotalWeight
+    {
+        get => _pendingTotalWeight;
+        private set => _pendingTotalWeight = Math.Max(value, 0);
     }
 
     internal void UpdateUsedWeight(long value) => UpdateUsedWeight(value, DateTimeOffset.Now);
@@ -150,10 +152,8 @@ public class BinanceHttpUsedWeightCalculator : IService
     private static bool IsTimedOut(DateTimeOffset left, DateTimeOffset right) =>
         Floor(left) - Floor(right) >= MinuteToSecond;
 
-    private const int MinuteToSecond = 60;
-
     private static long Floor(DateTimeOffset dateTimeOffset, long seconds = MinuteToSecond) =>
-        (dateTimeOffset.ToUnixTimeSeconds() / seconds) * seconds;
+        dateTimeOffset.ToUnixTimeSeconds() / seconds * seconds;
 
     internal int CleanupOutdatedRegistration()
     {

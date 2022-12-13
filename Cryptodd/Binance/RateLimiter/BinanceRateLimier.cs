@@ -29,32 +29,21 @@ public interface IInternalBinanceRateLimiter : IBinanceRateLimiter
 {
     BinanceRateLimiterOptions Options { get; }
     new long MaxUsableWeight { get; set; }
-    void UpdateUsedWeightFromBinance(int weight, DateTimeOffset dateTimeOffset);
-    void UpdateUsedWeightFromBinance(int weight) => UpdateUsedWeightFromBinance(weight, DateTimeOffset.Now);
 
     float AvailableWeightMultiplier { get; set; }
+    void UpdateUsedWeightFromBinance(int weight, DateTimeOffset dateTimeOffset);
+    void UpdateUsedWeightFromBinance(int weight) => UpdateUsedWeightFromBinance(weight, DateTimeOffset.Now);
 }
 
 [Singleton]
 public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
 {
-    private readonly BinanceHttpUsedWeightCalculator _weightCalculator;
-    private readonly ILogger _logger;
-    private readonly BinanceRateLimiterOptions _options = new();
-    private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
     private readonly CancellationTokenSource _cancellationTokenSource;
-
-    public float AvailableWeightMultiplier { get; set; } = 1f;
+    private readonly ILogger _logger;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     private readonly ConcurrentBag<TaskCompletionSource> _taskCompletionSources = new();
-    public BinanceRateLimiterOptions Options => _options;
-
-    public int AvailableWeight =>
-        Math.Clamp(
-            checked((int)(MaxUsableWeight * AvailableWeightMultiplier - _weightCalculator.GuessTotalWeightInForce())),
-            0, int.MaxValue >> 1);
-
-    public long MaxUsableWeight { get; set; }
+    private readonly BinanceHttpUsedWeightCalculator _weightCalculator;
 
     public BinanceRateLimiter(BinanceHttpUsedWeightCalculator weightCalculator, ILogger logger,
         IConfiguration configuration, Boxed<CancellationToken> cancellationtoken)
@@ -62,21 +51,20 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationtoken);
         _weightCalculator = weightCalculator;
         _logger = logger.ForContext(GetType());
-        configuration.GetSection("Binance:RateLimiter").Bind(_options);
-        MaxUsableWeight = _options.DefaultMaxUsableWeight;
-        AvailableWeightMultiplier = _options.AvailableWeightMultiplier;
+        configuration.GetSection("Binance:RateLimiter").Bind(Options);
+        MaxUsableWeight = Options.DefaultMaxUsableWeight;
+        AvailableWeightMultiplier = Options.AvailableWeightMultiplier;
     }
 
-    private void CheckAndNotify()
-    {
-        if (_weightCalculator.GuessTotalWeightInForce() < MaxUsableWeight * _options.UsableMaxWeightMultiplier)
-        {
-            while (_taskCompletionSources.TryTake(out var taskCompletionSource))
-            {
-                taskCompletionSource.TrySetResult();
-            }
-        }
-    }
+    public float AvailableWeightMultiplier { get; set; } = 1f;
+    public BinanceRateLimiterOptions Options { get; } = new();
+
+    public int AvailableWeight =>
+        Math.Clamp(
+            checked((int)(MaxUsableWeight * AvailableWeightMultiplier - _weightCalculator.GuessTotalWeightInForce())),
+            0, int.MaxValue >> 1);
+
+    public long MaxUsableWeight { get; set; }
 
     public async ValueTask<IApiCallRegistration> WaitForSlot(Uri uri, int weight, CancellationToken cancellationToken)
     {
@@ -97,9 +85,9 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
 
         using var cts =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cancellationTokenSource.Token);
-        if (_options.WaitForSlotTimeout > TimeSpan.Zero)
+        if (Options.WaitForSlotTimeout > TimeSpan.Zero)
         {
-            cts.CancelAfter(_options.WaitForSlotTimeout);
+            cts.CancelAfter(Options.WaitForSlotTimeout);
         }
 
 
@@ -151,6 +139,24 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
         return _weightCalculator.Register(uri, 0, false);
     }
 
+    public void UpdateUsedWeightFromBinance(int weight, DateTimeOffset dateTimeOffset)
+    {
+        _logger.Verbose("Updated used weight to {Weight}", weight);
+        _weightCalculator.UpdateUsedWeight(weight, dateTimeOffset);
+        CheckAndNotify();
+    }
+
+    private void CheckAndNotify()
+    {
+        if (_weightCalculator.GuessTotalWeightInForce() < MaxUsableWeight * Options.UsableMaxWeightMultiplier)
+        {
+            while (_taskCompletionSources.TryTake(out var taskCompletionSource))
+            {
+                taskCompletionSource.TrySetResult();
+            }
+        }
+    }
+
     private void FastCleanTaskCompletionSources()
     {
         while (_taskCompletionSources.TryPeek(out var tmp) && tmp is { Task.IsCompleted: true })
@@ -166,12 +172,5 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
                 break;
             }
         }
-    }
-
-    public void UpdateUsedWeightFromBinance(int weight, DateTimeOffset dateTimeOffset)
-    {
-        _logger.Verbose("Updated used weight to {Weight}", weight);
-        _weightCalculator.UpdateUsedWeight(weight, dateTimeOffset);
-        CheckAndNotify();
     }
 }

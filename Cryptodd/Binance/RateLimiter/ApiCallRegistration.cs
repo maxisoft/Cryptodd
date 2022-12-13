@@ -15,6 +15,10 @@ public interface IApiCallRegistration : IDisposable
 
 public sealed class ApiCallRegistration : IApiCallRegistration
 {
+    private readonly BinanceHttpUsedWeightCalculator _usedWeightCalculator;
+
+    private readonly AtomicBoolean _valid = new(false);
+
     internal ApiCallRegistration(BinanceHttpUsedWeightCalculator usedWeightCalculator)
     {
         _usedWeightCalculator = usedWeightCalculator;
@@ -26,23 +30,23 @@ public sealed class ApiCallRegistration : IApiCallRegistration
 
     public required int Weight { get; set; }
 
-    private readonly BinanceHttpUsedWeightCalculator _usedWeightCalculator;
-
-    private readonly AtomicBoolean _valid = new(false);
-
-    private DateTimeOffset _dateTime = DateTimeOffset.Now;
-
-    public DateTimeOffset RegistrationDate => _dateTime;
+    public DateTimeOffset RegistrationDate { get; private set; } = DateTimeOffset.Now;
 
     public void SetRegistrationDate()
     {
-        _dateTime = DateTimeOffset.Now;
+        RegistrationDate = DateTimeOffset.Now;
     }
 
     public bool Valid
     {
         get => _valid.Value;
         set => _valid.Value = value;
+    }
+
+    public void Dispose()
+    {
+        Cleanup();
+        GC.SuppressFinalize(this);
     }
 
     private void Cleanup()
@@ -61,13 +65,8 @@ public sealed class ApiCallRegistration : IApiCallRegistration
 
     ~ApiCallRegistration()
     {
-        Debug.WriteIf(Node is not null, $"{typeof(ApiCallRegistration).FullNameInCode()}.Node is not null while object deletion");
+        Debug.WriteIf(Node is not null,
+            $"{typeof(ApiCallRegistration).FullNameInCode()}.Node is not null while object deletion");
         Cleanup();
-    }
-
-    public void Dispose()
-    {
-        Cleanup();
-        GC.SuppressFinalize(this);
     }
 }
