@@ -130,8 +130,28 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
 
             var tcs = new TaskCompletionSource(this);
             _taskCompletionSources.Add(tcs);
-            await Task.WhenAny(Task.Delay(500, cts.Token), tcs.Task).ConfigureAwait(false);
-            tcs.TrySetCanceled(cts.Token);
+            try
+            {
+                await Task.WhenAny(Task.Delay(500, cts.Token), tcs.Task).ConfigureAwait(false);
+            }
+            catch (Exception e) when (!cts.IsCancellationRequested)
+            {
+                tcs.TrySetException(e);
+            }
+            finally
+            {
+                if (cts.IsCancellationRequested)
+                {
+                    tcs.TrySetCanceled(cts.Token);
+                }
+                else
+                {
+                    tcs.TrySetResult();
+                }
+            }
+            
+            
+
             FastCleanTaskCompletionSources();
         }
 
