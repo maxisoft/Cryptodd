@@ -50,7 +50,9 @@ public class BinanceHttpUsedWeightCalculator : IService
             }
             else if (dateTimeOffset == _usedWeightDate)
             {
-                _usedWeight = Math.Max(value, _usedWeight);
+                _usedWeight = Floor(dateTimeOffset) == _usedWeightDate.ToUnixTimeSeconds()
+                    ? value
+                    : Math.Max(value, _usedWeight);
             }
         }
     }
@@ -80,7 +82,7 @@ public class BinanceHttpUsedWeightCalculator : IService
     {
         lock (_lockObject)
         {
-            var registration = new ApiCallRegistration(this) {Uri = url, Weight = weight, Valid = valid};
+            var registration = new ApiCallRegistration(this) { Uri = url, Weight = weight, Valid = valid };
             var node = _registrations.AddLast(new WeakReference<ApiCallRegistration>(registration));
             Debug.Assert(node is not null);
             registration.Node = node;
@@ -88,7 +90,7 @@ public class BinanceHttpUsedWeightCalculator : IService
             {
                 _pendingTotalWeight += weight;
             }
-            
+
 
             return registration;
         }
@@ -127,7 +129,8 @@ public class BinanceHttpUsedWeightCalculator : IService
             Debug.Assert(weight >= 0, "registration.Weight >= 0");
             if (PendingTotalWeight - weight < 0)
             {
-                _logger.Warning("{Name} is negative: {Value}", nameof(PendingTotalWeight), _pendingTotalWeight - weight);
+                _logger.Warning("{Name} is negative: {Value}", nameof(PendingTotalWeight),
+                    _pendingTotalWeight - weight);
                 PendingTotalWeight = 0;
             }
             else
