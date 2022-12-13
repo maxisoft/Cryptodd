@@ -5,6 +5,7 @@ using Maxisoft.Utils.Collections.Lists;
 using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
+using Serilog;
 
 namespace Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 
@@ -15,16 +16,19 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
 {
     public const string DefaultFileName = "ftx_regrouped_orderbook.parquet";
     public const string FileType = "parquet";
-    private readonly IConfiguration _configuration;
-    private readonly IPathResolver _pathResolver;
-    private readonly IPairFilterLoader _pairFilterLoader;
     private const int ChunkSize = 128;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger _logger;
+    private readonly IPairFilterLoader _pairFilterLoader;
+    private readonly IPathResolver _pathResolver;
 
-    public SaveRegroupedOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver, IPairFilterLoader pairFilterLoader)
+    public SaveRegroupedOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,
+        IPairFilterLoader pairFilterLoader, ILogger logger)
     {
         _configuration = configuration;
         _pathResolver = pathResolver;
         _pairFilterLoader = pairFilterLoader;
+        _logger = logger.ForContext(GetType());
     }
 
     public async Task Handle(IReadOnlyCollection<RegroupedOrderbook> orderbooks, CancellationToken cancellationToken)
@@ -39,7 +43,7 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         {
             return;
         }
-        
+
         var section = _configuration.GetSection("Ftx").GetSection("RegroupedOrderBook").GetSection("Parquet");
         if (!section.GetValue("Enabled", true))
         {
@@ -47,8 +51,8 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         }
 
         var fileName = section.GetValue<string>("File", DefaultFileName);
-        
-        
+
+
         fileName = _pathResolver.Resolve(fileName, new ResolveOption
         {
             Namespace = GetType().Namespace!, FileType = FileType,
@@ -57,7 +61,6 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         });
         var gzip = section.GetValue("HighCompression", false); // use snappy else
         var pairFilter = await _pairFilterLoader.GetPairFilterAsync("Ftx.RegroupedOrderBook.Parquet", cancellationToken)
-            
             .ConfigureAwait(false);
         foreach (var array in orderbooks
                      .Where(ob => pairFilter.Match(ob.Market))
@@ -69,16 +72,18 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
                 break;
             }
 
-            await Task.Factory.StartNew(() => SaveToParquet(array, fileName, gzip), cancellationToken)
+            await SaveToParquetAsync(array, fileName, gzip, cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        _logger.Debug("Saved {Count} Regrouped Orderbooks to parquet", orderbooks.Count);
     }
 
     public bool Disabled { get; set; }
 
 
-    private static void SaveToParquet(IReadOnlyCollection<RegroupedOrderbook> orderbooks, string fileName,
-        bool gzip)
+    private static async Task SaveToParquetAsync(IReadOnlyCollection<RegroupedOrderbook> orderbooks, string fileName,
+        bool gzip, CancellationToken cancellationToken)
     {
         if (!orderbooks.Any())
         {
@@ -115,8 +120,8 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
         var schema = new Schema(columns);
 
         var exists = File.Exists(fileName);
-        using Stream fileStream = File.Open(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
-        using var parquetWriter = new ParquetWriter(schema, fileStream, append: exists);
+        await using Stream fileStream = File.Open(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+        using var parquetWriter = await ParquetWriter.CreateAsync(schema, fileStream, append: exists, cancellationToken: cancellationToken);
         if (gzip)
         {
             parquetWriter.CompressionMethod = CompressionMethod.Gzip;
@@ -124,22 +129,22 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
 
         // create a new row group in the file
         using var groupWriter = parquetWriter.CreateRowGroup();
-        groupWriter.WriteColumn(new DataColumn(timeColumn,
-            orderbooks.Select(o => o.Time.ToUnixTimeMilliseconds()).ToArray()));
-        groupWriter.WriteColumn(new DataColumn(marketColumn,
-            orderbooks.Select(o => PairHasher.Hash(o.Market)).ToArray()));
+        await groupWriter.WriteColumnAsync(new DataColumn(timeColumn,
+            orderbooks.Select(o => o.Time.ToUnixTimeMilliseconds()).ToArray()), cancellationToken);
+        await groupWriter.WriteColumnAsync(new DataColumn(marketColumn,
+            orderbooks.Select(o => PairHasher.Hash(o.Market)).ToArray()), cancellationToken);
 
-        var dataFields = columns.AsSpan()[2..];
+        var dataFields = columns.ToArray()[2..];
 
         Debug.Assert(dataFields[0].Name == "bid_price_1");
         Debug.Assert(dataFields[1].Name == "bid_size_1");
 
         for (var i = 0; i < orderBookDeepness; i++)
         {
-            groupWriter.WriteColumn(new DataColumn(dataFields[0],
-                orderbooks.Select(orderbook => orderbook.Bids[i].Price).ToArray()));
-            groupWriter.WriteColumn(new DataColumn(dataFields[1],
-                orderbooks.Select(orderbook => orderbook.Bids[i].Size).ToArray()));
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[0],
+                orderbooks.Select(orderbook => orderbook.Bids[i].Price).ToArray()), cancellationToken);
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[1],
+                orderbooks.Select(orderbook => orderbook.Bids[i].Size).ToArray()), cancellationToken);
             dataFields = dataFields[2..];
         }
 
@@ -148,13 +153,13 @@ public class SaveRegroupedOrderbookToParquetHandler : IRegroupedOrderbookHandler
 
         for (var i = 0; i < orderBookDeepness; i++)
         {
-            groupWriter.WriteColumn(new DataColumn(dataFields[0],
-                orderbooks.Select(orderbook => orderbook.Asks[i].Price).ToArray()));
-            groupWriter.WriteColumn(new DataColumn(dataFields[1],
-                orderbooks.Select(orderbook => orderbook.Asks[i].Size).ToArray()));
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[0],
+                orderbooks.Select(orderbook => orderbook.Asks[i].Price).ToArray()), cancellationToken);
+            await groupWriter.WriteColumnAsync(new DataColumn(dataFields[1],
+                orderbooks.Select(orderbook => orderbook.Asks[i].Size).ToArray()), cancellationToken);
             dataFields = dataFields[2..];
         }
 
-        Debug.Assert(dataFields.IsEmpty);
+        Debug.Assert(dataFields.Length == 0);
     }
 }

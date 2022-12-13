@@ -1,9 +1,103 @@
 ﻿Http:
 # Proxy: socks5://127.0.0.1:39050
+Binance:
+  Orderbook:
+    PairFilter:
+      - BTCUSDT
+      - BTCBUSD
+      - BTCUSD
+      - BUSDUSDT
+      - ETHBUSD
+      - ETHUSDT
+      - DOGEUSDT
+      - BNBUSDT
+      - XRPUSDT
+      - XRP/BUSD
+      - MATICUSDT
+      - BNBBUSD
+      - LTCUSDT
+      - USDTTRY
+      - ETHBTC
+      - SOLUSDT
+      - BTCEUR
+      - DOGEBUSD
+      - LINKUSDT
+      - GRTUSDT
+      - BTCGBP
+      - BTCTRY
+      - TRXUSDT
+      - ADAUSDT
+      - DOTUSDT
+      - BUSDTRY
+      - SHIBUSDT
+      - XMRUSDT
+      - ETCUSDT
+      - BTCBRL
+      - BNBBTC
+      - ALGOUSDT
+      - AVAXUSDT
+      - LTCBTC
+      - FTMBUSD
+      - BTCAUD
+      - FILUSDT
+      - WBTCBTC
+      - ETHEUR
+      - XRPBTC
+      - BCHUSDT
+      - DOTBTC
+      - MANAUSDT
+      - PAXGUSDT
+      - XLMUSDT
+      - ATOMBUSD
+      - BTCSTUSDT
+      - BNBETH
+      - USDTRUB
+      - BUSDDAI
+      - OMGUSDT
+      - RSRUSDT
+      - ETHDOWNUSDT
+      - RVNUSDT
+      - ICPBUSD
+      - MINAUSDT
+      - BTCRUB
+      - USDTUAH
+      - DODOUSDT
+      - ENSBNB
+      - CTXCBUSD
+      - FTTBUSD
+      - FETUSDT
+      - OPUSDT
+      - APEUSDT
+      - MATICBUSD
+      - FTMUSDT
+      - EOSUSDT
+      - APEBUSD
+      - SANDUSDT
+      - ATOMUSDT
+      - ENSUSDT
+      - WAVESUSDT
+      - AXSBUSD
+      - OCEANUSDT
+      - LRCUSDT
+      - UNIUSDT
+      - CHZUSDT
+      - CRVUSDT
+      - AAVEUSDT
+      - BANDUSDT
+      - RENUSDT
+      - NEARUSDT
+      - DYDXUSDT
+      - AUDIOUSDT
+      - BATUSDT
+      - YFIUSDT
+      - XTZUSDT
+      - KAVAUSDT
+      - KSMUSDT
+
 Ftx:
   GroupedOrderBook:
     Parquet:
-      Enabled: true
+      Enabled: false
       PairFilter: 
         - BTC-PERP
         - ^BTC-MOVE.*
@@ -14,7 +108,101 @@ Ftx:
         - ^SOL/USDT?$
     Task:
       Period: 60000
+      Enabled: false
+      
   RegroupedOrderBook:
     Parquet:
+      Enabled: true
       HighCompression: true
+    Task:
+      Enabled: false
+      
+  FutureStats:
+    Task:
+      Enabled: false
+      
+Bitfinex:
+  OrderBook:
+    Parquet:
+      Enabled: false
+    Task:
+      Enabled: false
+      Period: 60000
+      
+  OrderBookP0:
+    Task:
+      Enabled: false
+    PairFilter:
+      #- ^BTC.*?$
+      #- ^ETH.*?$
+      #- ^XRP.*?$
+      - BTCUSD
+      - BTCUST
+      - ETHBTC
+      - ETHUSD
+      - ETHUST
+      - LTCUSD
+      - LTCBTC
+      - LTCUST
+      - XMRBTC
+      - XMRUSD
+      - XRPBTC
+      - XRPUST
+      - XRPUSD
+
+Trade:
+  Collector:
+    LockTable: false
+    MaxParallelism: 8
+  PairFilter:
+    - BTC/USD
+    - BTC-PERP
+    - ETH/USD
+    - ETH-PERP
+    - XRP/USD
+    - XRP-PERP
+    - USDT/USD
+    - USDT-PERP
+    - SOL/USD
+    - SOL-PERP
+    - BNB/USD
+    - BNB-PERP
+    - RAY/USD
+    - RAY-PERP
+    - FTT/USD
+    - FTT-PERP
+    - SRM/USD
+    - SRM-PERP
+    #- EOS/USD
+    #- EOS-PERP
+    - DOGE/USD
+    - DOGE-PERP
+    - AAVE/USD
+    - AAVE-PERP
+    - TRX/USD
+    - TRX-PERP
+    - COMP/USD
+    - COMP-PERP
+    - FTM/USD
+    - FTM-PERP
+    - LINK/USD
+    - LINK-PERP
+    #- CHZ-PERP
+    #- CHZ/USD
+      
+  Aggregate:
+    LockTable: false
+    MaxParallelism: 4
+    ResamplePeriods:
+      - 60000
+      - 300000
+      - 3600000
+    ResampleOffsets: 
+      - 10000
+      - 60000
+      - 0
+    
+
+Postgres:
+  ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;ConnectionLifetime=600;Keepalive=60;Application Name=cryptodd"
   

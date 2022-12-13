@@ -1,7 +1,12 @@
-﻿using Cryptodd.Ftx;
+﻿using Cryptodd.Binance;
+using Cryptodd.Binance.RateLimiter;
+using Cryptodd.Bitfinex;
+using Cryptodd.Features;
+using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.IoC.Registries;
 using Cryptodd.IoC.Registries.Customs;
+using Cryptodd.TradeAggregates;
 using Lamar;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,6 +41,7 @@ public class ContainerFactory : IContainerFactory
         var loggerRegistry = new LoggerServiceRegistry(configuration);
         var logger = loggerRegistry.Logger.ForContext(GetType());
         PluginRegistry? pluginRegistry = null;
+        var featureList = new FeatureList();
         if (options.ScanForPlugins && configuration.GetValue("LoadPlugins", true))
         {
             pluginRegistry = new PluginRegistry(configuration, loggerRegistry.Logger);
@@ -54,10 +60,20 @@ public class ContainerFactory : IContainerFactory
 
             x.IncludeRegistry(configurationRegistry);
             x.IncludeRegistry(loggerRegistry);
-            //x.IncludeRegistry<MemoryCacheRegistry>();
-            //x.IncludeRegistry<RedisServiceRegistry>();
-            //x.IncludeRegistry<HandlerRegistry>();
-            //x.IncludeRegistry<ScheduledTaskRegistry>();
+            if (configuration.GetSection("Postgres").GetValue<bool>("Enabled",
+                    !string.IsNullOrWhiteSpace(
+                        configuration.GetSection("Postgres").GetValue<string>("ConnectionString", ""))))
+            {
+                featureList.RegisterFeature(ExternalFeatureFlags.Postgres);
+                x.IncludeRegistry<PostgresDatabaseRegistry>();
+            }
+
+            if (configuration.GetSection("Sqlite").GetValue<bool>("Enabled", false))
+            {
+                featureList.RegisterFeature(ExternalFeatureFlags.Sqlite);
+                x.IncludeRegistry<SqliteDatabaseRegistry>();
+            }
+            
             if (pluginRegistry is not null)
             {
                 x.IncludeRegistry(pluginRegistry);
@@ -76,9 +92,38 @@ public class ContainerFactory : IContainerFactory
                     .ConfigurePrimaryHttpMessageHandler(provider =>
                         provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
                     .AddPolicyHandler(
-                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy());
-                //.AddPolicyHandler(GetCircuitBreakerPolicy());
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
+                    .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+
+                c.AddHttpClient<IBitfinexPublicHttpApi, BitfinexPublicHttpApi>((provider, client) =>
+                    {
+                        var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
+                        httpClientFactoryHelper?.Configure(client);
+                    })
+                    .ConfigurePrimaryHttpMessageHandler(provider =>
+                        provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
+                    .AddPolicyHandler(
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
+                    .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+                
+                c.AddHttpClient<IBinancePublicHttpApi, BinancePublicHttpApi>((provider, client) =>
+                    {
+                        var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
+                        httpClientFactoryHelper?.Configure(client);
+                    })
+                    .ConfigurePrimaryHttpMessageHandler(provider =>
+                        provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
+                    .AddPolicyHandler(
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
+                    .SetHandlerLifetime(TimeSpan.FromMinutes(5));
             });
+
+            x.Use(featureList).Singleton()
+                .For<IFeatureList>()
+                .For<IFeatureListRegistry>();
+
+            x.ForSingletonOf<IInternalBinanceRateLimiter>().Use<BinanceRateLimiter>();
+            x.For<IBinanceRateLimiter>().Use(context => context.GetInstance<IInternalBinanceRateLimiter>());
 
             options.PostConfigure(x);
         });

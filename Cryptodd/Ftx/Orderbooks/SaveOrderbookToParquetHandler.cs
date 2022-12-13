@@ -7,6 +7,7 @@ using Cryptodd.Pairs;
 using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
+using Serilog;
 
 namespace Cryptodd.Ftx.Orderbooks;
 
@@ -21,13 +22,15 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
     private readonly IConfiguration _configuration;
     private readonly IPairFilterLoader _pairFilterLoader;
     private readonly IPathResolver _pathResolver;
+    private readonly ILogger _logger;
 
     public SaveOrderbookToParquetHandler(IConfiguration configuration, IPathResolver pathResolver,
-        IPairFilterLoader pairFilterLoader)
+        IPairFilterLoader pairFilterLoader, ILogger logger)
     {
         _configuration = configuration;
         _pathResolver = pathResolver;
         _pairFilterLoader = pairFilterLoader;
+        _logger = logger.ForContext(GetType());
     }
 
     public async Task Handle(IReadOnlyCollection<GroupedOrderbookDetails> orderbooks,
@@ -72,15 +75,17 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
                 break;
             }
 
-            await Task.Factory.StartNew(() => SaveToParquet(array, fileName, gzip), cancellationToken)
+            await SaveToParquetAsync(array, fileName, gzip, cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        _logger.Debug("Saved {Count} Grouped Orderbooks to parquet", orderbooks.Count);
     }
 
     public bool Disabled { get; set; }
 
-    private static void SaveToParquet(IReadOnlyCollection<GroupedOrderbookDetails> orderbooks, string fileName,
-        bool gzip)
+    private static async Task SaveToParquetAsync(IReadOnlyCollection<GroupedOrderbookDetails> orderbooks, string fileName,
+        bool gzip, CancellationToken cancellationToken)
     {
         var timeColumn = new DataField("time", DataType.Int64, false);
         var marketColumn = new DataField("market", DataType.String, false);
@@ -90,9 +95,9 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 
         var schema = new Schema(timeColumn, marketColumn, groupingColumn, bidsColumn, asksColumn);
 
-        var exists = File.Exists(fileName);
-        using Stream fileStream = File.Open(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
-        using var parquetWriter = new ParquetWriter(schema, fileStream, append: exists);
+        var exists = File.Exists(fileName) && new FileInfo(fileName).Length > 0;
+        await using Stream fileStream = File.Open(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+        using var parquetWriter = await ParquetWriter.CreateAsync(schema, fileStream, append: exists, cancellationToken: cancellationToken);
         if (gzip)
         {
             parquetWriter.CompressionMethod = CompressionMethod.Gzip;
@@ -100,21 +105,21 @@ public class SaveOrderbookToParquetHandler : IGroupedOrderbookHandler
 
         // create a new row group in the file
         using var groupWriter = parquetWriter.CreateRowGroup();
-        groupWriter.WriteColumn(new DataColumn(timeColumn,
-            orderbooks.Select(o => o.Time.ToUnixTimeMilliseconds()).ToArray()));
-        groupWriter.WriteColumn(new DataColumn(marketColumn, orderbooks.Select(o => o.Market).ToArray()));
-        groupWriter.WriteColumn(new DataColumn(groupingColumn, orderbooks.Select(o => o.Grouping).ToArray()));
+        await groupWriter.WriteColumnAsync(new DataColumn(timeColumn,
+            orderbooks.Select(o => o.Time.ToUnixTimeMilliseconds()).ToArray()), cancellationToken);
+        await groupWriter.WriteColumnAsync(new DataColumn(marketColumn, orderbooks.Select(o => o.Market).ToArray()), cancellationToken);
+        await groupWriter.WriteColumnAsync(new DataColumn(groupingColumn, orderbooks.Select(o => o.Grouping).ToArray()), cancellationToken);
 
         var (bids, bidsRepetitionLevels) = PackPairs<PairBidSelector>(orderbooks);
-        groupWriter.WriteColumn(new DataColumn(bidsColumn,
+        await groupWriter.WriteColumnAsync(new DataColumn(bidsColumn,
             bids,
-            bidsRepetitionLevels));
+            bidsRepetitionLevels), cancellationToken);
 
 
         var (asks, asksRepetitionLevels) = PackPairs<PairAskSelector>(orderbooks);
-        groupWriter.WriteColumn(new DataColumn(asksColumn,
+        await groupWriter.WriteColumnAsync(new DataColumn(asksColumn,
             asks,
-            asksRepetitionLevels));
+            asksRepetitionLevels), cancellationToken);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]

@@ -24,18 +24,18 @@ public sealed class GatherGroupedOrderBookService : IService
     public GatherGroupedOrderBookService(IPairFilterLoader pairFilterLoader, ILogger logger,
         IConfiguration configuration, IContainer container)
     {
-        _logger = logger;
+        _logger = logger.ForContext<GatherGroupedOrderBookService>();
         _pairFilterLoader = pairFilterLoader;
         _configuration = configuration;
         _container = container;
     }
 
-    private FtxPublicHttpApi FtxPublicHttpApi => _container.GetInstance<FtxPublicHttpApi>();
-
     public async Task CollectOrderBooks(CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
-        var markets = await FtxPublicHttpApi.GetAllMarketsAsync(cancellationToken);
+        await using var container = _container.GetNestedContainer();
+        using var api = container.GetInstance<IFtxPublicHttpApi>();
+        using var markets = await api.GetAllMarketsAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var ftxConfig = _configuration.GetSection("Ftx");
         var maxNumWs = ftxConfig.GetValue("MaxWebSockets", 10);
@@ -51,7 +51,7 @@ public sealed class GatherGroupedOrderBookService : IService
         {
             for (var i = 0; i < maxNumWs; i++)
             {
-                var ws = _container.GetInstance<FtxGroupedOrderBookWebsocket>();
+                var ws = container.GetInstance<FtxGroupedOrderBookWebsocket>();
                 webSockets.Add(ws);
                 ws.RegisterTargetBlock(targetBlock);
                 Debug.Assert(i == 0 || !ReferenceEquals(webSockets[^1], webSockets[^2]));
@@ -59,29 +59,35 @@ public sealed class GatherGroupedOrderBookService : IService
 
             var taskNum = 0;
 
-            foreach (var market in markets)
+            void DispatchTasks()
             {
-                if (market.Enabled && !market.PostOnly && market.Ask is > 0 && market.Bid is > 0 &&
-                    pairFilter.Match(market.Name) && !requests.Contains(market.Name))
+                foreach (var market in markets)
                 {
-                    var markPrice = 0.5 * (market.Ask.Value + market.Bid.Value);
-                    var grouping = ComputeGrouping(market, percent, markPrice);
-                    Debug.Assert(grouping > 0);
-                    if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(market.Name, grouping))
+                    if (market.Enabled && !market.PostOnly && market.Ask is > 0 && market.Bid is > 0 &&
+                        pairFilter.Match(market.Name) && !requests.Contains(market.Name))
                     {
-                        continue;
-                    }
+                        var markPrice = 0.5 * (market.Ask.Value + market.Bid.Value);
+                        var grouping = ComputeGrouping(market, percent, markPrice);
+                        Debug.Assert(grouping > 0);
+                        if (!webSockets[taskNum % maxNumWs].RegisterGroupedOrderBookRequest(market.Name, grouping))
+                        {
+                            continue;
+                        }
 
-                    requests.Add(market.Name);
-                    if (taskNum < webSockets.Count)
-                    {
-                        tasks.Add(webSockets[taskNum % maxNumWs].RecvLoop()
-                            .ContinueWith(_ => { Interlocked.Increment(ref recvDone); }, cancellationToken));
-                    }
+                        requests.Add(market.Name);
+                        if (taskNum < webSockets.Count)
+                        {
+                            tasks.Add(webSockets[taskNum % maxNumWs].RecvLoop()
+                                .ContinueWith(_ => { Interlocked.Increment(ref recvDone); }, cancellationToken));
+                        }
 
-                    taskNum++;
+                        taskNum++;
+                    }
                 }
             }
+
+            DispatchTasks();
+            
 
             using var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cancellationTokenSource.CancelAfter(groupedOrderBookSection.GetValue("GatherTimeout", 60 * 1000));
@@ -91,7 +97,7 @@ public sealed class GatherGroupedOrderBookService : IService
             var processed = 0;
             var groupedOrderBooks = new List<GroupedOrderbookDetails>();
             using var dm = new DisposableManager();
-            var validators = _container.GetAllInstances<IValidator<GroupedOrderbookDetails>>();
+            var validators = container.GetAllInstances<IValidator<GroupedOrderbookDetails>>();
             while (processed < requests.Count && !cancellationToken.IsCancellationRequested)
             {
                 if (recvDone >= tasks.Count)
@@ -137,7 +143,7 @@ public sealed class GatherGroupedOrderBookService : IService
 
 
             var dispatchObHandler = DispatchOrderbookHandler(groupedOrderBooks, processed, sw, cancellationToken);
-            var dispatchGroupedObHandler = DispatchRegroupedOrderbookHandler(groupedOrderBooks, sw, cancellationToken);
+            var dispatchGroupedObHandler = DispatchRegroupedOrderbookHandler(groupedOrderBooks, sw, container, cancellationToken);
             await Task.WhenAll(dispatchObHandler, dispatchGroupedObHandler).ConfigureAwait(false);
         }
         finally
@@ -151,9 +157,9 @@ public sealed class GatherGroupedOrderBookService : IService
     }
 
     private async Task DispatchRegroupedOrderbookHandler(List<GroupedOrderbookDetails> groupedOrderBooks,
-        Stopwatch stopWatch, CancellationToken cancellationToken)
+        Stopwatch stopWatch, IServiceContext container, CancellationToken cancellationToken = default)
     {
-        var regroupedHandlers = _container.GetAllInstances<IRegroupedOrderbookHandler>();
+        var regroupedHandlers = container.GetAllInstances<IRegroupedOrderbookHandler>();
         ConcurrentBag<RegroupedOrderbook> regroupedOrderbooks;
         if (regroupedHandlers.Any() && groupedOrderBooks.Any())
         {
@@ -203,13 +209,13 @@ public sealed class GatherGroupedOrderBookService : IService
             catch (Exception e)
             {
                 errorCount += 1;
-                _logger.Error(e, "A regrouped orderbook handler throwed up. This shouldn't occurs !");
+                _logger.Error(e, "A regrouped orderbook handler threw up. This shouldn't occurs !");
             }
         }
 
         if (errorCount == 0)
         {
-            _logger.Information("Processed {Count} regrouped orderbooks in {Elapsed}", regroupedOrderbooks.Count,
+            _logger.Verbose("Processed {Count} regrouped orderbooks in {Elapsed}", regroupedOrderbooks.Count,
                 stopWatch.Elapsed);
         }
         else
@@ -256,7 +262,7 @@ public sealed class GatherGroupedOrderBookService : IService
 
         if (errorCount == 0)
         {
-            _logger.Information("Processed {Count} grouped orderbooks in {Elapsed}", processed, stopWatch.Elapsed);
+            _logger.Verbose("Processed {Count} grouped orderbooks in {Elapsed}", processed, stopWatch.Elapsed);
         }
         else
         {

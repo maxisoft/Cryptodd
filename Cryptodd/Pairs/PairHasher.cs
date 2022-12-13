@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -40,6 +41,7 @@ public static class PairHasher
         return DoHash(pair, byteCount, encodedMemory.Memory.Span, result);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private static long DoHash(string pair, int byteCount, Span<byte> buffer, Span<byte> destination)
     {
         var encodedBytes = Encoding.UTF8.GetBytes(pair, buffer);

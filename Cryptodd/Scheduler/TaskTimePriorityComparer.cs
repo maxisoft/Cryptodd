@@ -2,7 +2,7 @@
 
 namespace Cryptodd.Scheduler;
 
-public struct TaskTimePriorityComparer<TTask> : IComparer<TTask> where TTask : ScheduledTask
+public struct TaskTimePriorityComparer<TTask> : IComparer<TTask> where TTask : BaseScheduledTask
 {
     public int Compare(TTask? x, TTask? y)
     {

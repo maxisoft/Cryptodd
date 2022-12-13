@@ -12,6 +12,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using Cryptodd.FileSystem;
+using Cryptodd.Ftx.Futures;
 using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.Ftx.Orderbooks.RegroupedOrderbooks;
 using Lamar;
@@ -51,7 +52,10 @@ public class FtxRegroupedOrderbookPathResolver : IPluginPathResolver
         // if user provide a custom path we don't handle it
         if (option.FileType != SaveRegroupedOrderbookToParquetHandler.FileType ||
             (path != SaveRegroupedOrderbookToParquetHandler.DefaultFileName &&
-             path != SaveOrderbookToParquetHandler.DefaultFileName))
+             path != SaveOrderbookToParquetHandler.DefaultFileName && 
+             path != SaveFuturesStatsToParquetHandler.DefaultFileName &&
+             path != Bitfinex.Orderbooks.SaveOrderbookToParquetHandler.DefaultFileName
+             ))
         {
             return path;
         }
@@ -72,7 +76,7 @@ public class FtxRegroupedOrderbookPathResolver : IPluginPathResolver
 
     private string ReplacePath(string path)
     {
-        var now = DateTimeOffset.UtcNow.ToString("yyyy_MM_dd_hh", DateTimeFormatInfo.InvariantInfo);
+        var now = DateTimeOffset.UtcNow.ToString("yyyy_MM_dd_HH", DateTimeFormatInfo.InvariantInfo);
         var ext = Path.GetExtension(path);
         var fileName = ((ReadOnlySpan<char>)path)[..^ext.Length];
         var result = $"{fileName}_{now}{ext}";
