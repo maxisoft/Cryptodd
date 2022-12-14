@@ -2,7 +2,6 @@
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Orderbooks;
 using Cryptodd.Binance.Orderbooks.Handlers;
-using Cryptodd.Binance.Orderbooks.Websockets;
 using Cryptodd.BinanceFutures.Http;
 using Cryptodd.BinanceFutures.Http.Options;
 using Cryptodd.BinanceFutures.Orderbooks.Handlers;
@@ -19,7 +18,8 @@ namespace Cryptodd.BinanceFutures.Orderbooks;
 // ReSharper disable once UnusedType.Global
 // ReSharper disable once ClassNeverInstantiated.Global
 public sealed class BinanceFuturesOrderbookCollector : BaseBinanceOrderbookCollector<BinanceFuturesOrderbookWebsocket,
-    BinanceFuturesOrderbookWebsocketOptions, BinanceFuturesPublicHttpApiCallOrderBookOptions, BinanceFuturesWebsocketCollection>
+    BinanceFuturesOrderbookWebsocketOptions, BinanceFuturesPublicHttpApiCallOrderBookOptions,
+    BinanceFuturesWebsocketCollection>
 {
     public BinanceFuturesOrderbookCollector(IContainer container, ILogger logger, IConfiguration configuration,
         Boxed<CancellationToken> cancellationToken) : base(container, logger, configuration, cancellationToken)
@@ -58,6 +58,7 @@ public sealed class BinanceFuturesOrderbookCollector : BaseBinanceOrderbookColle
         {
             return;
         }
+
         var tasks = handlers.Select(handler => handler.Handle(arg, cancellationToken)).ToArray();
 
         await WaitForHandlers("Raw Orderbooks", handlers, tasks, cancellationToken);

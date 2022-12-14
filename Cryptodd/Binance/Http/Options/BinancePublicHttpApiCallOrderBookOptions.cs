@@ -22,7 +22,7 @@ public class BinancePublicHttpApiCallOrderBookOptions : BinancePublicHttpApiCall
         }
 
         weight += 1;
-        weight += (int) factor switch
+        weight += (int)factor switch
         {
             > 1000 => 50,
             > 500 => 10,

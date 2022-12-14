@@ -7,6 +7,7 @@ public sealed class BinanceFuturesWebsocketCollection : BaseBinanceWebsocketColl
     BinanceFuturesOrderbookWebsocketOptions>
 {
     public static readonly BinanceFuturesWebsocketCollection Empty = new();
+
     public static BinanceFuturesWebsocketCollection Create(ArrayList<string> symbols,
         Func<BinanceFuturesOrderbookWebsocket> factory) =>
         DoCreate<BinanceFuturesWebsocketCollection>(symbols, factory);

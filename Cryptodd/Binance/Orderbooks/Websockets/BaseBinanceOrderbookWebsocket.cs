@@ -21,27 +21,37 @@ namespace Cryptodd.Binance.Orderbooks.Websockets;
 public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAsyncDisposable
     where TOptions : BaseBinanceOrderbookWebsocketOptions, new()
 {
-    public BinanceWebsocketStats DepthWebsocketStats { get; protected set; } = new BinanceWebsocketStats();
-    protected IClientWebSocketFactory WebSocketFactory { get; }
-    protected ILogger Logger { get; init; }
-    protected CancellationTokenSource LoopCancellationTokenSource { get; }
-    private readonly Lazy<JsonSerializerOptions> _orderBookJsonSerializerOptions;
-
-    protected JsonSerializerOptions JsonSerializerOptions => _orderBookJsonSerializerOptions.Value;
-
-    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
-    private ClientWebSocket? _ws;
-
-    protected ClientWebSocket? WebSocket => _ws;
-
     private readonly
         ConcurrentQueue<ITargetBlock<ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>>>
         _depthTargetBlocks =
             new();
 
-    protected readonly ConcurrentDictionary<string, EmptyStruct> _trackedDepthSymbols = new();
+    private readonly Lazy<JsonSerializerOptions> _orderBookJsonSerializerOptions;
+
+    private readonly SemaphoreSlim _semaphoreSlim = new(1, 1);
 
     private readonly HashSet<string> _symbolBlackList = new();
+
+    protected readonly ConcurrentDictionary<string, EmptyStruct> _trackedDepthSymbols = new();
+    private ClientWebSocket? _ws;
+
+    protected BaseBinanceOrderbookWebsocket(ILogger logger, IClientWebSocketFactory webSocketFactory,
+        Boxed<CancellationToken> cancellationToken)
+    {
+        Logger = logger.ForContext(GetType());
+        WebSocketFactory = webSocketFactory;
+        LoopCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _orderBookJsonSerializerOptions = new Lazy<JsonSerializerOptions>(CreateOrderBookJsonSerializerOptions);
+    }
+
+    public BinanceWebsocketStats DepthWebsocketStats { get; protected set; } = new();
+    protected IClientWebSocketFactory WebSocketFactory { get; }
+    protected ILogger Logger { get; init; }
+    protected CancellationTokenSource LoopCancellationTokenSource { get; }
+
+    protected JsonSerializerOptions JsonSerializerOptions => _orderBookJsonSerializerOptions.Value;
+
+    protected ClientWebSocket? WebSocket => _ws;
 
     protected IDictionary<string, EmptyStruct> TrackedDepthSymbolsDictionary => _trackedDepthSymbols;
     public ICollection<string> TrackedDepthSymbols => _trackedDepthSymbols.Keys;
@@ -52,13 +62,48 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
 
     public long ConnectionCounter { get; protected set; }
 
-    protected BaseBinanceOrderbookWebsocket(ILogger logger, IClientWebSocketFactory webSocketFactory,
-        Boxed<CancellationToken> cancellationToken)
+    public CancellationToken CancellationToken => LoopCancellationTokenSource.Token;
+
+    public bool IsClosed
     {
-        Logger = logger.ForContext(GetType());
-        WebSocketFactory = webSocketFactory;
-        LoopCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _orderBookJsonSerializerOptions = new Lazy<JsonSerializerOptions>(CreateOrderBookJsonSerializerOptions);
+        get
+        {
+            var ws = _ws;
+            return ws is null ||
+                   (!ws.State.HasFlag(WebSocketState.Open) && !ws.State.HasFlag(WebSocketState.Connecting));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        LoopCancellationTokenSource.Cancel();
+        var ws = _ws;
+        if (ws is { State: WebSocketState.Open })
+        {
+            using var closeCancellationToken = new CancellationTokenSource();
+            if (Options.CloseConnectionTimeout > 0)
+            {
+                closeCancellationToken.CancelAfter(Options.CloseConnectionTimeout);
+            }
+
+            try
+            {
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
+            }
+            catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException)
+            {
+                Logger.Debug(e, "Error when closing ws");
+            }
+        }
+
+        Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     public virtual void RegisterDepthTargetBlock(
@@ -78,8 +123,6 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         return _trackedDepthSymbols.TryAdd(symbol, default);
     }
 
-    public CancellationToken CancellationToken => LoopCancellationTokenSource.Token;
-
     public virtual void StopReceiveLoop(string reason = "", LogEventLevel logLevel = LogEventLevel.Information)
     {
         try
@@ -97,22 +140,12 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         }
     }
 
-    public bool IsClosed
-    {
-        get
-        {
-            var ws = _ws;
-            return ws is null ||
-                   (!ws.State.HasFlag(WebSocketState.Open) && !ws.State.HasFlag(WebSocketState.Connecting));
-        }
-    }
-
     protected virtual JsonSerializerOptions CreateOrderBookJsonSerializerOptions()
     {
         var res = new JsonSerializerOptions
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = false };
         res.Converters.Add(new BinancePriceQuantityEntryJsonConverter());
-        res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>() { DefaultCapacity = 256 });
+        res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>> { DefaultCapacity = 256 });
         res.Converters.Add(new DepthUpdateMessageJsonConverter());
         res.Converters.Add(new CombinedStreamEnvelopeJsonConverter<DepthUpdateMessage>());
         return res;
@@ -381,7 +414,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
             }
         }
 
-        using (envelopeSafe.NewDecrementOnDispose(increment: true))
+        using (envelopeSafe.NewDecrementOnDispose(true))
         {
             if (IsBlacklistedSymbol(envelope.Data.Symbol))
             {
@@ -415,38 +448,6 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         {
             return _symbolBlackList.Add(symbol);
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        LoopCancellationTokenSource.Cancel();
-        var ws = _ws;
-        if (ws is { State: WebSocketState.Open })
-        {
-            using var closeCancellationToken = new CancellationTokenSource();
-            if (Options.CloseConnectionTimeout > 0)
-            {
-                closeCancellationToken.CancelAfter(Options.CloseConnectionTimeout);
-            }
-
-            try
-            {
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
-            }
-            catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException)
-            {
-                Logger.Debug(e, "Error when closing ws");
-            }
-        }
-
-        Dispose();
-        GC.SuppressFinalize(this);
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
     }
 
     protected virtual void Dispose(bool disposing)

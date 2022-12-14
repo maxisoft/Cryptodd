@@ -13,7 +13,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
     private static readonly PooledListConverter<BinancePriceQuantityEntry<double>>? PooledListConverter =
         new() { DefaultCapacity = 64 };
 
-    internal static readonly StringPool StringPool = new StringPool(8 << 10);
+    internal static readonly StringPool StringPool = new(8 << 10);
 
     public override DepthUpdateMessage Read(ref Utf8JsonReader reader, Type typeToConvert,
         JsonSerializerOptions options)
@@ -44,6 +44,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
                         throw new JsonException($"unable to read property value status: {status}", null, null,
                             reader.Position.GetInteger());
                     }
+
                     if (propertyBytes.Length == 2)
                     {
                         if (!propertyBytes.SequenceEqual("pu"u8))
@@ -99,6 +100,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
                                     $"unable to read property value {property}", null, null,
                                     reader.Position.GetInteger());
                             }
+
                             break;
                         case 'U':
                             if (!reader.TryGetInt64(out U))
@@ -119,7 +121,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
                         case 'p':
                             if (!reader.TryGetInt64(out pu))
                             {
-                                throw new JsonException($"unable to read property value pu", null, null,
+                                throw new JsonException("unable to read property value pu", null, null,
                                     reader.Position.GetInteger());
                             }
 
@@ -148,7 +150,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
             }
         }
 
-        return new DepthUpdateMessage(e: e, E: E, T: T, s: s, U: U, u: u, pu: pu, b: b, a: a);
+        return new DepthUpdateMessage(e, E, T, s, U, u, pu, b, a);
     }
 
     public override void Write(Utf8JsonWriter writer, DepthUpdateMessage value, JsonSerializerOptions options)

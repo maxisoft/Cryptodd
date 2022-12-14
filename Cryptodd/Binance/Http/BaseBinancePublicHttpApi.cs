@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -7,7 +6,6 @@ using Cryptodd.Binance.Http.Options;
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Models.Json;
-using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Microsoft.Extensions.Configuration;
 

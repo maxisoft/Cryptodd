@@ -2,7 +2,6 @@
 
 public interface IBinanceRateLimiter
 {
-    
     public const int DefaultMaxUsableWeight = 1200;
     int AvailableWeight { get; }
     long MaxUsableWeight { get; }

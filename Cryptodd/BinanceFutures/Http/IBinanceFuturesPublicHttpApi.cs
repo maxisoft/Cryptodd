@@ -1,6 +1,5 @@
 ﻿using System.Text.Json.Nodes;
 using Cryptodd.Binance.Http;
-using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Models;
 using Cryptodd.BinanceFutures.Http.Options;
 using Cryptodd.BinanceFutures.Http.RateLimiter;

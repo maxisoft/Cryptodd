@@ -11,7 +11,8 @@ public interface IBinancePublicHttpApiCallOptions
     public int ComputeWeight(double factor);
 }
 
-public abstract class BaseBinancePublicHttpApiCallOptionsWithEndPoint<TEndPoint>: IBinancePublicHttpApiCallOptions where TEndPoint : struct, Enum
+public abstract class BaseBinancePublicHttpApiCallOptionsWithEndPoint<TEndPoint> : IBinancePublicHttpApiCallOptions
+    where TEndPoint : struct, Enum
 {
     public TEndPoint EndPoint { get; set; }
     public int BaseWeight { get; set; } = -1;

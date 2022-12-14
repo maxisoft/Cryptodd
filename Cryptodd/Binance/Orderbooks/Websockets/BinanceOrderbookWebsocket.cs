@@ -6,7 +6,8 @@ using Serilog;
 
 namespace Cryptodd.Binance.Orderbooks.Websockets;
 
-public sealed class BinanceOrderbookWebsocket : BaseBinanceOrderbookWebsocket<BinanceOrderbookWebsocketOptions>, IService
+public sealed class BinanceOrderbookWebsocket : BaseBinanceOrderbookWebsocket<BinanceOrderbookWebsocketOptions>,
+    IService
 {
     public BinanceOrderbookWebsocket(ILogger logger, IClientWebSocketFactory webSocketFactory,
         Boxed<CancellationToken> cancellationToken, IConfiguration configuration) : base(logger, webSocketFactory,

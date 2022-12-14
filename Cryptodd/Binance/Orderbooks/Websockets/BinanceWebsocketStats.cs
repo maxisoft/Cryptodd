@@ -48,6 +48,5 @@ public class BinanceWebsocketStats
         CallCounter = entry.CallCounter + 1, LastCall = DateTimeOffset.Now
     };
 
-    private static PerSymbolStatsEntry AddValueFactory(string symbol) =>
-        new PerSymbolStatsEntry(symbol, 0, DateTimeOffset.Now);
+    private static PerSymbolStatsEntry AddValueFactory(string symbol) => new(symbol, 0, DateTimeOffset.Now);
 }

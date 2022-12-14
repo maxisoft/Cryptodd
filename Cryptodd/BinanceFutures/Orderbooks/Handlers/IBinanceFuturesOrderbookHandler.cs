@@ -2,7 +2,4 @@
 
 namespace Cryptodd.BinanceFutures.Orderbooks.Handlers;
 
-public interface IBinanceFuturesOrderbookHandler : IBaseBinanceOrderbookHandler
-{
-    
-}
+public interface IBinanceFuturesOrderbookHandler : IBaseBinanceOrderbookHandler { }

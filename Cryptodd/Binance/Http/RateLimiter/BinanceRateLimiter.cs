@@ -11,7 +11,6 @@ namespace Cryptodd.Binance.Http.RateLimiter;
 [Singleton]
 public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter, IDisposable
 {
-
     private readonly CancellationTokenSource _cancellationTokenSource;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
@@ -28,6 +27,12 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter, IDispos
         configuration.GetSection("Binance:Http:RateLimiter").Bind(Options);
         MaxUsableWeight = Options.DefaultMaxUsableWeight;
         AvailableWeightMultiplier = Options.AvailableWeightMultiplier;
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     public float AvailableWeightMultiplier { get; set; } = 1f;
@@ -123,8 +128,7 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter, IDispos
                     tcs.TrySetResult();
                 }
             }
-            
-            
+
 
             FastCleanTaskCompletionSources();
         }
@@ -167,7 +171,7 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter, IDispos
             }
         }
     }
-    
+
     protected virtual void Dispose(bool disposing)
     {
         if (disposing)
@@ -175,11 +179,5 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter, IDispos
             _cancellationTokenSource.Dispose();
             _semaphore.Dispose();
         }
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
     }
 }

@@ -1,11 +1,8 @@
-﻿using System.Globalization;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
 using Cryptodd.Binance.Http.Options;
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Models;
-using Cryptodd.Binance.Models.Json;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
@@ -39,9 +36,12 @@ public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpAp
 
     public async Task<List<string>> ListSymbols(bool useCache = false, bool checkStatus = false,
         CancellationToken cancellationToken = default) =>
-        await DoListSymbols<BinancePublicHttpApiCallExchangeInfoOptions>(useCache: useCache,
-            checkStatus: checkStatus,
+        await DoListSymbols<BinancePublicHttpApiCallExchangeInfoOptions>(useCache,
+            checkStatus,
             cancellationToken);
+
+    Task<BinanceHttpOrderbook> IBinanceHttpOrderbookProvider.GetOrderbook(string symbol, int limit,
+        CancellationToken cancellationToken) => GetOrderbook(symbol, limit, cancellationToken: cancellationToken);
 
     protected override BinancePublicHttpApiOptions OptionsValueFactory()
     {
@@ -53,13 +53,9 @@ public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpAp
 
     protected override JsonSerializerOptions CreateJsonSerializerOptions()
     {
-        
         var res = base.CreateJsonSerializerOptions();
         res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>
             { DefaultCapacity = IBinancePublicHttpApi.MaxOrderbookLimit });
         return res;
     }
-
-    Task<BinanceHttpOrderbook> IBinanceHttpOrderbookProvider.GetOrderbook(string symbol, int limit,
-        CancellationToken cancellationToken) => GetOrderbook(symbol, limit, cancellationToken: cancellationToken);
 }

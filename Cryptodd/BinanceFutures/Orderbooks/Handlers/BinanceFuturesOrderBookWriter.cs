@@ -17,7 +17,8 @@ public sealed class BinanceFuturesOrderBookWriter :
 {
     public const string ConfigurationSection = "BinanceFutures:OrderBook:File";
 
-    public BinanceFuturesOrderBookWriter(ILogger logger, IConfiguration configuration, IServiceProvider serviceProvider) :
+    public BinanceFuturesOrderBookWriter(ILogger logger, IConfiguration configuration,
+        IServiceProvider serviceProvider) :
         base(logger, configuration.GetSection(ConfigurationSection), serviceProvider)
     {
         Options.CoalesceExchange("BinanceFutures");
