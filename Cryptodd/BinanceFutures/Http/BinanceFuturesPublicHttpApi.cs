@@ -42,6 +42,9 @@ public class
         CancellationToken cancellationToken = default) =>
         await DoListSymbols<BinanceFuturesPublicHttpApiCallExchangeInfoOptions>(useCache,
             checkStatus, cancellationToken);
+    
+    Task<BinanceHttpOrderbook> IBinanceHttpOrderbookProvider.GetOrderbook(string symbol, int limit,
+        CancellationToken cancellationToken) => GetOrderbook(symbol, limit, cancellationToken: cancellationToken);
 
     protected override BinanceFuturesPublicHttpApiOptions OptionsValueFactory()
     {
@@ -50,7 +53,6 @@ public class
         SetupBaseAddress(res.BaseAddress);
         return res;
     }
-
 
     protected override JsonSerializerOptions CreateJsonSerializerOptions()
     {

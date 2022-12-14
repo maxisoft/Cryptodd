@@ -14,7 +14,8 @@ public interface IBinanceFuturesRateLimiter : IBinanceRateLimiter
 public interface IInternalBinanceFuturesRateLimiter : IInternalBinanceRateLimiter, IBinanceFuturesRateLimiter { }
 
 [Singleton]
-public class BinanceFuturesRateLimiter : BinanceRateLimiter, IInternalBinanceFuturesRateLimiter
+// ReSharper disable once ClassNeverInstantiated.Global
+public sealed class BinanceFuturesRateLimiter : BinanceRateLimiter, IInternalBinanceFuturesRateLimiter
 {
     public BinanceFuturesRateLimiter(BinanceHttpUsedWeightCalculator weightCalculator, ILogger logger,
         IConfiguration configuration, Boxed<CancellationToken> cancellationToken) : base(weightCalculator, logger,

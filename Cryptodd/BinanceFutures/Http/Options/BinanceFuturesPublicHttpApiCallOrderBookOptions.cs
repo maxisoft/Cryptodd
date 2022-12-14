@@ -1,6 +1,6 @@
 ﻿namespace Cryptodd.BinanceFutures.Http.Options;
 
-public class BinanceFuturesPublicHttpApiCallOrderBookOptions : BinanceFuturesPublicHttpApiCallOptions
+public sealed class BinanceFuturesPublicHttpApiCallOrderBookOptions : BinanceFuturesPublicHttpApiCallOptions
 {
     public const string DefaultUrl = "/fapi/v1/depth";
 

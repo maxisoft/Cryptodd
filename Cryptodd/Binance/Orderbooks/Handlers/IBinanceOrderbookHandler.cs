@@ -1,8 +1,7 @@
 ﻿namespace Cryptodd.Binance.Orderbooks.Handlers;
 
-public interface IBinanceOrderbookHandler
+public interface IBinanceOrderbookHandler : IBaseBinanceOrderbookHandler
 {
-    public Task Handle(BinanceOrderbookHandlerArguments arguments, CancellationToken cancellationToken);
 }
 
 public interface IBinanceOrderbookHandler<T>

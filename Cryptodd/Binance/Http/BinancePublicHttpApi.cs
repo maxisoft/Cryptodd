@@ -59,4 +59,7 @@ public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpAp
             { DefaultCapacity = IBinancePublicHttpApi.MaxOrderbookLimit });
         return res;
     }
+
+    Task<BinanceHttpOrderbook> IBinanceHttpOrderbookProvider.GetOrderbook(string symbol, int limit,
+        CancellationToken cancellationToken) => GetOrderbook(symbol, limit, cancellationToken: cancellationToken);
 }

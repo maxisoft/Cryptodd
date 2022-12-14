@@ -1,8 +1,12 @@
 ﻿using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Http.RateLimiter;
+using Cryptodd.Binance.Orderbooks;
 using Cryptodd.Binance.Orderbooks.Handlers;
 using Cryptodd.Binance.Orderbooks.Websockets;
+using Cryptodd.BinanceFutures.Http;
 using Cryptodd.BinanceFutures.Http.Options;
+using Cryptodd.BinanceFutures.Orderbooks.Handlers;
+using Cryptodd.BinanceFutures.Orderbooks.Websockets;
 using Lamar;
 using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Objects;
@@ -10,37 +14,38 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
-namespace Cryptodd.Binance.Orderbooks;
+namespace Cryptodd.BinanceFutures.Orderbooks;
 
+// ReSharper disable once UnusedType.Global
 // ReSharper disable once ClassNeverInstantiated.Global
-public sealed class BinanceOrderbookCollector : BaseBinanceOrderbookCollector<BinanceOrderbookWebsocket,
-    BinanceOrderbookWebsocketOptions, BinanceFuturesPublicHttpApiCallOrderBookOptions, BinanceWebsocketCollection>
+public sealed class BinanceFuturesOrderbookCollector : BaseBinanceOrderbookCollector<BinanceFuturesOrderbookWebsocket,
+    BinanceFuturesOrderbookWebsocketOptions, BinanceFuturesPublicHttpApiCallOrderBookOptions, BinanceFuturesWebsocketCollection>
 {
-    public BinanceOrderbookCollector(IContainer container, ILogger logger, IConfiguration configuration,
+    public BinanceFuturesOrderbookCollector(IContainer container, ILogger logger, IConfiguration configuration,
         Boxed<CancellationToken> cancellationToken) : base(container, logger, configuration, cancellationToken)
     {
         if (string.IsNullOrEmpty(ConfigurationSection))
         {
-            ConfigurationSection = "Binance:OrderbookCollector";
+            ConfigurationSection = "BinanceFutures:OrderbookCollector";
         }
 
         configuration.GetSection(ConfigurationSection).Bind(Options);
         if (string.IsNullOrEmpty(PairFilterName))
         {
-            PairFilterName = "Binance:Orderbook";
+            PairFilterName = "BinanceFutures:Orderbook";
         }
 
-        var httpApi = container.GetRequiredService<IBinancePublicHttpApi>();
+        var httpApi = container.GetRequiredService<IBinanceFuturesPublicHttpApi>();
         RateLimiter = httpApi.RateLimiter;
         HttpOrderbookProvider = httpApi;
         SymbolLister = httpApi;
-        Websockets = BinanceWebsocketCollection.Empty;
+        Websockets = BinanceFuturesWebsocketCollection.Empty;
     }
 
     protected override IBinanceHttpOrderbookProvider HttpOrderbookProvider { get; }
 
     protected override IBinanceHttpSymbolLister SymbolLister { get; }
-    protected override int MaxOrderBookLimit => IBinancePublicHttpApi.MaxOrderbookLimit;
+    protected override int MaxOrderBookLimit => IBinanceFuturesPublicHttpApi.MaxOrderbookLimit;
 
     protected override IBinanceRateLimiter RateLimiter { get; }
 
@@ -48,7 +53,7 @@ public sealed class BinanceOrderbookCollector : BaseBinanceOrderbookCollector<Bi
         BinanceOrderbookHandlerArguments arg,
         CancellationToken cancellationToken)
     {
-        var handlers = container.GetAllInstances<IBinanceOrderbookHandler>();
+        var handlers = container.GetAllInstances<IBinanceFuturesOrderbookHandler>();
         if (handlers.Count == 0)
         {
             return;
@@ -62,31 +67,29 @@ public sealed class BinanceOrderbookCollector : BaseBinanceOrderbookCollector<Bi
         BinanceOrderbookHandlerArguments arg,
         CancellationToken cancellationToken)
     {
-        var handlers = container.GetAllInstances<IBinanceAggregatedOrderbookHandler>();
-        if (handlers.Count == 0)
+        var handlers = container.GetAllInstances<IBinanceFuturesAggregatedOrderbookHandler>();
+        if (handlers.Count > 0)
         {
-            return;
+            var aggregator =
+                container.GetRequiredService<IOrderbookAggregator>();
+            var aggregate = await aggregator.Handle(arg, cancellationToken);
+
+            var tasks = handlers.Select(handler => handler.Handle(aggregate, cancellationToken)).ToArray();
+            await WaitForHandlers("Aggregated Orderbooks", handlers, tasks, cancellationToken);
         }
-
-        var aggregator =
-            container.GetRequiredService<IOrderbookAggregator>();
-        var aggregate = await aggregator.Handle(arg, cancellationToken);
-
-        var tasks = handlers.Select(handler => handler.Handle(aggregate, cancellationToken)).ToArray();
-        await WaitForHandlers("Aggregated Orderbooks", handlers, tasks, cancellationToken);
     }
 
-    protected override BinanceWebsocketCollection CreateWebsockets(
+    protected override BinanceFuturesWebsocketCollection CreateWebsockets(
         ArrayList<string> symbols, IServiceProvider serviceProvider)
     {
-        BinanceOrderbookWebsocket WebsocketFactory()
+        BinanceFuturesOrderbookWebsocket WebsocketFactory()
         {
-            var ws = serviceProvider.GetRequiredService<BinanceOrderbookWebsocket>();
+            var ws = serviceProvider.GetRequiredService<BinanceFuturesOrderbookWebsocket>();
             ws.RegisterDepthTargetBlock(TargetBlock);
             return ws;
         }
 
-        var res = BinanceWebsocketCollection.Create(symbols, WebsocketFactory);
+        var res = BinanceFuturesWebsocketCollection.Create(symbols, WebsocketFactory);
         return res;
     }
 }

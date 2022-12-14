@@ -38,17 +38,19 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
                 case JsonTokenType.PropertyName:
                     var propertyBytes = reader.ValueSpan;
 
-                    
                     var status = Utf8.ToUtf16(propertyBytes, buffer, out var bytesRead, out var charsWritten);
                     if (status != OperationStatus.Done)
                     {
                         throw new JsonException($"unable to read property value status: {status}", null, null,
                             reader.Position.GetInteger());
                     }
-                    if (propertyBytes.Length == 2 && !propertyBytes.SequenceEqual("pu"u8))
+                    if (propertyBytes.Length == 2)
                     {
-                        throw new JsonException($"unable to read property value charsWritten: {charsWritten}", null,
-                            null, reader.Position.GetInteger());
+                        if (!propertyBytes.SequenceEqual("pu"u8))
+                        {
+                            throw new JsonException($"unable to read property value charsWritten: {charsWritten}", null,
+                                null, reader.Position.GetInteger());
+                        }
                     }
                     else if (charsWritten != 1)
                     {

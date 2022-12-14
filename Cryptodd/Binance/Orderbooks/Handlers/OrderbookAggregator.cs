@@ -12,9 +12,10 @@ namespace Cryptodd.Binance.Orderbooks.Handlers;
 
 public interface IOrderbookAggregator : IBinanceOrderbookHandler<BinanceAggregatedOrderbookHandlerArguments> { }
 
-public class OrderbookAggregator : IService, IOrderbookAggregator
+// ReSharper disable once UnusedType.Global
+public sealed class OrderbookAggregator : IService, IOrderbookAggregator
 {
-    internal const int Size = 128;
+    public const int Size = 128;
 
     public ValueTask<BinanceAggregatedOrderbookHandlerArguments> Handle(BinanceOrderbookHandlerArguments arguments,
         CancellationToken cancellationToken)

@@ -39,7 +39,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
         _depthTargetBlocks =
             new();
 
-    private readonly ConcurrentDictionary<string, EmptyStruct> _trackedDepthSymbols = new();
+    protected readonly ConcurrentDictionary<string, EmptyStruct> _trackedDepthSymbols = new();
 
     private readonly HashSet<string> _symbolBlackList = new();
 
@@ -337,69 +337,72 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
     protected virtual async ValueTask DispatchMessage(PreParsedCombinedStreamEvent pre, ReadOnlyMemory<byte> memory,
         CancellationToken cancellationToken)
     {
-        if (BinanceStreamNameHelper.IsDepth(pre.Stream))
+        if (!BinanceStreamNameHelper.IsDepth(pre.Stream))
         {
-            DepthWebsocketStats.RegisterTick();
-            if (_depthTargetBlocks.IsEmpty)
+            Logger.Warning("Got unhandled stream {Stream}", pre.Stream);
+            return;
+        }
+
+        DepthWebsocketStats.RegisterTick();
+        if (_depthTargetBlocks.IsEmpty)
+        {
+            return;
+        }
+
+        var envelope =
+            JsonSerializer.Deserialize<CombinedStreamEnvelope<DepthUpdateMessage>>(memory.Span,
+                JsonSerializerOptions);
+
+        var envelopeSafe = new ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>(envelope)
+            { DisposeOnDeletion = true };
+
+        async ValueTask SendToTargetBlock(
+            ITargetBlock<ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>> block,
+            CancellationToken token)
+        {
+            var decrement = false;
+            try
+            {
+                envelopeSafe.Increment();
+                decrement = true;
+                var sent = await block.SendAsync(envelopeSafe, token).ConfigureAwait(false);
+                decrement = false;
+                if (!sent)
+                {
+                    envelopeSafe.Decrement();
+                }
+            }
+            finally
+            {
+                if (decrement)
+                {
+                    envelopeSafe.Decrement();
+                }
+            }
+        }
+
+        using (envelopeSafe.NewDecrementOnDispose(increment: true))
+        {
+            if (IsBlacklistedSymbol(envelope.Data.Symbol))
             {
                 return;
             }
 
-            var envelope =
-                JsonSerializer.Deserialize<CombinedStreamEnvelope<DepthUpdateMessage>>(memory.Span,
-                    JsonSerializerOptions);
-
-            var envelopeSafe = new ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>(envelope)
-                { DisposeOnDeletion = true };
-
-            async ValueTask SendToTargetBlock(
-                ITargetBlock<ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>> block,
-                CancellationToken token)
+            if (_depthTargetBlocks.Count > 1)
             {
-                var decrement = false;
-                try
+                await Parallel.ForEachAsync(_depthTargetBlocks, cancellationToken, SendToTargetBlock)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                foreach (var block in _depthTargetBlocks)
                 {
-                    envelopeSafe.Increment();
-                    decrement = true;
-                    var sent = await block.SendAsync(envelopeSafe, token).ConfigureAwait(false);
-                    decrement = false;
-                    if (!sent)
-                    {
-                        envelopeSafe.Decrement();
-                    }
-                }
-                finally
-                {
-                    if (decrement)
-                    {
-                        envelopeSafe.Decrement();
-                    }
+                    await SendToTargetBlock(block, cancellationToken).ConfigureAwait(false);
                 }
             }
-
-            using (envelopeSafe.NewDecrementOnDispose(increment: true))
-            {
-                if (IsBlacklistedSymbol(envelope.Data.Symbol))
-                {
-                    return;
-                }
-
-                if (_depthTargetBlocks.Count > 1)
-                {
-                    await Parallel.ForEachAsync(_depthTargetBlocks, cancellationToken, SendToTargetBlock)
-                        .ConfigureAwait(false);
-                }
-                else
-                {
-                    foreach (var block in _depthTargetBlocks)
-                    {
-                        await SendToTargetBlock(block, cancellationToken).ConfigureAwait(false);
-                    }
-                }
-            }
-
-            DepthWebsocketStats.RegisterSymbol(envelope.Data.Symbol);
         }
+
+        DepthWebsocketStats.RegisterSymbol(envelope.Data.Symbol);
     }
 
     public bool IsBlacklistedSymbol(string symbol) =>

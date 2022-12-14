@@ -1,69 +1,43 @@
-﻿using System.Diagnostics;
-using Cryptodd.Bitfinex;
-using Cryptodd.Bitfinex.Models;
-using Cryptodd.Ftx.Orderbooks;
-using Lamar;
-using Maxisoft.Utils.Collections.Queues;
+﻿using Lamar;
 using Maxisoft.Utils.Collections.Queues.Specialized;
 using Microsoft.Extensions.Configuration;
 using Polly;
 using Serilog;
 
-namespace Cryptodd.Scheduler.Tasks.Bitfinex;
+namespace Cryptodd.Scheduler.Tasks.Binance;
 
-public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
+public abstract class BaseBinanceOrderbookTask : BasePeriodicScheduledTask
 {
     private AsyncPolicy _retryPolicy;
     private readonly BoundedDeque<CancellationTokenSource> _cancellationTokenSources = new(8);
+    protected BinanceOrderbookCollectorUnion Collector { get; set; } = new();
+    protected readonly object LockObject = new();
 
-    public BitfinexGroupedOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration) : base(
+    public BaseBinanceOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration) : base(
         logger,
         configuration, container)
     {
         _retryPolicy = Policy.NoOpAsync();
         Period = TimeSpan.FromSeconds(15);
-        Section = Configuration.GetSection("Bitfinex:OrderBook:Task");
-        OnConfigurationChange();
-        ConfigureRetryPolicy();
     }
 
     public override async Task Execute(CancellationToken cancellationToken)
     {
         var cts = CreateCancellationTokenSource(cancellationToken);
-        var orderBookService = GetOrderBookService();
-        await _retryPolicy.ExecuteAsync(_ =>
-            {
-                void OrderbookContinuation(List<OrderbookEnvelope>? obs)
-                {
-                    if (obs?.Count is null or 0)
-                    {
-                        return;
-                    }
-
-                    var ctx = TaskRunningContext;
-                    if (ctx is null)
-                    {
-                        return;
-                    }
-
-                    ctx.Hooks.TimeElapsed = new Lazy<TimeSpan?>(ctx.TimeElapsed);
-                }
-
-                return orderBookService.CollectOrderBooks(OrderbookContinuation, Period * 0.95, cts.Token);
-            },
-            cancellationToken);
-        cts.Cancel();
+        var orderBookService = await GetOrderBookService();
+        await _retryPolicy.ExecuteAsync(_ => orderBookService.CollectOrderBook(cts.Token),
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
-    protected virtual BitfinexGatherGroupedOrderBookService GetOrderBookService() =>
-        Container.GetInstance<BitfinexGatherGroupedOrderBookService>();
+    protected abstract Task<BinanceOrderbookCollectorUnion> GetOrderBookService();
 
     protected virtual CancellationTokenSource CreateCancellationTokenSource(CancellationToken cancellationToken)
     {
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            cts.CancelAfter(Period * 1.5);
+            cts.CancelAfter(Period);
             while (_cancellationTokenSources.IsFull)
             {
                 if (_cancellationTokenSources.TryPopFront(out var old))
@@ -109,7 +83,7 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
             .WaitAndRetryAsync(maxRetry, i => TimeSpan.FromSeconds(1 + i));
     }
 
-    protected override void OnConfigurationChange(object obj)
+    protected override void OnConfigurationChange(object? obj)
     {
         base.OnConfigurationChange(obj);
         ConfigureRetryPolicy();

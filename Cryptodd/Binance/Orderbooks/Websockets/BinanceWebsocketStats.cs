@@ -6,10 +6,9 @@ public readonly record struct PerSymbolStatsEntry(string Symbol, long CallCounte
 
 public class BinanceWebsocketStats
 {
-    private ConcurrentDictionary<string, PerSymbolStatsEntry> _perSymbolStats =
-        new ConcurrentDictionary<string, PerSymbolStatsEntry>();
+    private readonly ConcurrentDictionary<string, PerSymbolStatsEntry> _perSymbolStats = new();
 
-    private PerSymbolStatsEntry _globalSymbol = new PerSymbolStatsEntry("", 0, DateTimeOffset.Now);
+    private PerSymbolStatsEntry _globalSymbol = new("", 0, DateTimeOffset.Now);
 
     public long CallCounter => _globalSymbol.CallCounter;
     public DateTimeOffset LastCall => _globalSymbol.LastCall;
