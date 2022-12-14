@@ -34,11 +34,11 @@ public interface IPairFilter
     bool Match(string input);
 }
 
-public class PairFilter : IPairFilter
+public partial class PairFilter : IPairFilter
 {
-    public static readonly Regex DetectRegex = new(@"^[a-zA-Z][\w:/\-_]+$",
-        RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-
+    [GeneratedRegex(@"^[a-zA-Z][\w:/\-_]+$",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.NonBacktracking)]
+    public static partial Regex DetectRegex();
     private static readonly char[] Separators = { '\r', '\n', ';' };
     private static readonly ConcurrentDictionary<string, Regex> RegexCache = new();
 
@@ -108,7 +108,7 @@ public class PairFilter : IPairFilter
                 continue;
             }
 
-            if (_pairsSet.TryAdd(s, es) && allowRegex && !DetectRegex.IsMatch(s))
+            if (_pairsSet.TryAdd(s, es) && allowRegex && !DetectRegex().IsMatch(s))
             {
                 lock (_entries)
                 {
