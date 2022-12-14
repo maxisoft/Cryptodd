@@ -4,7 +4,7 @@ using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
-namespace Cryptodd.Binance.Orderbooks.Websocket;
+namespace Cryptodd.Binance.Orderbooks.Websockets;
 
 public class BinanceOrderbookWebsocket : BaseBinanceOrderbookWebsocket<BinanceOrderbookWebsocketOptions>, IService
 {

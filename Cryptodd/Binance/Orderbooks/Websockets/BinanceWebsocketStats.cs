@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
 
-namespace Cryptodd.Binance.Orderbooks.Websocket;
+namespace Cryptodd.Binance.Orderbooks.Websockets;
 
 public readonly record struct PerSymbolStatsEntry(string Symbol, long CallCounter, DateTimeOffset LastCall) { }
 

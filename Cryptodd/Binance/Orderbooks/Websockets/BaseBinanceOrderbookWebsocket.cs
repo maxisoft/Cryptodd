@@ -16,7 +16,7 @@ using Maxisoft.Utils.Objects;
 using Serilog;
 using Serilog.Events;
 
-namespace Cryptodd.Binance.Orderbooks.Websocket;
+namespace Cryptodd.Binance.Orderbooks.Websockets;
 
 public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAsyncDisposable
     where TOptions : BaseBinanceOrderbookWebsocketOptions, new()

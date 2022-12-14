@@ -5,7 +5,7 @@ using System.Threading.Tasks.Dataflow;
 using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Orderbooks.Handlers;
-using Cryptodd.Binance.Orderbooks.Websocket;
+using Cryptodd.Binance.Orderbooks.Websockets;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;

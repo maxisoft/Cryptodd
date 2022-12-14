@@ -1,3 +1,3 @@
-﻿namespace Cryptodd.Binance.Orderbooks.Websocket;
+﻿namespace Cryptodd.Binance.Orderbooks.Websockets;
 
 public class BinanceOrderbookWebsocketOptions : BaseBinanceOrderbookWebsocketOptions { }
