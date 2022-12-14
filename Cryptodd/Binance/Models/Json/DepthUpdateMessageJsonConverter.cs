@@ -20,7 +20,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
     {
         string e = "", s = "";
         // ReSharper disable InconsistentNaming
-        long E = 0, U = 0, u = 0;
+        long E = 0, T = long.MinValue, U = 0, u = 0, pu = long.MinValue;
         // ReSharper restore InconsistentNaming
         PooledList<BinancePriceQuantityEntry<double>> b = new(), a = new();
         Span<char> buffer = stackalloc char[2];
@@ -37,14 +37,20 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
             {
                 case JsonTokenType.PropertyName:
                     var propertyBytes = reader.ValueSpan;
+
+                    
                     var status = Utf8.ToUtf16(propertyBytes, buffer, out var bytesRead, out var charsWritten);
                     if (status != OperationStatus.Done)
                     {
                         throw new JsonException($"unable to read property value status: {status}", null, null,
                             reader.Position.GetInteger());
                     }
-
-                    if (charsWritten != 1)
+                    if (propertyBytes.Length == 2 && !propertyBytes.SequenceEqual("pu"u8))
+                    {
+                        throw new JsonException($"unable to read property value charsWritten: {charsWritten}", null,
+                            null, reader.Position.GetInteger());
+                    }
+                    else if (charsWritten != 1)
                     {
                         throw new JsonException($"unable to read property value charsWritten: {charsWritten}", null,
                             null, reader.Position.GetInteger());
@@ -76,6 +82,14 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
                             }
 
                             break;
+                        case 'T':
+                            if (!reader.TryGetInt64(out T))
+                            {
+                                throw new JsonException($"unable to read property value {property}", null, null,
+                                    reader.Position.GetInteger());
+                            }
+
+                            break;
                         case 's':
                             if (!StringPool.TryGetString(reader.ValueSpan, out s))
                             {
@@ -97,7 +111,14 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
                             {
                                 throw new JsonException($"unable to read property value {property}", null, null,
                                     reader.Position.GetInteger());
-                                ;
+                            }
+
+                            break;
+                        case 'p':
+                            if (!reader.TryGetInt64(out pu))
+                            {
+                                throw new JsonException($"unable to read property value pu", null, null,
+                                    reader.Position.GetInteger());
                             }
 
                             break;
@@ -125,7 +146,7 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
             }
         }
 
-        return new DepthUpdateMessage(e: e, E: E, s: s, U: U, u: u, b: b, a: a);
+        return new DepthUpdateMessage(e: e, E: E, T: T, s: s, U: U, u: u, pu: pu, b: b, a: a);
     }
 
     public override void Write(Utf8JsonWriter writer, DepthUpdateMessage value, JsonSerializerOptions options)

@@ -460,7 +460,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
                 var depthUpdateMessage = referenceCounterDisposable.ValueRef.Data;
                 var symbol = depthUpdateMessage.Symbol;
                 var orderbook = _orderbooks[symbol];
-                if (depthUpdateMessage.U - orderbook.LastUpdateId > 1 || orderbook.IsEmpty())
+                if (depthUpdateMessage.FirstUpdateId - orderbook.LastUpdateId > 1 || orderbook.IsEmpty())
                 {
                     ScheduleSymbolForHttpUpdate(symbol);
                 }

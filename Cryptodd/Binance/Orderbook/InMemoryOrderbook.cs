@@ -127,6 +127,8 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
     {
         UpdateAsks(updateMessage.Asks, updateMessage.DateTimeOffset, updateMessage.u);
         UpdateBids(updateMessage.Bids, updateMessage.DateTimeOffset, updateMessage.u);
+        Debug.Assert(updateMessage.FirstUpdateId <= updateMessage.FinalUpdateId, "FirstUpdateId <= FinalUpdateId");
+        Debug.Assert((updateMessage.PreviousUpdateId ?? updateMessage.FirstUpdateId) <= updateMessage.FinalUpdateId, "PreviousUpdateId <= FinalUpdateId");
         LastUpdateId = Math.Max(updateMessage.u, updateMessage.U);
     }
 
