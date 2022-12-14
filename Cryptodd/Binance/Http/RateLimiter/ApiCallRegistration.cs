@@ -2,7 +2,7 @@
 using JasperFx.CodeGeneration;
 using Maxisoft.Utils.Logic;
 
-namespace Cryptodd.Binance.RateLimiter;
+namespace Cryptodd.Binance.Http.RateLimiter;
 
 public interface IApiCallRegistration : IDisposable
 {

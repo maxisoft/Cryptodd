@@ -3,7 +3,7 @@ using Cryptodd.IoC;
 using Maxisoft.Utils.Collections.LinkedLists;
 using Serilog;
 
-namespace Cryptodd.Binance.RateLimiter;
+namespace Cryptodd.Binance.Http.RateLimiter;
 
 public class BinanceHttpUsedWeightCalculator : IService
 {

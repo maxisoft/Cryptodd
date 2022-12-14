@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json.Nodes;
 using Cryptodd.Binance;
-using Cryptodd.Binance.RateLimiter;
+using Cryptodd.Binance.Http;
+using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Http;
 using Microsoft.Extensions.Configuration;
 using xRetry;
 using Xunit;
 
-namespace Cryptodd.Tests.Binance;
+namespace Cryptodd.Tests.Binance.Http;
 
 public class BinancePublicHttpApiRealTest
 {

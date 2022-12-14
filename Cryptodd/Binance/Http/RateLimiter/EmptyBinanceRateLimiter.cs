@@ -1,6 +1,6 @@
 ﻿using Cryptodd.IoC;
 
-namespace Cryptodd.Binance.RateLimiter;
+namespace Cryptodd.Binance.Http.RateLimiter;
 
 public class EmptyBinanceRateLimiter : IInternalBinanceRateLimiter, INoAutoRegister
 {

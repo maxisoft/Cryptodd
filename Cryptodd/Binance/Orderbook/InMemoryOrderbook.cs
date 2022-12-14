@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Models;
 using Cryptodd.Utils.FastMapFork;
 using Maxisoft.Utils.Collections.Lists;

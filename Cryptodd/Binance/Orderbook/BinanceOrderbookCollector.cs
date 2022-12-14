@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks.Dataflow;
+using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Orderbook.Handlers;
 using Cryptodd.Binance.Orderbook.Websocket;
@@ -556,7 +557,7 @@ public class BinanceOrderbookCollector : IAsyncDisposable, IService
         const int maxOrderbookLimit = IBinancePublicHttpApi.MaxOrderbookLimit;
         const int expWaitInitialValue = 1000;
         var expWait = expWaitInitialValue;
-        var httpCallOption = new BinancePublicHttpApiCallOptionsOrderBook();
+        var httpCallOption = new BinancePublicHttpApiCallOrderBookOptions();
         while (!cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(50, cancellationToken).ConfigureAwait(false);

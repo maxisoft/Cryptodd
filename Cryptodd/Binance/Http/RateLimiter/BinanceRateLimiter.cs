@@ -6,38 +6,12 @@ using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
-namespace Cryptodd.Binance.RateLimiter;
-
-public class BinanceRateLimiterOptions
-{
-    public int DefaultMaxUsableWeight { get; set; } = 1200;
-    public float UsableMaxWeightMultiplier { get; set; } = 1.0f;
-
-    public TimeSpan WaitForSlotTimeout { get; set; } = TimeSpan.FromMinutes(2);
-
-    public float AvailableWeightMultiplier { get; set; } = 0.8f;
-}
-
-public interface IBinanceRateLimiter
-{
-    int AvailableWeight { get; }
-    long MaxUsableWeight { get; }
-    ValueTask<IApiCallRegistration> WaitForSlot(Uri uri, int weight, CancellationToken cancellationToken);
-}
-
-public interface IInternalBinanceRateLimiter : IBinanceRateLimiter
-{
-    BinanceRateLimiterOptions Options { get; }
-    new long MaxUsableWeight { get; set; }
-
-    float AvailableWeightMultiplier { get; set; }
-    void UpdateUsedWeightFromBinance(int weight, DateTimeOffset dateTimeOffset);
-    void UpdateUsedWeightFromBinance(int weight) => UpdateUsedWeightFromBinance(weight, DateTimeOffset.Now);
-}
+namespace Cryptodd.Binance.Http.RateLimiter;
 
 [Singleton]
-public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
+public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter, IDisposable
 {
+
     private readonly CancellationTokenSource _cancellationTokenSource;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
@@ -46,12 +20,12 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
     private readonly BinanceHttpUsedWeightCalculator _weightCalculator;
 
     public BinanceRateLimiter(BinanceHttpUsedWeightCalculator weightCalculator, ILogger logger,
-        IConfiguration configuration, Boxed<CancellationToken> cancellationtoken)
+        IConfiguration configuration, Boxed<CancellationToken> cancellationToken)
     {
-        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationtoken);
+        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _weightCalculator = weightCalculator;
         _logger = logger.ForContext(GetType());
-        configuration.GetSection("Binance:RateLimiter").Bind(Options);
+        configuration.GetSection("Binance:Http:RateLimiter").Bind(Options);
         MaxUsableWeight = Options.DefaultMaxUsableWeight;
         AvailableWeightMultiplier = Options.AvailableWeightMultiplier;
     }
@@ -192,5 +166,20 @@ public class BinanceRateLimiter : IService, IInternalBinanceRateLimiter
                 break;
             }
         }
+    }
+    
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _cancellationTokenSource.Dispose();
+            _semaphore.Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }
