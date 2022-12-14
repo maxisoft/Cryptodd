@@ -290,8 +290,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
                                 additionalMemory = memoryPool.Rent(Math.Max(rentSize, contentLength * 2));
                                 mem.Memory[..contentLength].CopyTo(additionalMemory.Memory);
                                 mem.Dispose();
-                                mem = additionalMemory;
-                                additionalMemory = null;
+                                (mem, additionalMemory) = (additionalMemory, null);
 
                                 resp = await ws.ReceiveAsync(mem.Memory[contentLength..], recvToken.Token)
                                     .ConfigureAwait(false);
@@ -332,6 +331,8 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
             Logger.Debug(e, "");
         }
     }
+    
+    
 
     protected virtual async ValueTask DispatchMessage(PreParsedCombinedStreamEvent pre, ReadOnlyMemory<byte> memory,
         CancellationToken cancellationToken)
