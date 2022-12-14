@@ -6,7 +6,7 @@ namespace Cryptodd.Binance.Json;
 
 internal static class PreParsedCombinedStreamEventParser
 {
-    internal static readonly StringPool StringPool = new StringPool(16 << 10);
+    internal static readonly StringPool StringPool = new(16 << 10);
 
     private static readonly JsonReaderOptions Options = new()
     {
@@ -83,10 +83,8 @@ internal static class PreParsedCombinedStreamEventParser
 
                                 return;
                             }
-                            else
-                            {
-                                reader.Skip();
-                            }
+
+                            reader.Skip();
                         }
 
                         break;

@@ -9,10 +9,8 @@ namespace Cryptodd.Binance.Json;
 
 public class BinancePriceQuantityEntryJsonConverter : JsonConverter<BinancePriceQuantityEntry<double>>
 {
-
     private static bool TryGetDouble(ref Utf8JsonReader reader, out double res)
     {
-
         // ReSharper disable once InvertIf
         if (reader.TokenType == JsonTokenType.String)
         {
@@ -27,7 +25,6 @@ public class BinancePriceQuantityEntryJsonConverter : JsonConverter<BinancePrice
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryGetDoubleFromString(ReadOnlySpan<byte> span, out double res)
     {
-
         if (Utf8Parser.TryParse(span, out double tmp, out var bytesConsumed)
             && span.Length == bytesConsumed)
         {
@@ -38,8 +35,9 @@ public class BinancePriceQuantityEntryJsonConverter : JsonConverter<BinancePrice
         res = default;
         return false;
     }
-    
-    public override BinancePriceQuantityEntry<double> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+
+    public override BinancePriceQuantityEntry<double> Read(ref Utf8JsonReader reader, Type typeToConvert,
+        JsonSerializerOptions options)
     {
         double price, quantity;
 
@@ -76,7 +74,8 @@ public class BinancePriceQuantityEntryJsonConverter : JsonConverter<BinancePrice
         return new BinancePriceQuantityEntry<double>(price, quantity);
     }
 
-    public override void Write(Utf8JsonWriter writer, BinancePriceQuantityEntry<double> value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, BinancePriceQuantityEntry<double> value,
+        JsonSerializerOptions options)
     {
         JsonSerializer.Serialize(writer, new[] { value.Price, value.Quantity });
     }
