@@ -1,12 +1,11 @@
 ﻿using System.Buffers;
 using System.Buffers.Text;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Cryptodd.Ftx.Models;
+using Cryptodd.Binance.Models;
 
-namespace Cryptodd.Binance.Models.Json;
+namespace Cryptodd.Binance.Json;
 
 public class BinancePriceQuantityEntryJsonConverter : JsonConverter<BinancePriceQuantityEntry<double>>
 {

@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Cryptodd.Binance.Http.Options;
 using Cryptodd.Binance.Http.RateLimiter;
+using Cryptodd.Binance.Json;
 using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Models.Json;
 using Cryptodd.Http;

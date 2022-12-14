@@ -1,8 +1,8 @@
 ﻿using System.Text.Json;
-using System.Text.Unicode;
+using Cryptodd.Binance.Models;
 using Cryptodd.Json;
 
-namespace Cryptodd.Binance.Models;
+namespace Cryptodd.Binance.Json;
 
 internal static class PreParsedCombinedStreamEventParser
 {

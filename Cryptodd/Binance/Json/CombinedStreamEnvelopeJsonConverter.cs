@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Unicode;
+using Cryptodd.Binance.Json;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Json;
 using Maxisoft.Utils.Collections.Lists.Specialized;

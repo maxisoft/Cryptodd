@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Text;
 using System.Globalization;
 using System.Text;
+using Cryptodd.Binance.Json;
 using Cryptodd.Ftx.Models;
 
 namespace Cryptodd.Binance.Models;
