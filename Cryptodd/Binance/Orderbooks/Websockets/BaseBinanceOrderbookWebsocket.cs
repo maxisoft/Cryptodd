@@ -191,6 +191,7 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
             {
                 continue;
             }
+
             sb.Append(symbol.ToLowerInvariant());
             sb.Append("@depth");
             sb.Append('/');
@@ -331,14 +332,12 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAs
             Logger.Debug(e, "");
         }
     }
-    
-    
+
 
     protected virtual async ValueTask DispatchMessage(PreParsedCombinedStreamEvent pre, ReadOnlyMemory<byte> memory,
         CancellationToken cancellationToken)
     {
-        if (pre.Stream.EndsWith("@depth", StringComparison.InvariantCulture) ||
-            pre.Stream.EndsWith("@depth@100ms", StringComparison.InvariantCultureIgnoreCase))
+        if (BinanceStreamNameHelper.IsDepth(pre.Stream))
         {
             DepthWebsocketStats.RegisterTick();
             if (_depthTargetBlocks.IsEmpty)
