@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.Binance.Orderbook.Handlers;
+﻿namespace Cryptodd.Binance.Orderbooks.Handlers;
 
 public interface IBinanceAggregatedOrderbookHandler
 {

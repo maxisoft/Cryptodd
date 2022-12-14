@@ -1,6 +1,6 @@
 ﻿using Cryptodd.OrderBooks;
 
-namespace Cryptodd.Binance.Orderbook.Handlers;
+namespace Cryptodd.Binance.Orderbooks.Handlers;
 
 public record BinanceAggregatedOrderbookHandlerArguments(
     string Symbol,

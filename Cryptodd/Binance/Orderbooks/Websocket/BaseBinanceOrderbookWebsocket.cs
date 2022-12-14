@@ -10,14 +10,13 @@ using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Models.Json;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
-using Cryptodd.IoC;
 using Cryptodd.Utils;
 using Maxisoft.Utils.Empties;
 using Maxisoft.Utils.Objects;
 using Serilog;
 using Serilog.Events;
 
-namespace Cryptodd.Binance.Orderbook.Websocket;
+namespace Cryptodd.Binance.Orderbooks.Websocket;
 
 public abstract class BaseBinanceOrderbookWebsocket<TOptions> : IDisposable, IAsyncDisposable
     where TOptions : BaseBinanceOrderbookWebsocketOptions, new()

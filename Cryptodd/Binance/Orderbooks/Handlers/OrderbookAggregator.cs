@@ -2,14 +2,13 @@
 using System.Runtime.CompilerServices;
 using Cryptodd.Algorithms;
 using Cryptodd.Algorithms.Topk;
-using Cryptodd.Binance.Orderbook.Handlers;
 using Cryptodd.IoC;
 using Cryptodd.OrderBooks;
 using MathNet.Numerics.Random;
 using Maxisoft.Utils.Collections.Lists;
 using Towel;
 
-namespace Cryptodd.Binance.Orderbook;
+namespace Cryptodd.Binance.Orderbooks.Handlers;
 
 public interface IOrderbookAggregator : IBinanceOrderbookHandler<BinanceAggregatedOrderbookHandlerArguments> { }
 

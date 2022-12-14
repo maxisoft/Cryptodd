@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.Binance.Orderbook;
+﻿namespace Cryptodd.Binance.Orderbooks;
 
 public record OrderBookEntry(double Price) : IOrderBookEntry
 {

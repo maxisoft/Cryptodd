@@ -1,13 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Text.Json.Nodes;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Models;
-using Cryptodd.Binance.Orderbook.Handlers;
-using Cryptodd.Binance.Orderbook.Websocket;
+using Cryptodd.Binance.Orderbooks.Handlers;
+using Cryptodd.Binance.Orderbooks.Websocket;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
@@ -22,7 +20,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using Serilog.Events;
 
-namespace Cryptodd.Binance.Orderbook;
+namespace Cryptodd.Binance.Orderbooks;
 
 public class BinanceOrderbookCollectorOptions
 {

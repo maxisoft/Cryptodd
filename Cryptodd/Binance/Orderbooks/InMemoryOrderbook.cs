@@ -1,13 +1,11 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Models;
-using Cryptodd.Utils.FastMapFork;
 using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 
-namespace Cryptodd.Binance.Orderbook;
+namespace Cryptodd.Binance.Orderbooks;
 
 public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 {

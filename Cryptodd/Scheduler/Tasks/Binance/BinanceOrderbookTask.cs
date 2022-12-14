@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using Cryptodd.Binance.Orderbook;
+using Cryptodd.Binance.Orderbooks;
 using Cryptodd.Bitfinex;
 using Lamar;
 using Maxisoft.Utils.Collections.Queues.Specialized;

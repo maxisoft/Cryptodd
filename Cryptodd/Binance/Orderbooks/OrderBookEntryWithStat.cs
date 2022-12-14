@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using MathNet.Numerics.Statistics;
 
-namespace Cryptodd.Binance.Orderbook;
+namespace Cryptodd.Binance.Orderbooks;
 
 public record OrderBookEntryWithStat(double Price) : IOrderBookEntry
 {

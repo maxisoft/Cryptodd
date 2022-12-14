@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace Cryptodd.Binance.Orderbook;
+namespace Cryptodd.Binance.Orderbooks;
 
 public interface IOrderBookEntry
 {

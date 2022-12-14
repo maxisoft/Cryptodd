@@ -61,6 +61,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Folder Include="BinanceFutures\Orderbook" />
         <Folder Include="Redis" />
     </ItemGroup>
 

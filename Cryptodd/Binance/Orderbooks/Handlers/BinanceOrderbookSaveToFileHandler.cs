@@ -1,21 +1,13 @@
 ﻿using System.Collections;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Cryptodd.Bitfinex.Models;
-using Cryptodd.Bitfinex.Orderbooks;
 using Cryptodd.IoC;
 using Cryptodd.OrderBooks;
 using Cryptodd.OrderBooks.Writer;
 using Lamar;
-using MathNet.Numerics.Random;
-using MathNet.Numerics.Statistics;
-using Maxisoft.Utils.Collections.Lists;
-using Maxisoft.Utils.Random;
 using Microsoft.Extensions.Configuration;
 using Serilog;
-using Towel;
 
-namespace Cryptodd.Binance.Orderbook.Handlers;
+namespace Cryptodd.Binance.Orderbooks.Handlers;
 
 public struct
     BinanceFloatSerializableConverterConverter : IFloatSerializableConverter<DetailedOrderbookEntryFloatTuple,
