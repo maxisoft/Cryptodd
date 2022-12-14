@@ -15,10 +15,7 @@ public class BitfinexGroupedOrderbookTaskP0 : BitfinexGroupedOrderbookTask
         container, logger, configuration)
     {
         PeriodOffset -= TimeSpan.FromSeconds(5);
+        Section = Configuration.GetSection("Bitfinex:OrderBookP0:Task");
         OnConfigurationChange();
     }
-    
-    public override IConfigurationSection Section =>
-        Configuration.GetSection("Bitfinex:OrderBookP0:Task");
-    
 }

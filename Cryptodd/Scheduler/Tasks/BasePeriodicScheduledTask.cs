@@ -10,9 +10,10 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
     protected IContainer Container { get; private set; }
     private IDisposable? _configurationChangeDisposable;
 
-    public BasePeriodicScheduledTask(ILogger logger, IConfiguration configuration, IContainer container) : base(
+    public BasePeriodicScheduledTask(ILogger logger, IConfiguration configuration, IContainer container, IConfigurationSection? section = null) : base(
         logger, configuration)
     {
+        Section = section ?? configuration.GetSection(Name.Replace('.', ':'));
         Container = container;
         Period = TimeSpan.FromMinutes(1);
         NextSchedule = DateTimeOffset.Now;
@@ -23,7 +24,7 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
 
     public TimeSpan PeriodOffset { get; protected internal set; } = TimeSpan.Zero;
 
-    public virtual IConfigurationSection Section => Configuration.GetSection(Name.Replace('.', ':'));
+    public IConfigurationSection Section { get; protected init; }
 
     protected void OnConfigurationChange()
     {

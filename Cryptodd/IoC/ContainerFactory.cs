@@ -1,5 +1,8 @@
 ﻿using Cryptodd.Binance;
-using Cryptodd.Binance.RateLimiter;
+using Cryptodd.Binance.Http;
+using Cryptodd.Binance.Http.RateLimiter;
+using Cryptodd.BinanceFutures.Http;
+using Cryptodd.BinanceFutures.Http.RateLimiter;
 using Cryptodd.Bitfinex;
 using Cryptodd.Features;
 using Cryptodd.Ftx;
@@ -116,6 +119,17 @@ public class ContainerFactory : IContainerFactory
                     .AddPolicyHandler(
                         (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
                     .SetHandlerLifetime(TimeSpan.FromMinutes(5));
+                
+                c.AddHttpClient<IBinanceFuturesPublicHttpApi, BinanceFuturesPublicHttpApi>((provider, client) =>
+                    {
+                        var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
+                        httpClientFactoryHelper?.Configure(client);
+                    })
+                    .ConfigurePrimaryHttpMessageHandler(provider =>
+                        provider.GetService<IHttpClientFactoryHelper>()!.GetHandler())
+                    .AddPolicyHandler(
+                        (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
+                    .SetHandlerLifetime(TimeSpan.FromMinutes(5));
             });
 
             x.Use(featureList).Singleton()
@@ -124,6 +138,9 @@ public class ContainerFactory : IContainerFactory
 
             x.ForSingletonOf<IInternalBinanceRateLimiter>().Use<BinanceRateLimiter>();
             x.For<IBinanceRateLimiter>().Use(context => context.GetInstance<IInternalBinanceRateLimiter>());
+            
+            x.ForSingletonOf<IInternalBinanceFuturesRateLimiter>().Use<BinanceFuturesRateLimiter>();
+            x.For<IBinanceFuturesRateLimiter>().Use(context => context.GetInstance<IInternalBinanceFuturesRateLimiter>());
 
             options.PostConfigure(x);
         });

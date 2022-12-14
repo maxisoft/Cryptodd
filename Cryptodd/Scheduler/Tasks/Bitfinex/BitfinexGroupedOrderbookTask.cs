@@ -22,12 +22,10 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
     {
         _retryPolicy = Policy.NoOpAsync();
         Period = TimeSpan.FromSeconds(15);
+        Section = Configuration.GetSection("Bitfinex:OrderBook:Task");
         OnConfigurationChange();
         ConfigureRetryPolicy();
     }
-
-    public override IConfigurationSection Section =>
-        Configuration.GetSection("Bitfinex:OrderBook:Task");
 
     public override async Task Execute(CancellationToken cancellationToken)
     {
