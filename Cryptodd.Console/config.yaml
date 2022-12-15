@@ -2,6 +2,8 @@
 # Proxy: socks5://127.0.0.1:39050
 Binance:
   Orderbook:
+    Task:
+      Enabled: true
     PairFilter:
       - BTCUSDT
       - BTCBUSD
@@ -94,6 +96,50 @@ Binance:
       - KAVAUSDT
       - KSMUSDT
 
+BinanceFutures:
+  Orderbook:
+    PairFilter:
+      - BTCUSDT
+      - BTCBUSD
+      - ETHUSDT
+      - ETHBUSD
+      - BTCUSD
+      - BCHUSDT
+      - XRPUSDT
+      - EOSUSDT
+      - LTCUSDT
+      - TRXUSDT
+      - ETCUSDT
+      - LINKUSDT
+      - XLMUSDT
+      - ADAUSDT
+      - XMRUSDT
+      - DASHUSDT
+      - ZECUSDT
+      - XTZUSDT
+      - BNBUSDT
+      - BNBBUSD
+      - ATOMUSDT
+      - BATUSDT
+      - VETUSDT
+      - NEOUSDT
+      - QTUMUSDT
+      - THETAUSDT
+      - ALGOUSDT
+      - COMPUSDT
+      - OMGUSDT
+      - DOGEUSDT
+      - BANDUSDT
+      - WAVESUSDT
+      - DOTUSDT
+      - CRVUSDT
+      - APEUSDT
+      - SOLUSDT
+      - DYDXUSDT
+      - RVNUSDT
+      - ^BTCUSDT_[0-9]+$
+      - ^ETHUSDT_[0-9]+$
+      - ^[0-9]*?SHIBBUSD$
 Ftx:
   GroupedOrderBook:
     Parquet:

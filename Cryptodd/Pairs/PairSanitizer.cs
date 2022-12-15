@@ -27,7 +27,7 @@ public static class PairSanitizer
         {
             switch (c)
             {
-                case (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9'):
+                case (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9') or '_' or '-':
                     sb.Append(c);
                     break;
                 default:
