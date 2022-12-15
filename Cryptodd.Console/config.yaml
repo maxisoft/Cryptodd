@@ -98,6 +98,10 @@ Binance:
 
 BinanceFutures:
   Orderbook:
+    Collector:
+      FullCleanupOrderbookOnReconnect: false
+    Task:
+      PeriodOffset: -1000
     PairFilter:
       - BTCUSDT
       - BTCBUSD
@@ -137,9 +141,10 @@ BinanceFutures:
       - SOLUSDT
       - DYDXUSDT
       - RVNUSDT
-      - ^BTCUSDT_[0-9]+$
-      - ^ETHUSDT_[0-9]+$
+      - ^BTCUSDT_[0-9]+?$
+      - ^ETHUSDT_[0-9]+?$
       - ^[0-9]*?SHIBBUSD$
+        
 Ftx:
   GroupedOrderBook:
     Parquet:
@@ -172,17 +177,20 @@ Bitfinex:
     Parquet:
       Enabled: false
     Task:
-      Enabled: false
-      Period: 60000
+      Enabled: true
+      Period: 15000
+      PeriodOffset: -100
       
   OrderBookP0:
     Task:
-      Enabled: false
+      Enabled: true
     PairFilter:
       #- ^BTC.*?$
       #- ^ETH.*?$
       #- ^XRP.*?$
       - BTCUSD
+      - USDUST
+      - USTUSD
       - BTCUST
       - ETHBTC
       - ETHUSD

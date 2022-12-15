@@ -26,7 +26,7 @@ public sealed class BinanceFuturesOrderbookCollector : BaseBinanceOrderbookColle
     {
         if (string.IsNullOrEmpty(ConfigurationSection))
         {
-            ConfigurationSection = "BinanceFutures:OrderbookCollector";
+            ConfigurationSection = "BinanceFutures:Orderbook:Collector";
         }
 
         configuration.GetSection(ConfigurationSection).Bind(Options);

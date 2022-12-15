@@ -21,7 +21,7 @@ public sealed class BinanceOrderbookCollector : BaseBinanceOrderbookCollector<Bi
     {
         if (string.IsNullOrEmpty(ConfigurationSection))
         {
-            ConfigurationSection = "Binance:OrderbookCollector";
+            ConfigurationSection = "Binance:Orderbook:Collector";
         }
 
         configuration.GetSection(ConfigurationSection).Bind(Options);

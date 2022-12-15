@@ -389,7 +389,7 @@ public abstract class
                 var orderbook = Orderbooks[symbol];
                 lock (orderbook)
                 {
-                    orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect);
+                    orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect, MaxOrderBookLimit);
                     orderbook.Update(in remoteOb, dateTime);
                 }
 
