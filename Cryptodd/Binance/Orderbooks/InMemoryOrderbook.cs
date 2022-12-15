@@ -126,11 +126,12 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         UpdateAsks(updateMessage.Asks, updateMessage.DateTimeOffset, updateMessage.u);
         UpdateBids(updateMessage.Bids, updateMessage.DateTimeOffset, updateMessage.u);
         Debug.Assert(updateMessage.FirstUpdateId <= updateMessage.FinalUpdateId, "FirstUpdateId <= FinalUpdateId");
-        Debug.Assert((updateMessage.PreviousUpdateId ?? updateMessage.FirstUpdateId) <= updateMessage.FinalUpdateId, "PreviousUpdateId <= FinalUpdateId");
+        Debug.Assert((updateMessage.PreviousUpdateId ?? updateMessage.FirstUpdateId) <= updateMessage.FinalUpdateId,
+            "PreviousUpdateId <= FinalUpdateId");
         LastUpdateId = Math.Max(updateMessage.u, updateMessage.U);
     }
 
-    public (int askCount, int bidCount) DropOutdated(long updateId, double minBuy = double.MinValue,
+    public (int removedAskCount, int removedBidCount) DropOutdated(long updateId, double minBuy = double.MinValue,
         double maxSell = double.MaxValue, bool cleanupAsks = false, bool cleanupBids = false)
     {
         if (minBuy > maxSell)
@@ -185,11 +186,12 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         return (askCount, bidCount);
     }
 
-    public (int askCount, int bidCount) DropOutdated(in BinanceHttpOrderbook orderbook, bool fullCleanup)
+    public (int removedAskCount, int removedBidCount) DropOutdated(in BinanceHttpOrderbook orderbook,
+        bool? fullCleanup = null, int maxOrderbookLimit = IBinancePublicHttpApi.MaxOrderbookLimit)
     {
         static double PriceSelector(BinancePriceQuantityEntry<double> entry) => entry.Price;
-        var cleanupAsks = fullCleanup || orderbook.Asks.Count >= IBinancePublicHttpApi.MaxOrderbookLimit;
-        var cleanupBids = fullCleanup || orderbook.Bids.Count >= IBinancePublicHttpApi.MaxOrderbookLimit;
+        var cleanupAsks = fullCleanup ?? orderbook.Asks.Count >= maxOrderbookLimit;
+        var cleanupBids = fullCleanup ?? orderbook.Bids.Count >= maxOrderbookLimit;
         return DropOutdated(orderbook.LastUpdateId, PriceSelector(orderbook.Bids.MinBy(PriceSelector)),
             PriceSelector(orderbook.Asks.MaxBy(PriceSelector)), cleanupAsks: cleanupAsks, cleanupBids: cleanupBids);
     }
