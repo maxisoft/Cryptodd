@@ -68,7 +68,7 @@ public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanc
                 return;
             }
 
-            lock (this)
+            lock (_node)
             {
                 _node?.List?.Remove(_node);
                 _node = null;
