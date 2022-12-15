@@ -43,7 +43,7 @@ public abstract class
     private readonly DisposableManager _disposableManager = new();
 
     private readonly Stopwatch _expiryCleanupStopwatch = new();
-    private readonly ILogger _logger;
+    protected ILogger Logger { get; }
 
     private readonly ConcurrentBag<TaskCompletionSource<string>> _newPendingSymbolForHttpCompletionSources = new();
 
@@ -63,7 +63,7 @@ public abstract class
         IConfiguration configuration, Boxed<CancellationToken> cancellationToken)
     {
         _container = container;
-        _logger = logger.ForContext(GetType());
+        Logger = logger.ForContext(GetType());
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     }
 
@@ -138,7 +138,7 @@ public abstract class
                 {
                     if (_websocketTask.IsFaulted)
                     {
-                        _logger.Error(_websocketTask.Exception, "error with previous websocket tasks");
+                        Logger.Error(_websocketTask.Exception, "error with previous websocket tasks");
                     }
 
                     await webSockets.DisposeAsync();
@@ -146,7 +146,7 @@ public abstract class
                     NestedContainer = _container.GetNestedContainer();
                     container = NestedContainer;
                     webSockets = CreateWebsockets(symbols, container);
-                    _logger.Debug("Created {Count} websockets for {SymbolCount} symbols", webSockets.Count,
+                    Logger.Debug("Created {Count} websockets for {SymbolCount} symbols", webSockets.Count,
                         symbols.Count);
                     _websocketTask.Dispose();
                     Websockets = webSockets;
@@ -174,11 +174,11 @@ public abstract class
                 {
                     if (_backgroundTasks?.IsFaulted ?? false)
                     {
-                        _logger.Error(_backgroundTasks.Exception, "{Collector} background tasks faulted", GetType());
+                        Logger.Error(_backgroundTasks.Exception, "{Collector} background tasks faulted", GetType());
                     }
 
                     _backgroundTasks?.Dispose();
-                    _logger.Verbose("Starting background tasks for {Name}", GetType().NameInCode());
+                    Logger.Verbose("Starting background tasks for {Name}", GetType().NameInCode());
                     _backgroundTasks = StartBackgroundTasks();
                 }
             }
@@ -250,7 +250,7 @@ public abstract class
         {
             if (_pendingSymbolsForHttp.Add(symbol))
             {
-                _logger.Write(logLevel, "Scheduling orderbook http update for {Symbol}", symbol);
+                Logger.Write(logLevel, "Scheduling orderbook http update for {Symbol}", symbol);
                 while (_newPendingSymbolForHttpCompletionSources.TryTake(out var tcs))
                 {
                     tcs.TrySetResult(symbol);
@@ -279,7 +279,7 @@ public abstract class
                 }
                 catch (Exception exception)
                 {
-                    _logger.Verbose(exception, "");
+                    Logger.Verbose(exception, "");
                 }
             }
 
@@ -294,7 +294,7 @@ public abstract class
                 }
                 catch (ObjectDisposedException e2)
                 {
-                    _logger.Error(e2, "{Cts} disposed, assuming task is cancelled", nameof(_cancellationTokenSource));
+                    Logger.Error(e2, "{Cts} disposed, assuming task is cancelled", nameof(_cancellationTokenSource));
                 }
             }
             else
@@ -372,7 +372,7 @@ public abstract class
                     _pendingSymbolsForHttp.Add(symbol);
                 }
 
-                _logger.Error(e, "Unable to update orderbook for {Symbol} from http", symbol);
+                Logger.Error(e, "Unable to update orderbook for {Symbol} from http", symbol);
             }
         }
     }
@@ -484,7 +484,7 @@ public abstract class
                         verbosity = LogEventLevel.Debug;
                     }
 
-                    _logger.Write(verbosity, e, "{Handler} for {Name} threw up", handlers[index]?.GetType(), name);
+                    Logger.Write(verbosity, e, "{Handler} for {Name} threw up", handlers[index]?.GetType(), name);
                 }
                 finally
                 {

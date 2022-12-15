@@ -50,6 +50,10 @@ public abstract class BaseBinanceOrderbookSaveToFileHandler<TBinanceOrderBookWri
 
     public async Task Handle(BinanceAggregatedOrderbookHandlerArguments arguments, CancellationToken cancellationToken)
     {
+        if (arguments.DateTime <= DateTimeOffset.UnixEpoch)
+        {
+            throw new ArgumentOutOfRangeException(nameof(arguments), arguments, "Invalid negative DateTimeOffset for an orderbook");
+        }
         await _writer.WriteAsync(arguments.Symbol, new ConcatBidAsk(in arguments), arguments.DateTime, cancellationToken);
     }
 }

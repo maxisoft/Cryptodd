@@ -9,11 +9,11 @@ namespace Cryptodd.Pairs;
 
 public static class PairSanitizer
 {
-    private static readonly ConcurrentLfu<(string, char, bool?), string> Cache = new(1 << 16);
+    private static readonly ConcurrentLfu<(string, char, TriBool), string> Cache = new(1 << 16);
 
     public static string Sanitize(string symbol, char escapedChar = 'X', bool? includeHash = null)
     {
-        var cacheKey = (symbol, escapedChar, includeHash);
+        var cacheKey = (symbol, escapedChar, (TriBool) includeHash);
         if (Cache.TryGet(cacheKey, out var escaped) && escaped is not null)
         {
             return escaped;
