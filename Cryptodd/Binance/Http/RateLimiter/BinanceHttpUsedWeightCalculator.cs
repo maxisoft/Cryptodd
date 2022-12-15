@@ -195,7 +195,10 @@ public class BinanceHttpUsedWeightCalculator : IService
 
             if (PendingTotalWeight != pendingTotalWeight)
             {
+#if DEBUG
                 _logger.Warning("invalid computation of {Name} detected", nameof(PendingTotalWeight));
+#endif
+
                 PendingTotalWeight = pendingTotalWeight;
             }
         }
