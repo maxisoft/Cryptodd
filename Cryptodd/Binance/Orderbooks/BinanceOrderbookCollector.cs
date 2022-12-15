@@ -72,6 +72,12 @@ public sealed class BinanceOrderbookCollector : BaseBinanceOrderbookCollector<Bi
             container.GetRequiredService<IOrderbookAggregator>();
         var aggregate = await aggregator.Handle(arg, cancellationToken);
 
+        if (aggregate.DateTime <= DateTimeOffset.UnixEpoch)
+        {
+            Logger.Warning("invalid Datetime for {Symbol} orderbook", arg.Symbol);
+            return;
+        }
+        
         var tasks = handlers.Select(handler => handler.Handle(aggregate, cancellationToken)).ToArray();
         await WaitForHandlers("Aggregated Orderbooks", handlers, tasks, cancellationToken);
     }
