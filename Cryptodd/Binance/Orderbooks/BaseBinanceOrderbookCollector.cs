@@ -212,7 +212,8 @@ public abstract class
                 var depthUpdateMessage = referenceCounterDisposable.ValueRef.Data;
                 var symbol = depthUpdateMessage.Symbol;
                 var orderbook = Orderbooks[symbol];
-                if ((depthUpdateMessage.PreviousUpdateId is null && depthUpdateMessage.FirstUpdateId - orderbook.LastUpdateId > 1) ||
+                if ((depthUpdateMessage.PreviousUpdateId is null &&
+                     depthUpdateMessage.FirstUpdateId - orderbook.LastUpdateId > 1) ||
                     (depthUpdateMessage.PreviousUpdateId ?? orderbook.LastUpdateId) != orderbook.LastUpdateId ||
                     orderbook.IsEmpty())
                 {
@@ -246,6 +247,11 @@ public abstract class
 
     private void ScheduleSymbolForHttpUpdate(string symbol, LogEventLevel logLevel = LogEventLevel.Debug)
     {
+        if (string.IsNullOrEmpty(symbol))
+        {
+            throw new ArgumentNullException(nameof(symbol), "Empty symbol not allowed");
+        }
+
         lock (_pendingSymbolsForHttp)
         {
             if (_pendingSymbolsForHttp.Add(symbol))
@@ -309,6 +315,7 @@ public abstract class
         const int expWaitInitialValue = 1000;
         var expWait = expWaitInitialValue;
         var httpCallOption = new TOrderbookHttpCallOptions();
+        var prevSymbol = "";
         while (!cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(50, cancellationToken).ConfigureAwait(false);
@@ -319,6 +326,7 @@ public abstract class
             if (availableWeight <= callWeight)
             {
                 expWait += expWait;
+                expWait = Math.Max(expWait, 60_000);
                 await Task.Delay(expWait, cancellationToken).ConfigureAwait(false);
                 continue;
             }
@@ -332,11 +340,28 @@ public abstract class
             expWait = expWaitInitialValue;
 
             string symbol;
-            lock (_pendingSymbolsForHttp)
+            // ReSharper disable once InconsistentlySynchronizedField
+            if (_pendingSymbolsForHttp.Count == 0)
             {
-                symbol = _pendingSymbolsForHttp.FirstOrDefault("");
-                _pendingSymbolsForHttp.Remove(symbol);
+                symbol = "";
             }
+            else
+            {
+                lock (_pendingSymbolsForHttp)
+                {
+                    symbol = _pendingSymbolsForHttp.FirstOrDefault("");
+                    _pendingSymbolsForHttp.Remove(symbol);
+                    if (!string.IsNullOrEmpty(symbol) && symbol == prevSymbol && _pendingSymbolsForHttp.Count > 0)
+                    {
+                        // try to pick a new symbol
+                        symbol = _pendingSymbolsForHttp.FirstOrDefault("");
+                        _pendingSymbolsForHttp.Remove(symbol);
+                        Debug.Assert(!string.IsNullOrEmpty(prevSymbol));
+                        _pendingSymbolsForHttp.Add(prevSymbol);
+                    }
+                }
+            }
+
 
             if (string.IsNullOrWhiteSpace(symbol))
             {
@@ -345,6 +370,14 @@ public abstract class
                 await Task.WhenAny(Task.Delay(expWaitInitialValue, cancellationToken), tcs.Task).ConfigureAwait(false);
                 tcs.TrySetCanceled(cancellationToken);
                 continue;
+            }
+            else if (symbol == prevSymbol)
+            {
+                await Task.Delay(expWait, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                prevSymbol = symbol;
             }
 
             try
@@ -356,7 +389,7 @@ public abstract class
                 var orderbook = Orderbooks[symbol];
                 lock (orderbook)
                 {
-                    orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect);
+                    orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect, MaxOrderBookLimit);
                     orderbook.Update(in remoteOb, dateTime);
                 }
 
@@ -367,6 +400,7 @@ public abstract class
             }
             catch (Exception e)
             {
+                Debug.Assert(!string.IsNullOrEmpty(symbol));
                 lock (_pendingSymbolsForHttp)
                 {
                     _pendingSymbolsForHttp.Add(symbol);
@@ -510,7 +544,6 @@ public abstract class
         Debug.Assert(ReferenceEquals(asks.Orderbook, bids.Orderbook));
         await using var container = _container.GetNestedContainer();
         var arg = new BinanceOrderbookHandlerArguments(symbol, asks, bids);
-
         await DispatchToObHandlers(container, arg, cancellationToken).ConfigureAwait(false);
         await CreateAggregateAndDispatch(container, arg, cancellationToken).ConfigureAwait(false);
     }

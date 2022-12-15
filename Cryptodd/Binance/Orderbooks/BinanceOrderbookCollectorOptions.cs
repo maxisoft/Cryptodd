@@ -6,5 +6,5 @@ public class BinanceOrderbookCollectorOptions
 
     public TimeSpan EntryExpiry { get; set; } = TimeSpan.FromHours(10);
 
-    public bool FullCleanupOrderbookOnReconnect { get; set; } = true;
+    public bool? FullCleanupOrderbookOnReconnect { get; set; } = true;
 }
