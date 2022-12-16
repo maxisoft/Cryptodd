@@ -27,7 +27,8 @@ public readonly record struct GroupedOrderBookRequest(string Symbol, string Prec
 
 public class BitfinexPublicWebSocketOptions
 {
-    public string WebsocketUrl { get; set; } = "wss://api-pub.bitfinex.com/ws/2";
+    public const string DefaultUrl = "wss://api-pub.bitfinex.com/ws/2";
+    public string WebsocketUrl { get; set; } = DefaultUrl;
     public int MaxChannel { get; set; } = 25;
 }
 
