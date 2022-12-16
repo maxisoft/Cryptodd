@@ -1,5 +1,9 @@
 ﻿Http:
 # Proxy: socks5://127.0.0.1:39050
+Torify:
+  ProxyAddress: socks5://127.0.0.1:39050
+  UseForBitfinex: false
+
 Binance:
   Orderbook:
     Task:
@@ -256,7 +260,7 @@ Trade:
       - 60000
       - 0
     
-
+SetupTimescaleDb: false
 Postgres:
   ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;ConnectionLifetime=600;Keepalive=60;Application Name=cryptodd"
   
