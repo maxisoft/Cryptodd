@@ -141,7 +141,7 @@ class BitfinexObDescriptor(ObDescriptor):
 
 
 @register_descriptor_class
-class BitfinexP0ObDescriptor(ObDescriptor):
+class BitfinexP0ObDescriptor(BitfinexObDescriptor):
     name = "BitfinexP0"
     shape = (-1, 250 * 2, 3)
     columns = _binance_columns
