@@ -79,7 +79,7 @@ public abstract class BaseBinanceOrderbookTask : BasePeriodicScheduledTask
     private void ConfigureRetryPolicy()
     {
         var maxRetry = Section.GetValue("MaxRetry", 3);
-        _retryPolicy = Policy.Handle<Exception>(_ => true)
+        _retryPolicy = Policy.Handle<Exception>(static e => e is not OperationCanceledException)
             .WaitAndRetryAsync(maxRetry, i => TimeSpan.FromSeconds(1 + i));
     }
 
