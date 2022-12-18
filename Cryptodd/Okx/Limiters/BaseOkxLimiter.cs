@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using Maxisoft.Utils.Collections.Lists;
 
 namespace Cryptodd.Okx.Limiters;
@@ -7,13 +8,72 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
 {
     private readonly ConcurrentBag<TaskCompletionSource> _waiters = new();
 
-    protected SemaphoreSlim Semaphore { get; } = new(1, 1);
+    protected abstract SemaphoreSlim? Semaphore { get; }
 
     protected internal int TickPollingTimer { get; set; } = 200;
+
     public abstract int MaxLimit { get; }
     public abstract int CurrentCount { get; set; }
 
     public virtual int AvailableCount => IOkxLimiter.ComputeAvailableCount(this);
+
+    private readonly SemaphoreSlim _internalSemaphore = new(1, 1);
+
+    private async ValueTask<int> SemaphoreMultiWaitViaPollingAsync(SemaphoreSlim semaphore, int count,
+        int pollingInterval = 20,
+        CancellationToken cancellationToken = default)
+    {
+        Debug.Assert(TickPollingTimer > 2 * pollingInterval, "TickPollingTimer > pollingInterval");
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await _internalSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    try
+                    {
+                        var entered = await semaphore.WaitAsync(pollingInterval, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (entered)
+                        {
+                            continue;
+                        }
+
+                        if (i > 0)
+                        {
+                            semaphore.Release(i);
+                        }
+
+                        break;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (i > 0)
+                        {
+                            semaphore.Release(i);
+                        }
+
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+
+                        break;
+                    }
+                }
+
+                break;
+            }
+            finally
+            {
+                _internalSemaphore.Release();
+            }
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return count;
+    }
 
     public async Task<T> WaitForLimit<T>(Func<OkxLimiterOnSuccessParameters, Task<T>> onSuccess, int count = 1,
         CancellationToken cancellationToken = default)
@@ -30,7 +90,20 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
                 return await ValueTask.FromException<T>(new RetryException());
             }
 
-            await Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var semaphore = Semaphore;
+
+            if (semaphore is null || MaxLimit == 1)
+            {
+                semaphore = _internalSemaphore;
+                await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await SemaphoreMultiWaitViaPollingAsync(semaphore, count, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+
             try
             {
                 if (Check() && !cancellationToken.IsCancellationRequested)
@@ -53,11 +126,19 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
             }
             finally
             {
-                Semaphore.Release();
+                // check not disposed
+                if (ReferenceEquals(semaphore, Semaphore))
+                {
+                    semaphore.Release(count);
+                }
+                else if (ReferenceEquals(semaphore, _internalSemaphore))
+                {
+                    semaphore.Release();
+                }
             }
 
 
-            return await ValueTask.FromException<T>(new RetryException());
+            throw new RetryException();
         }
 
         var retry = true;
@@ -65,7 +146,7 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
         {
             retry = false;
             cancellationToken.ThrowIfCancellationRequested();
-            await OnTick();
+            await OnTick().ConfigureAwait(false);
             if (AvailableCount < count)
             {
                 var tcs = new TaskCompletionSource();
@@ -88,7 +169,7 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
 
             try
             {
-                return await Perform();
+                return await Perform().ConfigureAwait(false);
             }
             catch (RetryException)
             {
@@ -170,7 +251,7 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
     {
         if (disposing)
         {
-            Semaphore.Dispose();
+            _internalSemaphore.Dispose();
         }
     }
 

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using Cryptodd.IoC;
+using Cryptodd.Utils;
 using Lamar;
 using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 namespace Cryptodd.Okx.Limiters;
 
 [Singleton]
+// ReSharper disable once UnusedType.Global
 public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
 {
     private readonly IConfiguration _configuration;
@@ -18,24 +20,37 @@ public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
         _configuration = configuration;
     }
 
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
     public OkxLimiter WebsocketConnectionLimiter =>
         GetOrCreate<IOkxLimiterRegistry.WebsocketConnectionLimiterImpl>("Websocket:Connection");
 
+    public const string WebsocketSubscriptionSectionName = "Websocket:Subscription";
+
     public OkxLimiter WebsocketSubscriptionLimiter =>
-        GetOrCreate<IOkxLimiterRegistry.WebsocketSubscriptionLimiterImpl>("Websocket:Subscription");
+        GetOrCreate<IOkxLimiterRegistry.WebsocketSubscriptionLimiterImpl>(WebsocketSubscriptionSectionName);
 
-    private OkxLimiter GetOrCreate<T>(string name) where T : OkxLimiter, new()
+    public ReferenceCounterDisposable<OkxLimiter> CreateNewWebsocketSubscriptionLimiter() =>
+        new(ValueFactory<IOkxLimiterRegistry.WebsocketSubscriptionLimiterImpl>(WebsocketSubscriptionSectionName,
+            withOptionChangeCallback: false));
+
+    private OkxLimiter ValueFactory<T>(string name) where T : OkxLimiter, new() => ValueFactory<T>(name, true);
+    private OkxLimiter ValueFactory<T>(string name, bool withOptionChangeCallback) where T : OkxLimiter, new()
     {
-        OkxLimiter ValueFactory(string s)
-        {
-            var options = new OkxLimiterOptions();
-            var section = _configuration.GetSection("Okx:Limiter").GetSection(name);
-            section.Bind(options);
-            var res = Create<T>(options);
+        var options = new OkxLimiterOptions();
+        var section = _configuration.GetSection("Okx:Limiter").GetSection(name);
+        section.Bind(options);
+        var res = Create<T>(options);
 
+        if (withOptionChangeCallback)
+        {
             static void ChangeCallback(object? o)
             {
-                if (o is not ValueTuple<T, OkxLimiterOptions, IConfigurationSection> tuple)
+                if (o is not Tuple<T, OkxLimiterOptions, IConfigurationSection> tuple)
                 {
                     return;
                 }
@@ -47,7 +62,7 @@ public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
             }
 
             var cb = section.GetReloadToken().RegisterChangeCallback(ChangeCallback,
-                new ValueTuple<T, OkxLimiterOptions, IConfigurationSection>(res, options, section));
+                new Tuple<T, OkxLimiterOptions, IConfigurationSection>(res, options, section));
             try
             {
                 _disposableManager.LinkDisposable(cb);
@@ -57,12 +72,15 @@ public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
                 cb.Dispose();
                 throw;
             }
-            _disposableManager.LinkDisposableAsWeak(res);
-            return res;
         }
 
-        return _limiters.GetOrAdd(name, ValueFactory);
+
+        _disposableManager.LinkDisposableAsWeak(res);
+        return res;
     }
+
+    private OkxLimiter GetOrCreate<T>(string name) where T : OkxLimiter, new() =>
+        _limiters.GetOrAdd(name, ValueFactory<T>);
 
     private static void Update<T>(T limiter, OkxLimiterOptions options) where T : OkxLimiter, new()
     {
@@ -85,12 +103,7 @@ public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
         {
             _disposableManager.Dispose();
         }
-        _limiters.Clear();
-    }
 
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
+        _limiters.Clear();
     }
 }

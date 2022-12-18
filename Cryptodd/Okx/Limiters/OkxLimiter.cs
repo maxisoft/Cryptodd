@@ -2,17 +2,17 @@
 
 namespace Cryptodd.Okx.Limiters;
 
+// use both reset periodically and on clock behavior to be sure about never reaching limits whatever rate limiter the remote uses.
 public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
 {
     private readonly ResetOnClockOkxLimiter _onClockOkxLimiter;
-
-    // use both reset periodically and on clock behavior to be sure about never reaching limits whatever rate limiter the remote uses.
     private readonly ResetPeriodicallyOkxLimiter _periodicallyOkxLimiter;
 
-    public OkxLimiter(TimeSpan period)
+    public OkxLimiter(TimeSpan period, int maxLimit)
     {
         _periodicallyOkxLimiter = new ResetPeriodicallyOkxLimiter { Period = period };
         _onClockOkxLimiter = new ResetOnClockOkxLimiter { Period = period };
+        MaxLimit = maxLimit;
     }
 
     public int TickPollingTimer
@@ -24,6 +24,12 @@ public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
             _onClockOkxLimiter.TickPollingTimer = value;
             Notify();
         }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     public TimeSpan Period
@@ -56,8 +62,6 @@ public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
     }
 
     public int CurrentCount => Math.Max(_periodicallyOkxLimiter.CurrentCount, _onClockOkxLimiter.CurrentCount);
-
-    private class RetryLater : Exception { }
 
     public async Task<T> WaitForLimit<T>(Func<OkxLimiterOnSuccessParameters, Task<T>> onSuccess, int count = 1,
         CancellationToken cancellationToken = default)
@@ -127,9 +131,5 @@ public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
+    private class RetryLater : Exception { }
 }

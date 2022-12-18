@@ -8,6 +8,10 @@ public abstract class BaseResetOnScheduleOkxLimiter : BaseOkxLimiter, IPeriodBas
 
     private int _maxLimit;
 
+    private SemaphoreSlim? _semaphore = null;
+
+    protected override SemaphoreSlim? Semaphore => _semaphore;
+
     public DateTimeOffset DateTime { get; private set; } = DateTimeOffset.UnixEpoch;
 
     // ReSharper disable once ConvertToAutoPropertyWithPrivateSetter
@@ -21,6 +25,8 @@ public abstract class BaseResetOnScheduleOkxLimiter : BaseOkxLimiter, IPeriodBas
     {
         Debug.Assert(value > 0);
         _maxLimit = value;
+        _semaphore?.Dispose();
+        _semaphore = new SemaphoreSlim(value, value);
     }
 
     protected abstract bool ShouldReset(DateTimeOffset now);
@@ -37,5 +43,20 @@ public abstract class BaseResetOnScheduleOkxLimiter : BaseOkxLimiter, IPeriodBas
         DateTime = now;
 
         return ValueTask.CompletedTask;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            var semaphore = _semaphore;
+            while (semaphore is not null)
+            {
+                semaphore = Interlocked.CompareExchange(ref _semaphore, null, semaphore);
+                semaphore?.Dispose();
+            }
+        }
+
+        base.Dispose(disposing);
     }
 }

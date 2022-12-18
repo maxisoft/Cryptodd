@@ -1,27 +1,25 @@
-﻿namespace Cryptodd.Okx.Limiters;
+﻿using Cryptodd.Utils;
+
+namespace Cryptodd.Okx.Limiters;
 
 public interface IOkxLimiterRegistry
 {
     OkxLimiter WebsocketConnectionLimiter { get; }
     OkxLimiter WebsocketSubscriptionLimiter { get; }
 
+    ReferenceCounterDisposable<OkxLimiter> CreateNewWebsocketSubscriptionLimiter();
+
     protected sealed class WebsocketConnectionLimiterImpl : OkxLimiter
     {
-        private WebsocketConnectionLimiterImpl(TimeSpan? period) : base(period ?? TimeSpan.FromSeconds(1.1))
-        {
-            MaxLimit = 1;
-        }
+        private WebsocketConnectionLimiterImpl(TimeSpan period) : base(period, 1) { }
 
-        public WebsocketConnectionLimiterImpl() : this(null) { }
+        public WebsocketConnectionLimiterImpl() : this(TimeSpan.FromSeconds(1.1)) { }
     }
 
     protected sealed class WebsocketSubscriptionLimiterImpl : OkxLimiter
     {
-        private WebsocketSubscriptionLimiterImpl(TimeSpan? period) : base(period ?? TimeSpan.FromHours(1.001))
-        {
-            MaxLimit = 240;
-        }
+        private WebsocketSubscriptionLimiterImpl(TimeSpan period) : base(period, 240) { }
 
-        public WebsocketSubscriptionLimiterImpl() : this(null) { }
+        public WebsocketSubscriptionLimiterImpl() : this(TimeSpan.FromHours(1.001)) { }
     }
 }
