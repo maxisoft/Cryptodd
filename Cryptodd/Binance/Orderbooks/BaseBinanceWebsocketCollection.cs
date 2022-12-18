@@ -103,7 +103,7 @@ public abstract class BaseBinanceWebsocketCollection<TBinanceOrderbookWebsocket,
         for (var i = 0; i < websockets.Length; i++)
         {
             var websocket = websockets[i];
-            tasks[i] = websocket.RecvLoop();
+            tasks[i] = websocket.ReceiveLoop();
         }
 
         using var cts = new CancellationTokenSource();
