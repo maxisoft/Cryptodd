@@ -32,7 +32,7 @@ public class BinancePublicHttpApiRealTest
         {
             res = await new BinancePublicHttpApi(httpclient, new Mock<RealLogger>(MockBehavior.Loose){CallBase = true}.Object, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetExchangeInfoAsync();
         }
-        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429 or (HttpStatusCode) 451 
                                                  or (HttpStatusCode)403)
         {
             Skip.Always(e.ToStringDemystified());
@@ -54,7 +54,7 @@ public class BinancePublicHttpApiRealTest
         {
             res = await new BinancePublicHttpApi(httpclient, new Mock<RealLogger>(MockBehavior.Loose){CallBase = true}.Object, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetOrderbook("ETHBTC");
         }
-        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429 or (HttpStatusCode) 451 
                                                  or (HttpStatusCode)403)
         {
             Skip.Always(e.ToStringDemystified());

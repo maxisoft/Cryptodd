@@ -68,7 +68,7 @@ public class PairHasherTest
         {
             symbols = await new BinancePublicHttpApi(httpclient, new Mock<RealLogger>(MockBehavior.Loose){CallBase = true}.Object, new ConfigurationManager(), new UriRewriteService(), new EmptyBinanceRateLimiter()).ListSymbols(cancellationToken:cancellationToken);
         }
-        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429 or (HttpStatusCode) 451 
                                                  or (HttpStatusCode)403)
         {
             symbols = new List<string>();
