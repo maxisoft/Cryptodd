@@ -36,10 +36,12 @@ public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanc
 
         if (response.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429)
         {
+            Logger.Warning("Got Status {Status} from binance, going to downscale {AvailableWeightMultiplier}", response.StatusCode, nameof(InternalRateLimiter.AvailableWeightMultiplier));
             InternalRateLimiter.UpdateUsedWeightFromBinance(
                 (int)((ulong)InternalRateLimiter.MaxUsableWeight + 1 > int.MaxValue
                     ? int.MaxValue
                     : (ulong)InternalRateLimiter.MaxUsableWeight + 1));
+            
             InternalRateLimiter.AvailableWeightMultiplier *= 0.9f;
         }
     }

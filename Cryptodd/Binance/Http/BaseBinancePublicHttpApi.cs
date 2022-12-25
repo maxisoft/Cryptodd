@@ -9,6 +9,7 @@ using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Models.Json;
 using Cryptodd.Http;
 using Microsoft.Extensions.Configuration;
+using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
@@ -19,9 +20,12 @@ public abstract partial class BaseBinancePublicHttpApi<
     where TOptions : BaseBinancePublicHttpApiOptions
     where TInternalBinanceRateLimiter : class, IInternalBinanceRateLimiter
 {
-    protected BaseBinancePublicHttpApi(HttpClient httpClient, IConfiguration configuration,
+    protected ILogger Logger { get; }
+
+    protected BaseBinancePublicHttpApi(HttpClient httpClient, ILogger logger, IConfiguration configuration,
         IUriRewriteService uriRewriteService, TInternalBinanceRateLimiter internalRateLimiter)
     {
+        Logger = logger.ForContext(GetType());
         HttpClient = httpClient;
         Configuration = configuration;
         UriRewriteService = uriRewriteService;

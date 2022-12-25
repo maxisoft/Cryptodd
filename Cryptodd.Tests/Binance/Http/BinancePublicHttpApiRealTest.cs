@@ -7,6 +7,9 @@ using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Http;
 using Microsoft.Extensions.Configuration;
+using Moq;
+using Serilog;
+using Serilog.Core;
 using xRetry;
 using Xunit;
 
@@ -19,7 +22,7 @@ public class BinancePublicHttpApiRealTest
     {
         using var httpclient = new HttpClient();
         var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>()).Build();
-        var res = await new BinancePublicHttpApi(httpclient, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetExchangeInfoAsync();
+        var res = await new BinancePublicHttpApi(httpclient, new Mock<Logger>(MockBehavior.Loose){CallBase = true}.Object, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetExchangeInfoAsync();
         Assert.NotEmpty(res);
         Assert.NotEmpty(res["symbols"] as JsonArray ?? new JsonArray());
     }
@@ -29,7 +32,7 @@ public class BinancePublicHttpApiRealTest
     {
         using var httpclient = new HttpClient();
         var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>()).Build();
-        var res = await new BinancePublicHttpApi(httpclient, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetOrderbook("ETHBTC");
+        var res = await new BinancePublicHttpApi(httpclient, new Mock<Logger>(MockBehavior.Loose){CallBase = true}.Object, config, new UriRewriteService(), new EmptyBinanceRateLimiter()).GetOrderbook("ETHBTC");
         Assert.NotEmpty(res.Asks);
         Assert.NotEmpty(res.Bids);
     }

@@ -13,6 +13,8 @@ using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.Pairs;
 using Microsoft.Extensions.Configuration;
+using Moq;
+using Serilog.Core;
 using xRetry;
 using Xunit;
 
@@ -52,7 +54,7 @@ public class PairHasherTest
     public async Task TestRealHash()
     {
         using var httpclient = new HttpClient();
-        var symbols = await new BinancePublicHttpApi(httpclient, new ConfigurationManager(), new UriRewriteService(), new EmptyBinanceRateLimiter()).ListSymbols();
+        var symbols = await new BinancePublicHttpApi(httpclient, new Mock<Logger>(MockBehavior.Loose){CallBase = true}.Object, new ConfigurationManager(), new UriRewriteService(), new EmptyBinanceRateLimiter()).ListSymbols();
         Assert.NotEmpty(symbols);
         var marketsUnique = symbols.Where(s => !string.IsNullOrEmpty(s)).ToImmutableHashSet();
 
