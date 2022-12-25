@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using Cryptodd.Utils;
 using Maxisoft.Utils.Collections.Lists;
 
 namespace Cryptodd.Okx.Limiters;
@@ -26,8 +27,7 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
         Debug.Assert(TickPollingTimer > 2 * pollingInterval, "TickPollingTimer > pollingInterval");
         while (!cancellationToken.IsCancellationRequested)
         {
-            await _internalSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
+            using (await _internalSemaphore.WaitAndGetDisposableAsync(cancellationToken).ConfigureAwait(false))
             {
                 for (var i = 0; i < count; i++)
                 {
@@ -54,24 +54,19 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
                             semaphore.Release(i);
                         }
 
-                        if (cancellationToken.IsCancellationRequested)
-                        {
-                            throw;
-                        }
-
-                        break;
+                        throw;
                     }
                 }
 
                 break;
             }
-            finally
-            {
-                _internalSemaphore.Release();
-            }
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
+        if (count <= 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
         return count;
     }
 
@@ -87,7 +82,7 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
         {
             if (!Check())
             {
-                return await ValueTask.FromException<T>(new RetryException());
+                throw new RetryException();
             }
 
             var semaphore = Semaphore;
@@ -165,6 +160,11 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
                 }
 
                 TryRemoveFast(tcs);
+
+                if (!tcs.Task.IsCompleted)
+                {
+                    continue;
+                }
             }
 
             try
@@ -244,6 +244,11 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
     }
 
     protected abstract ValueTask OnTick();
+
+    public async Task TriggerOnTick()
+    {
+        await OnTick().ConfigureAwait(false);
+    }
 
     private class RetryException : Exception { }
 

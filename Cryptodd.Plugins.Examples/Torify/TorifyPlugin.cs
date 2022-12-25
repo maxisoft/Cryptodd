@@ -22,6 +22,7 @@ using Cryptodd.Binance.Orderbooks.Websockets;
 using Cryptodd.BinanceFutures.Orderbooks.Websockets;
 using Cryptodd.Bitfinex.WebSockets;
 using Cryptodd.Http;
+using Cryptodd.Okx.Websockets;
 using Lamar;
 using Maxisoft.Utils.Disposables;
 using Microsoft.Extensions.Configuration;
@@ -39,8 +40,12 @@ public class TorifyOptions
     public bool UseForBinance { get; set; } = true;
     public bool UseForBinanceFutures { get; set; } = true;
     public bool UseForBitfinex { get; set; } = true;
+    
+    public bool UseForOxk { get; set; } = true;
 
     public bool DebugLog { get; set; }
+    
+    public int? ConnectTimeoutMs { get; set; }
 }
 
 public class TorifyPlugin : BasePlugin
@@ -139,6 +144,8 @@ public class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDisposable
         new(() => new Uri(BinanceFuturesOrderbookWebsocketOptions.DefaultBaseAddress).Host);
 
     private readonly Lazy<string> _bitfinexHost = new(() => new Uri(BitfinexPublicWebSocketOptions.DefaultUrl).Host);
+    
+    private readonly Lazy<string> _okxHost = new(() => new Uri(BaseOkxWebsocketOptions.DefaultAddress).Host);
 
     private bool ShouldIntercept(Uri uri)
     {
@@ -155,6 +162,11 @@ public class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDisposable
         }
 
         if (_options.UseForBitfinex && host == _bitfinexHost.Value)
+        {
+            return true;
+        }
+
+        if (_options.UseForOxk && host == _okxHost.Value)
         {
             return true;
         }
@@ -179,7 +191,7 @@ public class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDisposable
         {
             {
                 using var connectToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                connectToken.CancelAfter(httpConfig.GetValue("ConnectTimeoutMs", 5_000));
+                connectToken.CancelAfter(_options.ConnectTimeoutMs ?? httpConfig.GetValue("ConnectTimeoutMs", 2_000));
                 await ws.ConnectAsync(uri, connectToken.Token).ConfigureAwait(false);
                 if (!connect)
                 {

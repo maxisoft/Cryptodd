@@ -61,7 +61,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Okx\Websockets" />
         <Folder Include="Redis" />
     </ItemGroup>
 

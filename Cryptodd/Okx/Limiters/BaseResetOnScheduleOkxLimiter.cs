@@ -41,6 +41,7 @@ public abstract class BaseResetOnScheduleOkxLimiter : BaseOkxLimiter, IPeriodBas
 
         Notify();
         DateTime = now;
+        CurrentCount = 0;
 
         return ValueTask.CompletedTask;
     }

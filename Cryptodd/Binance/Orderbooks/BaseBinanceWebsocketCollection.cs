@@ -99,14 +99,13 @@ public abstract class BaseBinanceWebsocketCollection<TBinanceOrderbookWebsocket,
         }
 
         var tasks = new Task[websockets.Length];
-
+        using var cts = new CancellationTokenSource();
         for (var i = 0; i < websockets.Length; i++)
         {
             var websocket = websockets[i];
-            tasks[i] = websocket.ReceiveLoop();
+            tasks[i] = websocket.ReceiveLoop(cts.Token);
         }
 
-        using var cts = new CancellationTokenSource();
         try
         {
             var monitor = MonitorWebsockets(cts.Token);

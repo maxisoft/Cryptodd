@@ -12,6 +12,8 @@ using Cryptodd.Bitfinex.Models.Json;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
+using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Cryptodd.Pairs;
 using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;

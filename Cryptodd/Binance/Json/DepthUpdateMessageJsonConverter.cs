@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using System.Text.Unicode;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 
 namespace Cryptodd.Binance.Models.Json;
@@ -14,6 +15,11 @@ public class DepthUpdateMessageJsonConverter : JsonConverter<DepthUpdateMessage>
         new() { DefaultCapacity = 64 };
 
     internal static readonly StringPool StringPool = new(8 << 10);
+
+    static DepthUpdateMessageJsonConverter()
+    {
+        StringPool.Cache("BTCUSD");
+    }
 
     public override DepthUpdateMessage Read(ref Utf8JsonReader reader, Type typeToConvert,
         JsonSerializerOptions options)

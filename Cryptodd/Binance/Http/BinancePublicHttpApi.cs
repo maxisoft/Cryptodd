@@ -6,16 +6,19 @@ using Cryptodd.Binance.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
+using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Microsoft.Extensions.Configuration;
+using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
 public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpApiOptions, IInternalBinanceRateLimiter>,
     IBinancePublicHttpApi, INoAutoRegister
 {
-    public BinancePublicHttpApi(HttpClient httpClient, IConfiguration configuration,
+    public BinancePublicHttpApi(HttpClient httpClient, ILogger logger, IConfiguration configuration,
         IUriRewriteService uriRewriteService, IInternalBinanceRateLimiter internalRateLimiter) : base(httpClient,
-        configuration, uriRewriteService, internalRateLimiter)
+        logger, configuration, uriRewriteService, internalRateLimiter)
     {
         Section = configuration.GetSection("Binance:Http");
         OptionsLazy = new Lazy<BinancePublicHttpApiOptions>(OptionsValueFactory);

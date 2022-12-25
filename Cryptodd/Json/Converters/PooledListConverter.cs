@@ -1,18 +1,20 @@
-﻿using System.Text.Json;
+﻿using System.Buffers;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 
-namespace Cryptodd.Ftx.Models.Json;
+namespace Cryptodd.Json.Converters;
 
 public class PooledListConverter<T> : JsonConverter<PooledList<T>>
 {
     public int DefaultCapacity { get; set; }
+    public ArrayPool<T> ArrayPool { get; set; } = PooledList<T>.DefaultPool;
 
     public override PooledList<T>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         var converter = (JsonConverter<T>)options.GetConverter(typeof(T));
 
-        var res = new PooledList<T>(DefaultCapacity);
+        var res = new PooledList<T>(DefaultCapacity, ArrayPool);
 
         if (reader.TokenType != JsonTokenType.StartArray || !reader.Read())
         {

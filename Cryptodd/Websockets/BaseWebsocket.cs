@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text.Json;
 using Cryptodd.Binance.Models;
 using Cryptodd.Http;
+using Maxisoft.Utils.Logic;
 using Maxisoft.Utils.Objects;
 using Serilog;
 using Serilog.Events;
@@ -47,6 +48,8 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
     protected IClientWebSocketFactory WebSocketFactory { get; set; }
     protected abstract TOptions Options { get; set; }
     protected SemaphoreSlim SemaphoreSlim { get; } = new(1, 1);
+
+    protected AtomicBoolean Disposed { get; } = new();
     protected abstract ClientWebSocket? WebSocket { get; set; }
     protected CancellationTokenSource LoopCancellationTokenSource { get; }
     protected CancellationToken CancellationToken => LoopCancellationTokenSource.Token;
@@ -92,7 +95,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
 
     protected abstract Uri CreateUri();
 
-    protected async ValueTask<bool> ConnectIfNeeded()
+    public virtual async ValueTask<bool> ConnectIfNeeded(CancellationToken cancellationToken)
     {
         var res = false;
         if (!IsClosed)
@@ -100,14 +103,29 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             return res;
         }
 
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, CancellationToken);
+        cancellationToken = cts.Token;
         try
         {
-            await SemaphoreSlim.WaitAsync(CancellationToken).ConfigureAwait(false);
+            await SemaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (ObjectDisposedException e)
         {
-            Logger.Verbose(e, "semaphore got disposed before WaitAsync() call");
-            return false;
+            try
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Logger.Verbose(e, "semaphore got disposed before WaitAsync() call");
+                    return false;
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                Logger.Verbose(e, "semaphore got disposed before WaitAsync() call");
+                return false;
+            }
+
+            throw;
         }
 
         try
@@ -117,10 +135,10 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                 return false;
             }
 
-            Close();
+            Close("");
 
             WebSocket = await WebSocketFactory
-                .GetWebSocket(CreateUri(), cancellationToken: CancellationToken)
+                .GetWebSocket(CreateUri(), cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
             res = true;
             ConnectionCounter += 1;
@@ -133,16 +151,18 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             }
             catch (ObjectDisposedException e)
             {
-                Logger.Error(e, "semaphore got disposed before Release() call");
+                var level = Disposed ? LogEventLevel.Verbose : LogEventLevel.Error;
+                Logger.Write(level, e, "semaphore got disposed before Release() call");
             }
         }
 
         return res;
     }
 
-    protected virtual void Dispose(bool disposing)
+    protected virtual bool Dispose(bool disposing)
     {
-        Close();
+        disposing &= Disposed.FalseToTrue();
+        Close(disposing ? "disposing" : "");
         try
         {
             if (!LoopCancellationTokenSource.IsCancellationRequested)
@@ -152,6 +172,10 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         }
         catch (ObjectDisposedException e) // lgtm [cs/empty-catch-block]
         {
+            if (disposing)
+            {
+                throw;
+            }
             Debug.Write(e);
         }
 
@@ -161,11 +185,13 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             SemaphoreSlim.Dispose();
             LoopCancellationTokenSource.Dispose();
         }
+
+        return disposing;
     }
 
     private readonly object _lockObject = new();
 
-    protected virtual void Close()
+    protected virtual void Close(string reason)
     {
         var ws = WebSocket;
         if (ws is null)
@@ -185,6 +211,10 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             {
                 ws.Abort();
                 ws.Dispose();
+                if (!string.IsNullOrEmpty(reason))
+                {
+                    Logger.Debug("Closing websocket due to {Reason}", reason);
+                }
             }
             catch (ObjectDisposedException e)
             {
@@ -203,7 +233,15 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
 
     public async ValueTask DisposeAsync()
     {
-        LoopCancellationTokenSource.Cancel();
+        try
+        {
+            LoopCancellationTokenSource.Cancel();
+        }
+        catch (ObjectDisposedException e)
+        {
+            Logger.Verbose(e, "unable to cancel {Name}", nameof(LoopCancellationTokenSource));
+        }
+        
         var ws = WebSocket;
         if (ws is { State: WebSocketState.Open })
         {
@@ -238,17 +276,18 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         set => _dataLocal.Value = value;
     }
 
-    internal virtual async Task ReceiveLoop()
+    public virtual async Task ReceiveLoop(CancellationToken cancellationToken)
     {
         try
         {
             while (!LoopCancellationTokenSource.IsCancellationRequested)
             {
-                await ConnectIfNeeded().ConfigureAwait(false);
+                await ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
 
                 var ws = WebSocket!;
-                using var recvToken = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
-                recvToken.CancelAfter(Options.ReceiveTimeout);
+                using var receiveToken =
+                    CancellationTokenSource.CreateLinkedTokenSource(CancellationToken, cancellationToken);
+                receiveToken.CancelAfter(Options.ReceiveTimeout);
                 var memoryPool = MemoryPool;
                 var mem = memoryPool.Rent(1 << 10);
                 ValueWebSocketReceiveResult resp;
@@ -256,7 +295,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                 {
                     try
                     {
-                        resp = await ws.ReceiveAsync(mem.Memory, recvToken.Token).ConfigureAwait(false);
+                        resp = await ws.ReceiveAsync(mem.Memory, receiveToken.Token).ConfigureAwait(false);
                     }
                     catch (TaskCanceledException)
                     {
@@ -267,7 +306,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                         if (IsClosed && !LoopCancellationTokenSource.IsCancellationRequested)
                         {
                             Logger.Debug("Restarting connection");
-                            Close();
+                            Close("");
                             continue;
                         }
                         else
@@ -298,7 +337,8 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                     {
                         if (filter.HasFlag(ReceiveMessageFilter.ConsumeTheRest))
                         {
-                            while (resp is { EndOfMessage: false, Count: > 0 } && !recvToken.IsCancellationRequested &&
+                            while (resp is { EndOfMessage: false, Count: > 0 } &&
+                                   !receiveToken.IsCancellationRequested &&
                                    !IsClosed)
                             {
                                 if (filter.HasFlag(ReceiveMessageFilter.Break))
@@ -306,7 +346,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                                     break;
                                 }
 
-                                resp = await ws.ReceiveAsync(mem.Memory, recvToken.Token)
+                                resp = await ws.ReceiveAsync(mem.Memory, receiveToken.Token)
                                     .ConfigureAwait(false);
                                 if (filter.HasFlag(ReceiveMessageFilter.ContinueFiltering))
                                 {
@@ -332,7 +372,8 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                         IMemoryOwner<byte>? additionalMemory = null;
                         try
                         {
-                            while (resp is { EndOfMessage: false, Count: > 0 } && !recvToken.IsCancellationRequested &&
+                            while (resp is { EndOfMessage: false, Count: > 0 } &&
+                                   !receiveToken.IsCancellationRequested &&
                                    !IsClosed)
                             {
                                 if (filter.HasFlag(ReceiveMessageFilter.Break))
@@ -345,7 +386,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                                 mem.Dispose();
                                 (mem, additionalMemory) = (additionalMemory, null);
 
-                                resp = await ws.ReceiveAsync(mem.Memory[contentLength..], recvToken.Token)
+                                resp = await ws.ReceiveAsync(mem.Memory[contentLength..], receiveToken.Token)
                                     .ConfigureAwait(false);
                                 if (filter.HasFlag(ReceiveMessageFilter.ContinueFiltering))
                                 {
@@ -382,7 +423,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                     else if (!IsClosed)
                     {
                         Logger.Warning("Considering websocket in buggy state => closing it");
-                        Close();
+                        Close("buggy state");
                     }
                 }
                 finally

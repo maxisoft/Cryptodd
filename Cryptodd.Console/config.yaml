@@ -1,13 +1,15 @@
 ﻿Http:
 # Proxy: socks5://127.0.0.1:39050
 Torify:
-  ProxyAddress: socks5://127.0.0.1:39050
+  ProxyAddress: socks5://192.168.1.200:19050
   UseForBitfinex: false
+  DebugLog: true
+  ConnectTimeoutMs: 1900
 
 Binance:
   Orderbook:
     Task:
-      Enabled: true
+      Enabled: false
     PairFilter:
       - BTCUSDT
       - BTCBUSD
@@ -106,6 +108,7 @@ BinanceFutures:
       FullCleanupOrderbookOnReconnect: false
     Task:
       PeriodOffset: -1000
+      Enabled: false
     PairFilter:
       - BTCUSDT
       - BTCBUSD
@@ -149,6 +152,10 @@ BinanceFutures:
       - ^ETHUSDT_[0-9]+?$
       - ^[0-9]*?SHIBBUSD$
         
+Okx:
+  Orderbook:
+    Task:
+      #Period: 60000
 Ftx:
   GroupedOrderBook:
     Parquet:
@@ -181,13 +188,13 @@ Bitfinex:
     Parquet:
       Enabled: false
     Task:
-      Enabled: true
+      Enabled: false
       Period: 15000
       PeriodOffset: -100
       
   OrderBookP0:
     Task:
-      Enabled: true
+      Enabled: false
     PairFilter:
       #- ^BTC.*?$
       #- ^ETH.*?$

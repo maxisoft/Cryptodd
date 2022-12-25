@@ -63,6 +63,12 @@ public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
 
     public int CurrentCount => Math.Max(_periodicallyOkxLimiter.CurrentCount, _onClockOkxLimiter.CurrentCount);
 
+    public async Task TriggerOnTick()
+    {
+        await Task.WhenAll(_periodicallyOkxLimiter.TriggerOnTick(), _onClockOkxLimiter.TriggerOnTick())
+            .ConfigureAwait(false);
+    }
+
     public async Task<T> WaitForLimit<T>(Func<OkxLimiterOnSuccessParameters, Task<T>> onSuccess, int count = 1,
         CancellationToken cancellationToken = default)
     {
@@ -72,8 +78,12 @@ public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
             p0.AutoRegister = false;
             if (_onClockOkxLimiter.AvailableCount < count)
             {
-                // early stop to prevent acquiring the semaphore for too long
-                throw new RetryLater();
+                await _onClockOkxLimiter.TriggerOnTick();
+                if (_onClockOkxLimiter.AvailableCount < count)
+                {
+                    // early stop to prevent acquiring the semaphore for too long
+                    throw new RetryLater();
+                }
             }
 
             return await _onClockOkxLimiter.WaitForLimit(p1 =>
@@ -101,6 +111,7 @@ public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
         var tryNumber = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
+            await TriggerOnTick();
             try
             {
                 return await _periodicallyOkxLimiter.WaitForLimit(Continuation, count, cancellationToken)

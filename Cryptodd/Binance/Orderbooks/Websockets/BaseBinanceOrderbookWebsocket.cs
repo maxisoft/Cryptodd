@@ -11,6 +11,8 @@ using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Models.Json;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
+using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Cryptodd.Utils;
 using Cryptodd.Websockets;
 using Maxisoft.Utils.Empties;
@@ -71,7 +73,11 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : BaseWebsocket<Pr
             return false;
         }
 
-        Close();
+        if (_trackedDepthSymbols.ContainsKey(symbol))
+        {
+            return false;
+        }
+        Close("adding new symbol");
         return _trackedDepthSymbols.TryAdd(symbol, default);
     }
 
@@ -136,10 +142,11 @@ public abstract class BaseBinanceOrderbookWebsocket<TOptions> : BaseWebsocket<Pr
         }
     }
 
-    protected override void Dispose(bool disposing)
+    protected override bool Dispose(bool disposing)
     {
-        base.Dispose(disposing);
+        disposing = base.Dispose(disposing);
         _depthTargetBlocks.Clear();
+        return disposing;
     }
 
     protected override ReceiveMessageFilter FilterReceivedMessage(Span<byte> message,
