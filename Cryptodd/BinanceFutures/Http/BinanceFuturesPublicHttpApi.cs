@@ -15,11 +15,11 @@ namespace Cryptodd.BinanceFutures.Http;
 
 public class
     BinanceFuturesPublicHttpApi : BaseBinancePublicHttpApi<BinanceFuturesPublicHttpApiOptions,
-        IInternalBinanceFuturesRateLimiter>, IBinanceFuturesPublicHttpApi
+        IInternalBinanceFuturesRateLimiter, IBinanceFuturesHttpClientAbstraction>, IBinanceFuturesPublicHttpApi
 {
-    public BinanceFuturesPublicHttpApi(HttpClient httpClient, ILogger logger, IConfiguration configuration,
-        IUriRewriteService uriRewriteService, IInternalBinanceFuturesRateLimiter internalRateLimiter) : base(httpClient,
-        logger, configuration, uriRewriteService, internalRateLimiter)
+    public BinanceFuturesPublicHttpApi(IBinanceFuturesHttpClientAbstraction client, ILogger logger,
+        IConfiguration configuration, IInternalBinanceFuturesRateLimiter internalRateLimiter) : base(client,
+        logger, configuration, internalRateLimiter)
     {
         Section = configuration.GetSection("BinanceFutures:Http");
         OptionsLazy = new Lazy<BinanceFuturesPublicHttpApiOptions>(OptionsValueFactory);
@@ -53,7 +53,6 @@ public class
     {
         var res = new BinanceFuturesPublicHttpApiOptions();
         Section.Bind(res);
-        SetupBaseAddress(res.BaseAddress);
         return res;
     }
 

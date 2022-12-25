@@ -13,12 +13,11 @@ using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
-public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpApiOptions, IInternalBinanceRateLimiter>,
+public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpApiOptions, IInternalBinanceRateLimiter, IBinanceHttpClientAbstraction>,
     IBinancePublicHttpApi, INoAutoRegister
 {
-    public BinancePublicHttpApi(HttpClient httpClient, ILogger logger, IConfiguration configuration,
-        IUriRewriteService uriRewriteService, IInternalBinanceRateLimiter internalRateLimiter) : base(httpClient,
-        logger, configuration, uriRewriteService, internalRateLimiter)
+    public BinancePublicHttpApi(IBinanceHttpClientAbstraction client, ILogger logger, IConfiguration configuration, IInternalBinanceRateLimiter internalRateLimiter) : base(client,
+        logger, configuration, internalRateLimiter)
     {
         Section = configuration.GetSection("Binance:Http");
         OptionsLazy = new Lazy<BinancePublicHttpApiOptions>(OptionsValueFactory);
@@ -50,7 +49,6 @@ public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpAp
     {
         var res = new BinancePublicHttpApiOptions();
         Section.Bind(res);
-        SetupBaseAddress(res.BaseAddress);
         return res;
     }
 

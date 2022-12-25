@@ -10,6 +10,7 @@ using Cryptodd.Binance.Models;
 using Cryptodd.BinanceFutures.Http;
 using Cryptodd.BinanceFutures.Http.RateLimiter;
 using Cryptodd.Http;
+using Cryptodd.Tests.TestingHelpers;
 using Cryptodd.Tests.TestingHelpers.Logging;
 using Microsoft.Extensions.Configuration;
 using Moq;
@@ -28,11 +29,13 @@ public class BinancePublicHttpApiRealTest
         using var httpclient = new HttpClient();
         var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
             .Build();
+        var client = new BinanceFuturesHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
         JsonObject res;
         try
         {
-            res = await new BinanceFuturesPublicHttpApi(httpclient,
-                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config, new UriRewriteService(),
+            res = await new BinanceFuturesPublicHttpApi(client,
+                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
                 new EmptyBinanceFuturesRateLimiter()).GetExchangeInfoAsync();
         }
         catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429 or (HttpStatusCode) 451 
@@ -52,11 +55,13 @@ public class BinancePublicHttpApiRealTest
         using var httpclient = new HttpClient();
         var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
             .Build();
+        var client = new BinanceFuturesHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
         BinanceHttpOrderbook res;
         try
         {
-            res = await new BinanceFuturesPublicHttpApi(httpclient,
-                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config, new UriRewriteService(),
+            res = await new BinanceFuturesPublicHttpApi(client,
+                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
                 new EmptyBinanceFuturesRateLimiter()).GetOrderbook("ETHUSDT");
         }
         catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429 or (HttpStatusCode) 451 

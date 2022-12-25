@@ -16,7 +16,7 @@ public class ChangedToBinanceUsaHttpRequestException : HttpRequestException
     }
 }
 
-public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanceRateLimiter>
+public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanceRateLimiter, THttpClientAbstraction>
 {
     private AsyncLocal<LinkedListAsIList<Action<HttpResponseMessage>>> HttpMessageCallbacks { get; } = new();
 
@@ -97,7 +97,7 @@ public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanc
 
     #region HttpClientJsonExtensions copy pasted code + adapted
 
-    private Task<TValue?> DoGetFromJsonAsync<TValue>(HttpClient client, Uri? requestUri,
+    private Task<TValue?> DoGetFromJsonAsync<TValue>(THttpClientAbstraction client, Uri? requestUri,
         JsonSerializerOptions? options, CancellationToken cancellationToken)
     {
         var taskResponse = client.GetAsync(requestUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -115,7 +115,7 @@ public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanc
         return new Uri(s.ReplaceFirst(uri.Host, new Uri(Options.BaseAddress).Host));
     }
     
-    protected Task<TValue?> GetFromJsonAsync<TValue>(HttpClient client, Uri? requestUri,
+    protected Task<TValue?> GetFromJsonAsync<TValue>(THttpClientAbstraction client, Uri? requestUri,
         JsonSerializerOptions? options, CancellationToken cancellationToken)
     {
         try

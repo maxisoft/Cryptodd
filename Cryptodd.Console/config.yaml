@@ -9,7 +9,7 @@ Torify:
 Binance:
   Orderbook:
     Task:
-      Enabled: false
+      Enabled: true
     PairFilter:
       - BTCUSDT
       - BTCBUSD
@@ -108,7 +108,7 @@ BinanceFutures:
       FullCleanupOrderbookOnReconnect: false
     Task:
       PeriodOffset: -1000
-      Enabled: false
+      Enabled: true
     PairFilter:
       - BTCUSDT
       - BTCBUSD
