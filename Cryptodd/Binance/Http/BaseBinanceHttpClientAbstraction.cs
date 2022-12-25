@@ -4,7 +4,7 @@ using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
-public class BaseBinanceHttpClientAbstraction : HttpClientAbstraction
+public abstract class BaseBinanceHttpClientAbstraction : HttpClientAbstraction
 {
     private readonly ILogger _logger;
     private readonly IUriRewriteService _uriRewriteService;
