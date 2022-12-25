@@ -80,7 +80,7 @@ public abstract partial class BaseBinancePublicHttpApi<
     {
         var uri =
             new UriBuilder(Section.GetValue("Url",
-                    (HttpClient.BaseAddress ?? new Uri(Options.BaseAddress)).ToString())!)
+                    (string.IsNullOrWhiteSpace(Options.BaseAddress) ? HttpClient.BaseAddress?.ToString() : Options.BaseAddress) ?? Options.BaseAddress)!)
                 .WithPathSegment(url)
                 .Uri;
         return UriRewriteService.Rewrite(uri);
