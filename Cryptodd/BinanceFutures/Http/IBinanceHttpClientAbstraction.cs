@@ -1,6 +1,6 @@
-﻿using Cryptodd.Http;
+﻿using Cryptodd.Http.Abstractions;
 
-namespace Cryptodd.Binance.Http;
+namespace Cryptodd.BinanceFutures.Http;
 
 public interface IBinanceFuturesHttpClientAbstraction : IHttpClientAbstraction
 {

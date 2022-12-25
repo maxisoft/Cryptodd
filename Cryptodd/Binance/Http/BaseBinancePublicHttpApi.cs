@@ -8,6 +8,7 @@ using Cryptodd.Binance.Json;
 using Cryptodd.Binance.Models;
 using Cryptodd.Binance.Models.Json;
 using Cryptodd.Http;
+using Cryptodd.Http.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 

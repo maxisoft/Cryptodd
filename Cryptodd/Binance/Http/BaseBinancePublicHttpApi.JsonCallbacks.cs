@@ -2,6 +2,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Cryptodd.Http;
+using Cryptodd.Http.Abstractions;
 using JasperFx.Core;
 using Maxisoft.Utils.Collections.LinkedLists;
 

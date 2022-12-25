@@ -1,6 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace Cryptodd.Http;
+﻿namespace Cryptodd.Http.Abstractions;
 
 public abstract class HttpClientAbstraction : IHttpClientAbstraction
 {
