@@ -1,4 +1,5 @@
 ﻿using Cryptodd.Http;
+using Cryptodd.Http.Abstractions;
 using Serilog;
 
 namespace Cryptodd.Binance.Http;
