@@ -20,8 +20,8 @@ public class PairSanitizerTest
     [Theory]
     [InlineData("", "")]
     [InlineData("BTC", "BTC")]
-    [InlineData("BTC-PERP", "BTCXPERP6e8f6589c12db52b")]
-    [InlineData("ETH-PERP", "ETHXPERP3561739546fbf4c7")]
+    [InlineData("BTC-PERP", "BTC-PERP")]
+    [InlineData("ETH-PERP", "ETH-PERP")]
     [InlineData("ETH/USDT", "ETHXUSDT1716f4786210daf6")]
     [InlineData("^DOW", "XDOW14f5a6fa701a0368")]
     public void TestSanitize(string input, string expected)

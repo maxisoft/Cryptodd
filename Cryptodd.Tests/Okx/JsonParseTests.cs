@@ -24,12 +24,9 @@ public class JsonParseTests
         var ob = JsonSerializer.Deserialize<OkxWebsocketOrderbookResponse>(Encoding.UTF8.GetBytes(bookSnapshot), jsonSerializerOptions);
         Assert.NotNull(ob);
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1671732300309), ob.FirstData.Timestamp);
-
-        for (int i = 0; i < 1024; i++)
-        {
-            Assert.NotNull(
-                JsonSerializer.Deserialize<OkxWebsocketOrderbookResponse>(Encoding.UTF8.GetBytes(bookSnapshot),
-                    jsonSerializerOptions));
-        }
+        Assert.Equal("snapshot", ob.action);
+        Assert.NotEmpty(ob.data);
+        Assert.NotEmpty(ob.FirstData.asks);
+        Assert.NotEmpty(ob.FirstData.bids);
     }
 }
