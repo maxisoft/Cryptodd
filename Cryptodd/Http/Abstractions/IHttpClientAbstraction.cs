@@ -6,14 +6,13 @@ public interface IHttpClientAbstraction
         CancellationToken cancellationToken);
 
 
-    public Uri? CreateUri(string? uri) => DoCreateUri(uri);
+    public Uri? CreateUri(string? uri);
 
     protected static Uri? DoCreateUri(string? uri) =>
         string.IsNullOrEmpty(uri) ? null : new Uri(uri, UriKind.RelativeOrAbsolute);
 
 
-    public HttpRequestMessage CreateRequestMessage(HttpMethod method, Uri? uri) =>
-        DoCreateRequestMessage(this, method, uri);
+    public HttpRequestMessage CreateRequestMessage(HttpMethod method, Uri? uri);
 
     protected static HttpRequestMessage DoCreateRequestMessage<T>(in T client, HttpMethod method, Uri? uri)
         where T : IHttpClientAbstraction =>

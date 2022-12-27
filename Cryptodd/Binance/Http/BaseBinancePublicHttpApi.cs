@@ -6,8 +6,6 @@ using Cryptodd.Binance.Http.Options;
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Json;
 using Cryptodd.Binance.Models;
-using Cryptodd.Binance.Models.Json;
-using Cryptodd.Http;
 using Cryptodd.Http.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Serilog;
@@ -23,10 +21,8 @@ public abstract partial class BaseBinancePublicHttpApi<
     where TInternalBinanceRateLimiter : class, IInternalBinanceRateLimiter
     where THttpClientAbstraction : IHttpClientAbstraction
 {
-    protected THttpClientAbstraction Client { get; }
-    protected ILogger Logger { get; }
-
-    protected BaseBinancePublicHttpApi(THttpClientAbstraction client, ILogger logger, IConfiguration configuration, TInternalBinanceRateLimiter internalRateLimiter)
+    protected BaseBinancePublicHttpApi(THttpClientAbstraction client, ILogger logger, IConfiguration configuration,
+        TInternalBinanceRateLimiter internalRateLimiter)
     {
         Client = client;
         Logger = logger.ForContext(GetType());
@@ -35,6 +31,9 @@ public abstract partial class BaseBinancePublicHttpApi<
         OptionsLazy = new Lazy<TOptions>(OptionsValueFactory);
         JsonSerializerOptions = new Lazy<JsonSerializerOptions>(CreateJsonSerializerOptions);
     }
+
+    protected THttpClientAbstraction Client { get; }
+    protected ILogger Logger { get; }
 
     protected IConfiguration Configuration { get; }
     protected Lazy<TOptions> OptionsLazy { get; set; }

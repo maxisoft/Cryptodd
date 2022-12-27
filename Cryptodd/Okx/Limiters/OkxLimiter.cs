@@ -3,7 +3,7 @@
 namespace Cryptodd.Okx.Limiters;
 
 // use both reset periodically and on clock behavior to be sure about never reaching limits whatever rate limiter the remote uses.
-public class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
+public abstract class OkxLimiter : IPeriodBasedOkxLimiter, IDisposable
 {
     private readonly ResetOnClockOkxLimiter _onClockOkxLimiter;
     private readonly ResetPeriodicallyOkxLimiter _periodicallyOkxLimiter;

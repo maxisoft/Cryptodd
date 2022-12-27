@@ -4,22 +4,15 @@ using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
-public abstract class BaseBinanceHttpClientAbstraction : HttpClientAbstraction
+public abstract class BaseBinanceHttpClientAbstraction : HttpClientAbstractionWithUriRewrite<IUriRewriteService, HttpClientAbstractionContext>
 {
-    private readonly ILogger _logger;
-    private readonly IUriRewriteService _uriRewriteService;
+    protected ILogger Logger { get; }
 
     protected BaseBinanceHttpClientAbstraction(HttpClient client, ILogger logger,
-        IUriRewriteService uriRewriteService) : base(client)
+        IUriRewriteService uriRewriteService) : base(client, uriRewriteService)
     {
-        _logger = logger;
-        _uriRewriteService = uriRewriteService;
+        Logger = logger;
     }
 
-
-    public HttpRequestMessage CreateRequestMessage(HttpMethod method, Uri? uri)
-    {
-        uri = uri is not null ? _uriRewriteService.Rewrite(uri).AsTask().Result : uri;
-        return IHttpClientAbstraction.DoCreateRequestMessage(this, method, uri);
-    }
+    protected override HttpClientAbstractionContext DefaultContext() => new();
 }

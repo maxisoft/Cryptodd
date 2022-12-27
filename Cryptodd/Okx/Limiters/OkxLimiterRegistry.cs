@@ -37,12 +37,15 @@ public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
     public ReferenceCounterDisposable<OkxLimiter> CreateNewWebsocketSubscriptionLimiter() =>
         new(ValueFactory<IOkxLimiterRegistry.WebsocketSubscriptionLimiterImpl>(WebsocketSubscriptionSectionName,
             withOptionChangeCallback: false));
+    
+    
+    public OkxLimiter GetHttpSubscriptionLimiter<T>(string name, string configName) where T : OkxLimiter, new() => GetOrCreate<T>($"Http:{typeof(T).Name}:{name}", configName);
 
-    private OkxLimiter ValueFactory<T>(string name) where T : OkxLimiter, new() => ValueFactory<T>(name, true);
-    private OkxLimiter ValueFactory<T>(string name, bool withOptionChangeCallback) where T : OkxLimiter, new()
+
+    private OkxLimiter ValueFactory<T>(string name, string configName, bool withOptionChangeCallback = true) where T : OkxLimiter, new()
     {
         var options = new OkxLimiterOptions();
-        var section = _configuration.GetSection("Okx:Limiter").GetSection(name);
+        var section = _configuration.GetSection("Okx:Limiter").GetSection(configName);
         section.Bind(options);
         var res = Create<T>(options);
 
@@ -78,9 +81,14 @@ public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
         _disposableManager.LinkDisposableAsWeak(res);
         return res;
     }
+    
+    private OkxLimiter ValueFactory<T>(string name, bool withOptionChangeCallback = true) where T : OkxLimiter, new() => ValueFactory<T>(name, name, withOptionChangeCallback);
+
+    private OkxLimiter GetOrCreate<T>(string name, string configName) where T : OkxLimiter, new() =>
+        _limiters.GetOrAdd(name, n => ValueFactory<T>(n, configName));
 
     private OkxLimiter GetOrCreate<T>(string name) where T : OkxLimiter, new() =>
-        _limiters.GetOrAdd(name, ValueFactory<T>);
+        GetOrCreate<T>(name, name);
 
     private static void Update<T>(T limiter, OkxLimiterOptions options) where T : OkxLimiter, new()
     {

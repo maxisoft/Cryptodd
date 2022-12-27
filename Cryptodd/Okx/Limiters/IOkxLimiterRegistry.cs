@@ -9,6 +9,8 @@ public interface IOkxLimiterRegistry
 
     ReferenceCounterDisposable<OkxLimiter> CreateNewWebsocketSubscriptionLimiter();
 
+    public OkxLimiter GetHttpSubscriptionLimiter<TLimiter>(string name, string configName) where TLimiter : OkxLimiter, new();
+
     protected sealed class WebsocketConnectionLimiterImpl : OkxLimiter
     {
         private WebsocketConnectionLimiterImpl(TimeSpan period) : base(period, 1) { }
