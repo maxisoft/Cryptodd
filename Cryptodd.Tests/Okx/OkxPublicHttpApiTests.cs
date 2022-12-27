@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Cryptodd.Okx.Http;
+using Cryptodd.Okx.Http.Abstractions;
 using Cryptodd.Okx.Limiters;
 using Cryptodd.Tests.TestingHelpers;
 using Cryptodd.Tests.TestingHelpers.Logging;
@@ -41,6 +42,10 @@ public class OkxPublicHttpApiTests
             Skip.Always(e.ToStringDemystified());
             throw;
         }
+        Assert.NotEmpty(res);
+        Assert.Contains("BTC-USDT", res);
+        
+        res = await api.ListInstrumentIds(OkxInstrumentType.Margin);
         Assert.NotEmpty(res);
         Assert.Contains("BTC-USDT", res);
         

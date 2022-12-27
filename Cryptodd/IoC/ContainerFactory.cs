@@ -10,6 +10,7 @@ using Cryptodd.Http;
 using Cryptodd.IoC.Registries;
 using Cryptodd.IoC.Registries.Customs;
 using Cryptodd.Okx.Http;
+using Cryptodd.Okx.Http.Abstractions;
 using Cryptodd.TradeAggregates;
 using Lamar;
 using Microsoft.Extensions.Configuration;

@@ -9,6 +9,7 @@ namespace Cryptodd.Okx.Limiters;
 
 [Singleton]
 // ReSharper disable once UnusedType.Global
+// ReSharper disable once ClassWithVirtualMembersNeverInherited.Global
 public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
 {
     private readonly IConfiguration _configuration;
