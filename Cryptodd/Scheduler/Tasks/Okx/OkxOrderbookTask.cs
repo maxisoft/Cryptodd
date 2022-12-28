@@ -7,7 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Polly;
 using Serilog;
 
-namespace Cryptodd.Scheduler.Tasks.Binance;
+namespace Cryptodd.Scheduler.Tasks.Okx;
 
 // ReSharper disable once UnusedType.Global
 public class OkxOrderbookTask : BasePeriodicScheduledTask
@@ -45,6 +45,15 @@ public class OkxOrderbookTask : BasePeriodicScheduledTask
         var cts = CreateCancellationTokenSource(cancellationToken);
         await using var container = Container.GetNestedContainer();
         var orderBookService = container.GetInstance<IOkxOrderbookCollector>();
+
+        var downloadingTimeout = Period * 0.9;
+        {
+            var other = Period - TimeSpan.FromSeconds(1);
+            if (downloadingTimeout > other)
+            {
+                downloadingTimeout = other;
+            }
+        }
         var mainTask = _retryPolicy.ExecuteAsync(_ =>
             {
                 void OrderbookContinuation()
@@ -64,15 +73,6 @@ public class OkxOrderbookTask : BasePeriodicScheduledTask
                     ctx.Hooks.TimeElapsed = new Lazy<TimeSpan?>(ctx.TimeElapsed);
                 }
 
-                var downloadingTimeout = Period * 0.9;
-                {
-                    var other = Period - TimeSpan.FromSeconds(1);
-                    if (downloadingTimeout > other)
-                    {
-                        downloadingTimeout = other;
-                    }
-                }
-
 
                 return orderBookService.CollectOrderbooks(OrderbookContinuation, downloadingTimeout, cts.Token);
             },
@@ -82,16 +82,49 @@ public class OkxOrderbookTask : BasePeriodicScheduledTask
         {
             await Task.WhenAny(mainTask, _websocketBackgroundTask).ConfigureAwait(false);
         }
-        catch
+        catch (Exception e)
         {
-            cts.Cancel();
+            Logger.Debug(e, "");
+            var wasCancelled = cts.IsCancellationRequested;
+            if (!wasCancelled)
+            {
+                cts.Cancel();
+            }
+
             if (mainTask.IsFaulted || !mainTask.IsCompleted)
             {
-                await mainTask.ConfigureAwait(false);
+                try
+                {
+                    await mainTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException e2)
+                {
+                    if (wasCancelled ||
+                        TaskRunningContext?.TimeElapsed <= downloadingTimeout)
+                    {
+                        Logger.Warning(e2, "unable to download orderbook");
+                        throw;
+                    }
+
+                    Logger.Debug(e2, "unable to download all symbols in time ?");
+                    return;
+                }
             }
         }
 
-        await mainTask.ConfigureAwait(false);
+        if (!mainTask.IsCanceled || cts.IsCancellationRequested)
+        {
+            await mainTask.ConfigureAwait(false);
+        }
+
+        if (!mainTask.IsCompleted)
+        {
+            await mainTask.ConfigureAwait(false);
+        }
+
+        mainTask.Dispose();
+
+
         cts.Cancel();
     }
 
