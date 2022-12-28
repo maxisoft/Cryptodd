@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.IoC;
+using Cryptodd.Okx.Http;
 using Cryptodd.Okx.Models;
 using Cryptodd.Okx.Orderbooks.Handlers;
 using Cryptodd.Okx.Websockets;
@@ -21,15 +22,46 @@ public interface IOkxInstrumentLister
     public Task<List<string>> ListInstruments(CancellationToken cancellationToken);
 }
 
+// ReSharper disable once UnusedType.Global
 public class OkxInstrumentLister : IOkxInstrumentLister, IService
 {
-    public Task<List<string>> ListInstruments(CancellationToken cancellationToken)
+    private readonly IOkxInstrumentIdsProvider _okxInstrumentIdsProvider;
+
+    public OkxInstrumentLister(IOkxInstrumentIdsProvider okxInstrumentIdsProvider)
     {
-        return Task.FromResult(new List<string>() { "BTC-USD-SWAP" });
+        _okxInstrumentIdsProvider = okxInstrumentIdsProvider;
+    }
+
+    private int _lastCapacity;
+
+    public async Task<List<string>> ListInstruments(CancellationToken cancellationToken)
+    {
+        var tasks = new[]
+        {
+            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Spot, cancellationToken: cancellationToken),
+            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Margin, cancellationToken: cancellationToken),
+            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Swap, cancellationToken: cancellationToken),
+            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Futures, cancellationToken: cancellationToken)
+        };
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        HashSet<string> dejaVu = new(_lastCapacity);
+        List<string> res = new();
+        foreach (var task in tasks)
+        {
+            res.AddRange((task.IsCompleted ? task.Result : await task.ConfigureAwait(false)).Where(id => dejaVu.Add(id)));
+            task.Dispose();
+        }
+
+        _lastCapacity = res.Capacity;
+        return res;
     }
 }
 
-public class OkxOrderbookCollectorOptions { }
+public class OkxOrderbookCollectorOptions
+{
+    public int MaxSubscriptionPerWebsocket { get; set; } = 48;
+}
 
 public interface IOkxOrderbookCollector
 {
@@ -231,7 +263,7 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
 
         var cancellationTokenWithTimeout = cts.Token;
         var instruments = await ListInstruments(container, cancellationTokenWithTimeout).ConfigureAwait(false);
-        const int maxSubscriptionPerWebsocket = 128;
+        var maxSubscriptionPerWebsocket = _options.MaxSubscriptionPerWebsocket;
         List<List<OkxOrderbookSubscription>> subscriptions = new()
             { new List<OkxOrderbookSubscription>(Math.Min(maxSubscriptionPerWebsocket, _previousInstrumentCount)) };
 

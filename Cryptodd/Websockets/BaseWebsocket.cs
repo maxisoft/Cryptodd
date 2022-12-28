@@ -316,7 +316,12 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                     }
                     catch (WebSocketException e) when (IsClosed)
                     {
-                        Logger.Warning(e, "{Name}", nameof(ws.ReceiveAsync));
+                        var logLevel = LogEventLevel.Warning;
+                        if (e.WebSocketErrorCode is WebSocketError.InvalidState)
+                        {
+                            logLevel = LogEventLevel.Debug;
+                        }
+                        Logger.Write(logLevel ,e, "{Name}", nameof(ws.ReceiveAsync));
                         continue;
                     }
 
