@@ -10,18 +10,41 @@ internal sealed class OkxWebsocketPoolEntry : IDisposable, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         CancellationTokenSource.Cancel();
-        await ActivityTask.ConfigureAwait(false);
-        CancellationTokenSource.Dispose();
-        await Websocket.DisposeAsync();
+        if (!ActivityTask.IsCompleted)
+        {
+            try
+            {
+                await ActivityTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            
+        }
+        await Websocket.DisposeAsync().ConfigureAwait(false);
+
         ActivityTask.Dispose();
+        ActivityTask = Task.CompletedTask;
+        CancellationTokenSource.Dispose();
     }
 
     public void Dispose()
     {
         CancellationTokenSource.Cancel();
-        ActivityTask.Wait();
+        if (!ActivityTask.IsCompleted)
+        {
+            try
+            {
+                ActivityTask.Wait();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
         Websocket.Dispose();
         ActivityTask.Dispose();
+        ActivityTask = Task.CompletedTask;
         CancellationTokenSource.Dispose();
     }
 }
