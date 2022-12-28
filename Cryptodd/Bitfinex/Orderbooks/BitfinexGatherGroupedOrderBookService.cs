@@ -53,7 +53,7 @@ public class BitfinexGatherGroupedOrderBookService : IService
         return res;
     }
 
-    public async Task CollectOrderBooks(Action<List<OrderbookEnvelope>?> orderbookContinuation,TimeSpan downloadingTimeout = default, CancellationToken cancellationToken = default)
+    public async Task CollectOrderBooks(Action<List<OrderbookEnvelope>?> orderbookContinuation, TimeSpan downloadingTimeout = default, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         await using var container = _container.GetNestedContainer();

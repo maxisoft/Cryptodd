@@ -12,6 +12,8 @@ using Cryptodd.Bitfinex.Models.Json;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
+using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Cryptodd.Pairs;
 using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
@@ -27,7 +29,8 @@ public readonly record struct GroupedOrderBookRequest(string Symbol, string Prec
 
 public class BitfinexPublicWebSocketOptions
 {
-    public string WebsocketUrl { get; set; } = "wss://api-pub.bitfinex.com/ws/2";
+    public const string DefaultUrl = "wss://api-pub.bitfinex.com/ws/2";
+    public string WebsocketUrl { get; set; } = DefaultUrl;
     public int MaxChannel { get; set; } = 25;
 }
 

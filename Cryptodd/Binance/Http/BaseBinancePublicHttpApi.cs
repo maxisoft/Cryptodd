@@ -6,34 +6,36 @@ using Cryptodd.Binance.Http.Options;
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Json;
 using Cryptodd.Binance.Models;
-using Cryptodd.Binance.Models.Json;
-using Cryptodd.Http;
+using Cryptodd.Http.Abstractions;
 using Microsoft.Extensions.Configuration;
+using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
 public abstract partial class BaseBinancePublicHttpApi<
     TOptions,
-    TInternalBinanceRateLimiter
+    TInternalBinanceRateLimiter,
+    THttpClientAbstraction
 >
     where TOptions : BaseBinancePublicHttpApiOptions
     where TInternalBinanceRateLimiter : class, IInternalBinanceRateLimiter
+    where THttpClientAbstraction : IHttpClientAbstraction
 {
-    protected BaseBinancePublicHttpApi(HttpClient httpClient, IConfiguration configuration,
-        IUriRewriteService uriRewriteService, TInternalBinanceRateLimiter internalRateLimiter)
+    protected BaseBinancePublicHttpApi(THttpClientAbstraction client, ILogger logger, IConfiguration configuration,
+        TInternalBinanceRateLimiter internalRateLimiter)
     {
-        HttpClient = httpClient;
+        Client = client;
+        Logger = logger.ForContext(GetType());
         Configuration = configuration;
-        UriRewriteService = uriRewriteService;
         InternalRateLimiter = internalRateLimiter;
         OptionsLazy = new Lazy<TOptions>(OptionsValueFactory);
         JsonSerializerOptions = new Lazy<JsonSerializerOptions>(CreateJsonSerializerOptions);
     }
 
-    protected HttpClient HttpClient { get; }
+    protected THttpClientAbstraction Client { get; }
+    protected ILogger Logger { get; }
 
     protected IConfiguration Configuration { get; }
-    protected IUriRewriteService UriRewriteService { get; }
     protected Lazy<TOptions> OptionsLazy { get; set; }
     protected TInternalBinanceRateLimiter InternalRateLimiter { get; }
 
@@ -48,38 +50,13 @@ public abstract partial class BaseBinancePublicHttpApi<
 
     protected abstract TOptions OptionsValueFactory();
 
-    protected virtual void SetupBaseAddress(string baseAddress)
-    {
-        if (!string.IsNullOrWhiteSpace(HttpClient.BaseAddress?.ToString()))
-        {
-            return;
-        }
-
-        try
-        {
-            HttpClient.BaseAddress = new Uri(baseAddress);
-        }
-        catch (InvalidOperationException)
-        {
-            return;
-        }
-
-        var rewriteTask = UriRewriteService.Rewrite(HttpClient.BaseAddress).AsTask();
-        rewriteTask.Wait();
-        if (rewriteTask.IsCompleted)
-        {
-            HttpClient.BaseAddress = rewriteTask.Result;
-        }
-    }
-
     protected ValueTask<Uri> UriCombine(string url)
     {
         var uri =
-            new UriBuilder(Section.GetValue("Url",
-                    (HttpClient.BaseAddress ?? new Uri(Options.BaseAddress)).ToString())!)
+            new UriBuilder(Section.GetValue("Url", Options.BaseAddress)!)
                 .WithPathSegment(url)
                 .Uri;
-        return UriRewriteService.Rewrite(uri);
+        return ValueTask.FromResult(uri);
     }
 
     protected virtual JsonSerializerOptions CreateJsonSerializerOptions()
@@ -102,7 +79,7 @@ public abstract partial class BaseBinancePublicHttpApi<
         var weight = options.ComputeWeight(1.0);
         using var registration = await InternalRateLimiter.WaitForSlot(uri, weight, cancellationToken);
 
-        var res = (await GetFromJsonAsync<JsonObject>(HttpClient, uri,
+        var res = (await GetFromJsonAsync<JsonObject>(Client, uri,
             serializerOptions,
             cancellationToken))!;
 
@@ -143,7 +120,7 @@ public abstract partial class BaseBinancePublicHttpApi<
         using var registration = await InternalRateLimiter.WaitForSlot(uri, weight, cancellationToken);
         using (AddResponseCallbacks(message => date = message.Headers.Date ?? DateTimeOffset.Now))
         {
-            res = await GetFromJsonAsync<BinanceHttpOrderbook>(HttpClient, uri, serializerOptions, cancellationToken);
+            res = await GetFromJsonAsync<BinanceHttpOrderbook>(Client, uri, serializerOptions, cancellationToken);
             registration.SetRegistrationDate();
         }
 

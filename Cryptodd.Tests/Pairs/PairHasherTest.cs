@@ -1,20 +1,30 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Cryptodd.Binance;
 using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Http.RateLimiter;
+using Cryptodd.Bitfinex;
 using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.Pairs;
+using Cryptodd.Tests.TestingHelpers;
+using Cryptodd.Tests.TestingHelpers.Logging;
 using Microsoft.Extensions.Configuration;
+using Moq;
+using Serilog.Core;
 using xRetry;
 using Xunit;
+using Skip = xRetry.Skip;
 
 namespace Cryptodd.Tests.Pairs;
 
@@ -51,9 +61,34 @@ public class PairHasherTest
     [RetryFact]
     public async Task TestRealHash()
     {
+        var cancellationToken = CancellationToken.None;
         using var httpclient = new HttpClient();
-        var symbols = await new BinancePublicHttpApi(httpclient, new ConfigurationManager(), new UriRewriteService(), new EmptyBinanceRateLimiter()).ListSymbols();
-        Assert.NotEmpty(symbols);
+        List<string> symbols;
+        var client = new BinanceHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
+        try
+        {
+            symbols = await new BinancePublicHttpApi(client, new Mock<RealLogger>(MockBehavior.Loose){CallBase = true}.Object, new ConfigurationManager(), new EmptyBinanceRateLimiter()).ListSymbols(cancellationToken:cancellationToken);
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429 or (HttpStatusCode) 451 
+                                                 or (HttpStatusCode)403)
+        {
+            Debug.Write(e.ToStringDemystified());
+            symbols = new List<string>();
+        }
+
+        try
+        {
+            var tmp = await new BitfinexPublicHttpApi(httpclient, new Mock<MockableUriRewriteService>() { CallBase = true }.Object)
+                .GetAllPairs(cancellationToken);
+            symbols.AddRange(tmp);
+        }
+        catch (HttpRequestException e)
+        {
+            Debug.Write(e.ToStringDemystified());
+        }
+        
+        //Assert.NotEmpty(symbols);
         var marketsUnique = symbols.Where(s => !string.IsNullOrEmpty(s)).ToImmutableHashSet();
 
         var hashes = new ConcurrentBag<long>();

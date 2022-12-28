@@ -105,11 +105,11 @@ public class BitfinexGroupedOrderbookTask : BasePeriodicScheduledTask
     private void ConfigureRetryPolicy()
     {
         var maxRetry = Section.GetValue("MaxRetry", 3);
-        _retryPolicy = Policy.Handle<Exception>(_ => true)
+        _retryPolicy = Policy.Handle<Exception>(static e => e is not OperationCanceledException)
             .WaitAndRetryAsync(maxRetry, i => TimeSpan.FromSeconds(1 + i));
     }
 
-    protected override void OnConfigurationChange(object obj)
+    protected override void OnConfigurationChange(object? obj)
     {
         base.OnConfigurationChange(obj);
         ConfigureRetryPolicy();

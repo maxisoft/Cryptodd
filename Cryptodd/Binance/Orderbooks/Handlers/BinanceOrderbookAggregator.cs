@@ -13,7 +13,7 @@ namespace Cryptodd.Binance.Orderbooks.Handlers;
 public interface IOrderbookAggregator : IBinanceOrderbookHandler<BinanceAggregatedOrderbookHandlerArguments> { }
 
 // ReSharper disable once UnusedType.Global
-public sealed class OrderbookAggregator : IService, IOrderbookAggregator
+public sealed class BinanceOrderbookAggregator : IService, IOrderbookAggregator
 {
     public const int Size = 128;
 

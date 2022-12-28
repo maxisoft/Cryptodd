@@ -5,7 +5,7 @@ namespace Cryptodd.Binance.Orderbooks.Websockets;
 
 public static partial class BinanceStreamNameHelper
 {
-    [GeneratedRegex(@"@depth(?>(?>@[0-9]+?m?s)?)$", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^@depth(?>(?>@[0-9]+?m?s)?)$", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex DepthRegex();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

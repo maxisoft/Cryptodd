@@ -4,37 +4,14 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Cryptodd.Binance.Models;
+using Cryptodd.Utils;
 
 namespace Cryptodd.Binance.Json;
 
 public class BinancePriceQuantityEntryJsonConverter : JsonConverter<BinancePriceQuantityEntry<double>>
 {
-    private static bool TryGetDouble(ref Utf8JsonReader reader, out double res)
-    {
-        // ReSharper disable once InvertIf
-        if (reader.TokenType == JsonTokenType.String)
-        {
-            // ReSharper disable once SuggestVarOrType_Elsewhere
-            ReadOnlySpan<byte> span = reader.HasValueSequence ? reader.ValueSequence.ToArray() : reader.ValueSpan;
-            return TryGetDoubleFromString(span, out res);
-        }
-
-        return reader.TryGetDouble(out res);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryGetDoubleFromString(ReadOnlySpan<byte> span, out double res)
-    {
-        if (Utf8Parser.TryParse(span, out double tmp, out var bytesConsumed)
-            && span.Length == bytesConsumed)
-        {
-            res = tmp;
-            return true;
-        }
-
-        res = default;
-        return false;
-    }
+    private static bool TryGetDouble(ref Utf8JsonReader reader, out double res) =>
+        Utf8JsonReaderUtils.TryGetDouble(ref reader, out res);
 
     public override BinancePriceQuantityEntry<double> Read(ref Utf8JsonReader reader, Type typeToConvert,
         JsonSerializerOptions options)

@@ -38,7 +38,7 @@ public sealed class ReferenceCounterDisposable<T> : IDisposable where T : IDispo
     public int Decrement()
     {
         var res = Interlocked.Decrement(ref _counter);
-        if (res == 0)
+        if (res <= 0)
         {
             Dispose();
         }

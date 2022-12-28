@@ -6,17 +6,20 @@ using Cryptodd.BinanceFutures.Http.Options;
 using Cryptodd.BinanceFutures.Http.RateLimiter;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
+using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Microsoft.Extensions.Configuration;
+using Serilog;
 
 namespace Cryptodd.BinanceFutures.Http;
 
 public class
     BinanceFuturesPublicHttpApi : BaseBinancePublicHttpApi<BinanceFuturesPublicHttpApiOptions,
-        IInternalBinanceFuturesRateLimiter>, IBinanceFuturesPublicHttpApi
+        IInternalBinanceFuturesRateLimiter, IBinanceFuturesHttpClientAbstraction>, IBinanceFuturesPublicHttpApi
 {
-    public BinanceFuturesPublicHttpApi(HttpClient httpClient, IConfiguration configuration,
-        IUriRewriteService uriRewriteService, IInternalBinanceFuturesRateLimiter internalRateLimiter) : base(httpClient,
-        configuration, uriRewriteService, internalRateLimiter)
+    public BinanceFuturesPublicHttpApi(IBinanceFuturesHttpClientAbstraction client, ILogger logger,
+        IConfiguration configuration, IInternalBinanceFuturesRateLimiter internalRateLimiter) : base(client,
+        logger, configuration, internalRateLimiter)
     {
         Section = configuration.GetSection("BinanceFutures:Http");
         OptionsLazy = new Lazy<BinanceFuturesPublicHttpApiOptions>(OptionsValueFactory);
@@ -50,7 +53,6 @@ public class
     {
         var res = new BinanceFuturesPublicHttpApiOptions();
         Section.Bind(res);
-        SetupBaseAddress(res.BaseAddress);
         return res;
     }
 

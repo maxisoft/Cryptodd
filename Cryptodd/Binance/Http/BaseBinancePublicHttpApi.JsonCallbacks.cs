@@ -1,11 +1,24 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Cryptodd.Http;
+using Cryptodd.Http.Abstractions;
+using JasperFx.Core;
 using Maxisoft.Utils.Collections.LinkedLists;
 
 namespace Cryptodd.Binance.Http;
 
-public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanceRateLimiter>
+public class ChangedToBinanceUsaHttpRequestException : HttpRequestException
+{
+    public ChangedToBinanceUsaHttpRequestException(string? message, Exception? inner, HttpStatusCode? statusCode) :
+        base(message, inner, statusCode)
+    {
+        
+    }
+}
+
+public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanceRateLimiter, THttpClientAbstraction>
 {
     private AsyncLocal<LinkedListAsIList<Action<HttpResponseMessage>>> HttpMessageCallbacks { get; } = new();
 
@@ -36,11 +49,19 @@ public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanc
 
         if (response.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429)
         {
+            Logger.Warning("Got Status {Status} from binance, going to downscale {AvailableWeightMultiplier}", response.StatusCode, nameof(InternalRateLimiter.AvailableWeightMultiplier));
             InternalRateLimiter.UpdateUsedWeightFromBinance(
                 (int)((ulong)InternalRateLimiter.MaxUsableWeight + 1 > int.MaxValue
                     ? int.MaxValue
                     : (ulong)InternalRateLimiter.MaxUsableWeight + 1));
+            
             InternalRateLimiter.AvailableWeightMultiplier *= 0.9f;
+        }
+
+        if (response.StatusCode is (HttpStatusCode)451 && Options.ChangeAddressToUSA())
+        {
+            Logger.Warning("Changing default address to binance usa");
+            throw new ChangedToBinanceUsaHttpRequestException(null, null, response.StatusCode);
         }
     }
 
@@ -78,11 +99,37 @@ public abstract partial class BaseBinancePublicHttpApi<TOptions, TInternalBinanc
 
     #region HttpClientJsonExtensions copy pasted code + adapted
 
-    protected Task<TValue?> GetFromJsonAsync<TValue>(HttpClient client, Uri? requestUri,
-        JsonSerializerOptions? options, CancellationToken cancellationToken = default)
+    private Task<TValue?> DoGetFromJsonAsync<TValue>(THttpClientAbstraction client, Uri? requestUri,
+        JsonSerializerOptions? options, CancellationToken cancellationToken)
     {
         var taskResponse = client.GetAsync(requestUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         return GetFromJsonAsyncCore<TValue>(taskResponse, options, cancellationToken);
+    }
+
+    private Uri? ReplaceHostToUsa(Uri? uri)
+    {
+        if (uri is null)
+        {
+            return null;
+        }
+
+        var s = uri.ToString();
+        return new Uri(s.ReplaceFirst(uri.Host, new Uri(Options.BaseAddress).Host));
+    }
+    
+    protected Task<TValue?> GetFromJsonAsync<TValue>(THttpClientAbstraction client, Uri? requestUri,
+        JsonSerializerOptions? options, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return DoGetFromJsonAsync<TValue>(client, requestUri, options, cancellationToken);
+        }
+        catch (ChangedToBinanceUsaHttpRequestException)
+        {
+            var newUri = ReplaceHostToUsa(requestUri);
+            Debug.Assert(newUri != requestUri, "newUri != requestUri");
+            return DoGetFromJsonAsync<TValue>(client, newUri, options, cancellationToken);
+        }
     }
 
     private async Task<T?> GetFromJsonAsyncCore<T>(Task<HttpResponseMessage> taskResponse,
