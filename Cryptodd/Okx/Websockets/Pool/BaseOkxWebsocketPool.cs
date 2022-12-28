@@ -89,14 +89,26 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
             }
         }
 
+        var res = true;
         try
         {
-            return await entry.Websocket.SwapWebSocket<T, TData2, TOptions2>(other, cancellationToken)
+            res = await entry.Websocket.SwapWebSocket<T, TData2, TOptions2>(other, cancellationToken)
                 .ConfigureAwait(false);
+            return res;
         }
         finally
         {
-            await entry.DisposeAsync().ConfigureAwait(false);
+            if (!res && entry.Websocket.State is WebSocketState.Open)
+            {
+                lock (_websocketPoolEntries)
+                {
+                    _websocketPoolEntries.PushFront(entry);
+                }
+            }
+            else
+            {
+                await entry.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
