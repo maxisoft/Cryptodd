@@ -397,7 +397,11 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
                 .Length;
         if (payloadLength <= 0)
         {
-            // this is an error
+            if (isSubscription)
+            {
+                throw new ArgumentException("subscription list doesn't contains any valid subscription");
+            }
+            // this is an error due to concurrency most likely
             return -2;
         }
 
