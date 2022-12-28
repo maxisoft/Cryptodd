@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Cryptodd.Okx.Orderbooks;
+using Cryptodd.Okx.Websockets.Pool;
 using Lamar;
 using Maxisoft.Utils.Collections.Queues.Specialized;
 using Microsoft.Extensions.Configuration;
@@ -11,24 +12,40 @@ namespace Cryptodd.Scheduler.Tasks.Binance;
 // ReSharper disable once UnusedType.Global
 public class OkxOrderbookTask : BasePeriodicScheduledTask
 {
+    private readonly IOkxWebsocketPool _websocketPool;
+    private Task _websocketBackgroundTask = Task.CompletedTask;
     private AsyncPolicy _retryPolicy;
     private readonly BoundedDeque<CancellationTokenSource> _cancellationTokenSources = new(8);
 
-    public OkxOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration) : base(
+    public OkxOrderbookTask(IContainer container, ILogger logger, IConfiguration configuration,
+        IOkxWebsocketPool websocketPool) : base(
         logger,
         configuration, container)
     {
+        _websocketPool = websocketPool;
         _retryPolicy = Policy.NoOpAsync();
         Period = TimeSpan.FromSeconds(15);
         Section = Configuration.GetSection("Okx:Orderbook:Task");
         OnConfigurationChange();
     }
 
+    private void RestartBackgroundWebsocketPoolTask(CancellationToken cancellationToken)
+    {
+        Logger.Verbose("There's {Count} websocket in pool", _websocketPool.Count);
+        if (_websocketBackgroundTask.IsCompleted)
+        {
+            _websocketBackgroundTask.Dispose();
+            _websocketBackgroundTask = _websocketPool.BackgroundLoop(cancellationToken);
+        }
+    }
+
     public override async Task Execute(CancellationToken cancellationToken)
     {
+        RestartBackgroundWebsocketPoolTask(cancellationToken);
         var cts = CreateCancellationTokenSource(cancellationToken);
-        var orderBookService = Container.GetInstance<IOkxOrderbookCollector>();
-        await _retryPolicy.ExecuteAsync(_ =>
+        await using var container = Container.GetNestedContainer();
+        var orderBookService = container.GetInstance<IOkxOrderbookCollector>();
+        var mainTask = _retryPolicy.ExecuteAsync(_ =>
             {
                 void OrderbookContinuation()
                 {
@@ -37,13 +54,12 @@ public class OkxOrderbookTask : BasePeriodicScheduledTask
                     {
                         return;
                     }
-                    
+
                     if (ctx is null)
                     {
                         return;
                     }
 
-                    
 
                     ctx.Hooks.TimeElapsed = new Lazy<TimeSpan?>(ctx.TimeElapsed);
                 }
@@ -56,12 +72,26 @@ public class OkxOrderbookTask : BasePeriodicScheduledTask
                         downloadingTimeout = other;
                     }
                 }
-                
-                
+
+
                 return orderBookService.CollectOrderbooks(OrderbookContinuation, downloadingTimeout, cts.Token);
             },
             cancellationToken);
-        
+
+        try
+        {
+            await Task.WhenAny(mainTask, _websocketBackgroundTask).ConfigureAwait(false);
+        }
+        catch
+        {
+            cts.Cancel();
+            if (mainTask.IsFaulted || !mainTask.IsCompleted)
+            {
+                await mainTask.ConfigureAwait(false);
+            }
+        }
+
+        await mainTask.ConfigureAwait(false);
         cts.Cancel();
     }
 
@@ -132,6 +162,7 @@ public class OkxOrderbookTask : BasePeriodicScheduledTask
             }
 
             _cancellationTokenSources.Clear();
+            _websocketBackgroundTask.Dispose();
         }
 
         base.Dispose(disposing);

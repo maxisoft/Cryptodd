@@ -2,10 +2,10 @@
 using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.IoC;
-using Cryptodd.Okx.Http;
 using Cryptodd.Okx.Models;
 using Cryptodd.Okx.Orderbooks.Handlers;
 using Cryptodd.Okx.Websockets;
+using Cryptodd.Okx.Websockets.Pool;
 using Cryptodd.Okx.Websockets.Subscriptions;
 using Cryptodd.Pairs;
 using Lamar;
@@ -17,52 +17,6 @@ using Serilog;
 
 namespace Cryptodd.Okx.Orderbooks;
 
-public interface IOkxInstrumentLister
-{
-    public Task<List<string>> ListInstruments(CancellationToken cancellationToken);
-}
-
-// ReSharper disable once UnusedType.Global
-public class OkxInstrumentLister : IOkxInstrumentLister, IService
-{
-    private readonly IOkxInstrumentIdsProvider _okxInstrumentIdsProvider;
-
-    public OkxInstrumentLister(IOkxInstrumentIdsProvider okxInstrumentIdsProvider)
-    {
-        _okxInstrumentIdsProvider = okxInstrumentIdsProvider;
-    }
-
-    private int _lastCapacity;
-
-    public async Task<List<string>> ListInstruments(CancellationToken cancellationToken)
-    {
-        var tasks = new[]
-        {
-            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Spot, cancellationToken: cancellationToken),
-            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Margin, cancellationToken: cancellationToken),
-            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Swap, cancellationToken: cancellationToken),
-            _okxInstrumentIdsProvider.ListInstrumentIds(OkxInstrumentType.Futures, cancellationToken: cancellationToken)
-        };
-
-        await Task.WhenAll(tasks).ConfigureAwait(false);
-        HashSet<string> dejaVu = new(_lastCapacity);
-        List<string> res = new();
-        foreach (var task in tasks)
-        {
-            res.AddRange((task.IsCompleted ? task.Result : await task.ConfigureAwait(false)).Where(id => dejaVu.Add(id)));
-            task.Dispose();
-        }
-
-        _lastCapacity = res.Capacity;
-        return res;
-    }
-}
-
-public class OkxOrderbookCollectorOptions
-{
-    public int MaxSubscriptionPerWebsocket { get; set; } = 48;
-}
-
 public interface IOkxOrderbookCollector
 {
     Task<int> CollectOrderbooks(Action? orderbookContinuation = null,
@@ -72,13 +26,13 @@ public interface IOkxOrderbookCollector
 public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
 {
     private readonly IContainer _container;
-    private readonly IOkxInstrumentLister _instrumentLister;
+    private readonly IOkxOrderbookInstrumentLister _instrumentLister;
     private readonly IPairFilterLoader _pairFilterLoader;
     private readonly ILogger _logger;
     private readonly OkxOrderbookCollectorOptions _options = new();
 
 
-    public OkxOrderbookCollector(IContainer container, ILogger logger, IOkxInstrumentLister instrumentLister,
+    public OkxOrderbookCollector(IContainer container, ILogger logger, IOkxOrderbookInstrumentLister instrumentLister,
         IConfiguration configuration, IPairFilterLoader pairFilterLoader)
     {
         _container = container;
@@ -197,7 +151,7 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                         _logger.Debug(e, "cts is dipsosed");
                     }
                 }
-                
+
                 foreach (var response in responses)
                 {
                     response.Dispose();
@@ -292,13 +246,21 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
         var processBufferBlockTask = Task.FromResult(1);
         try
         {
+            var pool = container.GetInstance<IOkxWebsocketPool>();
+
+            async Task InjectOrConnect(OkxWebsocketForOrderbook ws, CancellationToken cancellationToken)
+            {
+                await pool.TryInjectWebsocket(ws, cancellationToken).ConfigureAwait(false);
+                await ws.ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
+            }
+
             for (var i = 0; i < numWebsocket; i++)
             {
                 var ws = container.GetInstance<OkxWebsocketForOrderbook>();
                 websockets.Add(ws);
                 dm.LinkDisposableAsWeak(ws);
                 ws.AddBufferBlock(bufferBlock);
-                tasks.Add(ws.ConnectIfNeeded(cancellationTokenWithTimeout).AsTask());
+                tasks.Add(InjectOrConnect(ws, cancellationTokenWithTimeout));
             }
 
             processBufferBlockTask = ProcessBufferBlock(instruments.Count, container, bufferBlock, cancellationToken);
@@ -324,7 +286,10 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                 CancellationToken cancellationToken) where TCollection : IReadOnlyCollection<OkxSubscription>
             {
                 await ws.ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
-                await ws.Subscribe(subscriptions, cancellationToken).ConfigureAwait(false);
+                if (await ws.Subscribe(subscriptions, cancellationToken).ConfigureAwait(false) != subscriptions.Count)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(subscriptions), "unable to subscribe");
+                }
             }
 
             for (var i = 0; i < numWebsocket; i++)
@@ -335,6 +300,8 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                 backgroundTasks.Add(ws.EnsureConnectionActivityTask(cancellationTokenWithTimeout));
                 backgroundTasks.Add(ws.ReceiveLoop(cancellationTokenWithTimeout));
             }
+            
+            backgroundTasks.Add(pool.BackgroundLoop(cancellationTokenWithTimeout));
 
             try
             {
@@ -391,7 +358,7 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                 {
                     await task.ConfigureAwait(false);
                 }
-                
+
                 task.Dispose();
             }
 
@@ -401,10 +368,12 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                 {
                     continue;
                 }
+
                 if (!task.IsCompleted)
                 {
                     await task.ConfigureAwait(false);
                 }
+
                 task.Dispose();
             }
         }
