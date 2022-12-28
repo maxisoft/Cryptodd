@@ -1,10 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using Cryptodd.IoC;
 using Cryptodd.Okx.Limiters;
 using Cryptodd.Okx.Models;
 using Lamar;
-using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Collections.Queues;
 using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
@@ -15,12 +13,12 @@ namespace Cryptodd.Okx.Websockets.Pool;
 public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocketPool
     where TOption : OkxWebsocketPoolOptions, new()
 {
-    private readonly IOkxLimiterRegistry _limiterRegistry;
-    private readonly INestedContainer _container;
-    private readonly Deque<OkxWebsocketPoolEntry> _websocketPoolEntries = new();
-    private readonly TOption _options = new();
     private readonly CancellationTokenSource _cancellationTokenSource;
+    private readonly INestedContainer _container;
+    private readonly IOkxLimiterRegistry _limiterRegistry;
     private readonly ConcurrentQueue<Task> _linkedTaskQueue = new();
+    private readonly TOption _options = new();
+    private readonly Deque<OkxWebsocketPoolEntry> _websocketPoolEntries = new();
 
     protected BaseOkxWebsocketPool(ILogger logger, IContainer container, IConfiguration configuration,
         IOkxLimiterRegistry limiterRegistry,
@@ -36,16 +34,10 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
 
     protected ILogger Logger { get; }
 
-    protected virtual ValueTask<PooledOkxWebsocket> CreateNewWebsocket(CancellationToken cancellationToken) =>
-        ValueTask.FromResult(_container.GetInstance<PooledOkxWebsocket>());
-
-    protected virtual async Task InnerBackgroundLoop(CancellationToken cancellationToken)
+    public void Dispose()
     {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            await Tick(cancellationToken).ConfigureAwait(false);
-            await Task.Delay(_options.BackgroundTaskInterval, cancellationToken).ConfigureAwait(false);
-        }
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     public async Task BackgroundLoop(CancellationToken cancellationToken)
@@ -63,43 +55,6 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
         finally
         {
             CleanupLinkedTasks();
-        }
-    }
-
-    private void FastCleanupLinkedTasks()
-    {
-        if (_linkedTaskQueue.TryDequeue(out var task))
-        {
-            if (!task.IsCompleted)
-            {
-                _linkedTaskQueue.Enqueue(task);
-            }
-        }
-    }
-
-    private void CleanupLinkedTasks()
-    {
-        Task? first = null;
-        while (_linkedTaskQueue.TryDequeue(out var task))
-        {
-            if (first is not null)
-            {
-                if (ReferenceEquals(task, first))
-                {
-                    break;
-                }
-            }
-            else
-            {
-                first ??= task;
-            }
-
-            if (task.IsCompleted)
-            {
-                continue;
-            }
-
-            _linkedTaskQueue.Enqueue(task);
         }
     }
 
@@ -145,49 +100,6 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
         }
     }
 
-    private ValueTask FastCleanupPoolEntries()
-    {
-        var count = Count;
-        if (count == 0)
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        lock (_websocketPoolEntries)
-        {
-            if (!_websocketPoolEntries.TryPopFront(out var entry))
-            {
-                return ValueTask.CompletedTask;
-            }
-
-            if (entry.Websocket.State is not WebSocketState.Open)
-            {
-                return entry.DisposeAsync();
-            }
-
-            _websocketPoolEntries.PushFront(entry);
-            
-            if (count == 1)
-            {
-                return ValueTask.CompletedTask;
-            }
-
-            if (!_websocketPoolEntries.TryPopBack(out entry))
-            {
-                return ValueTask.CompletedTask;
-            }
-
-            if (entry.Websocket.State is not WebSocketState.Open)
-            {
-                return entry.DisposeAsync();
-            }
-
-            _websocketPoolEntries.PushBack(entry);
-        }
-        
-        return ValueTask.CompletedTask;
-    }
-
     public async Task Tick(CancellationToken cancellationToken)
     {
         FastCleanupLinkedTasks();
@@ -195,7 +107,7 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
         {
             return;
         }
-        
+
         await FastCleanupPoolEntries().ConfigureAwait(false);
 
         if (Count >= _options.MaxCapacity)
@@ -221,7 +133,7 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
             try
             {
                 await ws.ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
-                var entry = new OkxWebsocketPoolEntry()
+                var entry = new OkxWebsocketPoolEntry
                 {
                     Websocket = ws,
                     ActivityTask = ws.EnsureConnectionActivityTask(cts.Token),
@@ -255,6 +167,98 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
     // ReSharper disable once InconsistentlySynchronizedField
     public int Count => _websocketPoolEntries.Count;
 
+    protected virtual ValueTask<PooledOkxWebsocket> CreateNewWebsocket(CancellationToken cancellationToken) =>
+        ValueTask.FromResult(_container.GetInstance<PooledOkxWebsocket>());
+
+    protected virtual async Task InnerBackgroundLoop(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await Tick(cancellationToken).ConfigureAwait(false);
+            await Task.Delay(_options.BackgroundTaskInterval, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private void FastCleanupLinkedTasks()
+    {
+        if (_linkedTaskQueue.TryDequeue(out var task))
+        {
+            if (!task.IsCompleted)
+            {
+                _linkedTaskQueue.Enqueue(task);
+            }
+        }
+    }
+
+    private void CleanupLinkedTasks()
+    {
+        Task? first = null;
+        while (_linkedTaskQueue.TryDequeue(out var task))
+        {
+            if (first is not null)
+            {
+                if (ReferenceEquals(task, first))
+                {
+                    break;
+                }
+            }
+            else
+            {
+                first ??= task;
+            }
+
+            if (task.IsCompleted)
+            {
+                continue;
+            }
+
+            _linkedTaskQueue.Enqueue(task);
+        }
+    }
+
+    private ValueTask FastCleanupPoolEntries()
+    {
+        var count = Count;
+        if (count == 0)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        lock (_websocketPoolEntries)
+        {
+            if (!_websocketPoolEntries.TryPopFront(out var entry))
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            if (entry.Websocket.State is not WebSocketState.Open)
+            {
+                return entry.DisposeAsync();
+            }
+
+            _websocketPoolEntries.PushFront(entry);
+
+            if (count == 1)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            if (!_websocketPoolEntries.TryPopBack(out entry))
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            if (entry.Websocket.State is not WebSocketState.Open)
+            {
+                return entry.DisposeAsync();
+            }
+
+            _websocketPoolEntries.PushBack(entry);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
     protected virtual void Dispose(bool disposing)
     {
         _cancellationTokenSource.Cancel();
@@ -285,11 +289,5 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
             _cancellationTokenSource.Dispose();
             _container.Dispose();
         }
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
     }
 }

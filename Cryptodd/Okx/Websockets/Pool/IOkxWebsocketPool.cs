@@ -4,6 +4,7 @@ namespace Cryptodd.Okx.Websockets.Pool;
 
 public interface IOkxWebsocketPool
 {
+    public int Count { get; }
     Task BackgroundLoop(CancellationToken cancellationToken);
 
     ValueTask<bool> TryInjectWebsocket<T, TData2, TOptions2>(T other, CancellationToken cancellationToken)
@@ -12,6 +13,4 @@ public interface IOkxWebsocketPool
         where TOptions2 : BaseOkxWebsocketOptions, new();
 
     Task Tick(CancellationToken cancellationToken);
-
-    public int Count { get; }
 }
