@@ -29,7 +29,8 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
         {
             using (await _internalSemaphore.WaitAndGetDisposableAsync(cancellationToken).ConfigureAwait(false))
             {
-                for (var i = 0; i < count; i++)
+                int i;
+                for (i = 0; i < count; i++)
                 {
                     try
                     {
@@ -43,6 +44,7 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
                         if (i > 0)
                         {
                             semaphore.Release(i);
+                            i = 0;
                         }
 
                         break;
@@ -58,7 +60,10 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
                     }
                 }
 
-                break;
+                if (i >= count)
+                {
+                    return i;
+                }
             }
         }
 
