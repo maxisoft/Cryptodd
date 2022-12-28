@@ -55,7 +55,8 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
 
     protected ValueTask<Uri> UriCombine(string url)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var res))
+        if (Uri.TryCreate(url, UriKind.RelativeOrAbsolute, out var res) &&
+            res is { IsFile: false, IsAbsoluteUri: true, Scheme: "https" or "http" })
         {
             return ValueTask.FromResult(res);
         }
