@@ -3,7 +3,6 @@ using Cryptodd.Okx.Limiters;
 using Lamar;
 using Maxisoft.Utils.Objects;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace Cryptodd.Okx.Websockets.Pool;
