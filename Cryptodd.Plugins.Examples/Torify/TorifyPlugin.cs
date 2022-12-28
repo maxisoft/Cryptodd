@@ -41,7 +41,7 @@ public class TorifyOptions
     public bool UseForBinanceFutures { get; set; } = true;
     public bool UseForBitfinex { get; set; } = true;
     
-    public bool UseForOxk { get; set; } = true;
+    public bool UseForOkx { get; set; } = true;
 
     public bool DebugLog { get; set; }
     
@@ -166,7 +166,7 @@ public class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDisposable
             return true;
         }
 
-        if (_options.UseForOxk && host == _okxHost.Value)
+        if (_options.UseForOkx && host == _okxHost.Value)
         {
             return true;
         }
