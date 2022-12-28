@@ -6,6 +6,8 @@ using Cryptodd.Ftx.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
+using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 

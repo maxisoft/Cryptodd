@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net7.0</TargetFramework>
         <ImplicitUsings>false</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
@@ -16,22 +16,22 @@
         
         https://endjin.com/blog/2021/09/dotnet-csharp-10-implicit-global-using-directives
         <!-->
-        <Using Remove="System"/>
-        <Using Remove="System.Collections.Generic"/>
-        <Using Remove="System.IO"/>
-        <Using Remove="System.Linq"/>
-        <Using Remove="System.Net.Http"/>
-        <Using Remove="System.Threading"/>
-        <Using Remove="System.Threading.Tasks"/>
-        <Using Remove="System.Net.Http.Json"/>
-        <Using Remove="Microsoft.AspNetCore.Builder"/>
-        <Using Remove="Microsoft.AspNetCore.Hosting"/>
-        <Using Remove="Microsoft.AspNetCore.Http"/>
-        <Using Remove="Microsoft.AspNetCore.Routing"/>
-        <Using Remove="Microsoft.Extensions.Configuration"/>
-        <Using Remove="Microsoft.Extensions.DependencyInjection"/>
-        <Using Remove="Microsoft.Extensions.Hosting"/>
-        <Using Remove="Microsoft.Extensions.Logging"/>
+        <Using Remove="System" />
+        <Using Remove="System.Collections.Generic" />
+        <Using Remove="System.IO" />
+        <Using Remove="System.Linq" />
+        <Using Remove="System.Net.Http" />
+        <Using Remove="System.Threading" />
+        <Using Remove="System.Threading.Tasks" />
+        <Using Remove="System.Net.Http.Json" />
+        <Using Remove="Microsoft.AspNetCore.Builder" />
+        <Using Remove="Microsoft.AspNetCore.Hosting" />
+        <Using Remove="Microsoft.AspNetCore.Http" />
+        <Using Remove="Microsoft.AspNetCore.Routing" />
+        <Using Remove="Microsoft.Extensions.Configuration" />
+        <Using Remove="Microsoft.Extensions.DependencyInjection" />
+        <Using Remove="Microsoft.Extensions.Hosting" />
+        <Using Remove="Microsoft.Extensions.Logging" />
     </ItemGroup>
 
 </Project>

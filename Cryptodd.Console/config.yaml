@@ -1,9 +1,280 @@
 ﻿Http:
 # Proxy: socks5://127.0.0.1:39050
+Torify:
+  ProxyAddress: socks5://192.168.1.200:19050
+  UseForBitfinex: false
+  UseForOkx: false
+  Enabled: true
+  DebugLog: false
+  ConnectTimeoutMs: 1900
+
+Binance:
+  Orderbook:
+    Task:
+      Enabled: false
+    PairFilter:
+      - BTCUSDT
+      - BTCBUSD
+      - BTCUSD
+      - BUSDUSDT
+      - ETHBUSD
+      - ETHUSDT
+      - DOGEUSDT
+      - BNBUSDT
+      - XRPUSDT
+      - XRP/BUSD
+      - MATICUSDT
+      - BNBBUSD
+      - LTCUSDT
+      - USDTTRY
+      - ETHBTC
+      - SOLUSDT
+      - BTCEUR
+      - DOGEBUSD
+      - LINKUSDT
+      - GRTUSDT
+      - BTCGBP
+      - BTCTRY
+      - TRXUSDT
+      - ADAUSDT
+      - DOTUSDT
+      - BUSDTRY
+      - SHIBUSDT
+      - XMRUSDT
+      - ETCUSDT
+      - BTCBRL
+      - BNBBTC
+      - ALGOUSDT
+      - AVAXUSDT
+      - LTCBTC
+      - FTMBUSD
+      - BTCAUD
+      - FILUSDT
+      - WBTCBTC
+      - ETHEUR
+      - XRPBTC
+      - BCHUSDT
+      - DOTBTC
+      - MANAUSDT
+      - PAXGUSDT
+      - XLMUSDT
+      - ATOMBUSD
+      - BTCSTUSDT
+      - BNBETH
+      - USDTRUB
+      - BUSDDAI
+      - OMGUSDT
+      - RSRUSDT
+      - ETHDOWNUSDT
+      - RVNUSDT
+      - ICPBUSD
+      - MINAUSDT
+      - BTCRUB
+      - USDTUAH
+      - DODOUSDT
+      - ENSBNB
+      - CTXCBUSD
+      - FTTBUSD
+      - FETUSDT
+      - OPUSDT
+      - APEUSDT
+      - MATICBUSD
+      - FTMUSDT
+      - EOSUSDT
+      - APEBUSD
+      - SANDUSDT
+      - ATOMUSDT
+      - ENSUSDT
+      - WAVESUSDT
+      - AXSBUSD
+      - OCEANUSDT
+      - LRCUSDT
+      - UNIUSDT
+      - CHZUSDT
+      - CRVUSDT
+      - AAVEUSDT
+      - BANDUSDT
+      - RENUSDT
+      - NEARUSDT
+      - DYDXUSDT
+      - AUDIOUSDT
+      - BATUSDT
+      - YFIUSDT
+      - XTZUSDT
+      - KAVAUSDT
+      - KSMUSDT
+
+BinanceFutures:
+  Orderbook:
+    Collector:
+      FullCleanupOrderbookOnReconnect: false
+    Task:
+      PeriodOffset: -1000
+      Enabled: false
+    PairFilter:
+      - BTCUSDT
+      - BTCBUSD
+      - ETHUSDT
+      - ETHBUSD
+      - BTCUSD
+      - BCHUSDT
+      - XRPUSDT
+      - EOSUSDT
+      - LTCUSDT
+      - TRXUSDT
+      - ETCUSDT
+      - LINKUSDT
+      - XLMUSDT
+      - ADAUSDT
+      - XMRUSDT
+      - DASHUSDT
+      - ZECUSDT
+      - XTZUSDT
+      - BNBUSDT
+      - BNBBUSD
+      - ATOMUSDT
+      - BATUSDT
+      - VETUSDT
+      - NEOUSDT
+      - QTUMUSDT
+      - THETAUSDT
+      - ALGOUSDT
+      - COMPUSDT
+      - OMGUSDT
+      - DOGEUSDT
+      - BANDUSDT
+      - WAVESUSDT
+      - DOTUSDT
+      - CRVUSDT
+      - APEUSDT
+      - SOLUSDT
+      - DYDXUSDT
+      - RVNUSDT
+      - ^BTCUSDT_[0-9]+?$
+      - ^ETHUSDT_[0-9]+?$
+      - ^[0-9]*?SHIBBUSD$
+        
+        
+Okx:
+  Orderbook:
+    Task:
+      #Period: 60000
+    PairFilter:
+      - BTC-USDT-SWAP
+      - BTC-USD-SWAP
+      - ETH-USDT-SWAP
+      - ETH-USD-SWAP
+      - XRP-USDT-SWAP
+      - ETC-USDT-SWAP
+      - ATOM-USDT-SWAP
+      - MATIC-USDT-SWAP
+      - ENS-USDT-SWAP
+      - SOL-USDT-SWAP
+      - DOGE-USDT-SWAP
+      - SHIB-USDT-SWAP
+      - LTC-USDT-SWAP
+      - CRV-USDT-SWAP
+      - DOT-USDT-SWAP
+      - LINK-USDT-SWAP
+      - DYDX-USDT-SWAP
+      - ADA-USDT-SWAP
+      - TRX-USDT-SWAP
+      - BCH-USDT-SWAP
+      - AVAX-USDT-SWAP
+      - SAND-USDT-SWAP
+      - ETC-USD-SWAP
+      - XRP-USD-SWAP
+      - XMR-USDT-SWAP
+      - LTC-USD-SWAP
+      - BSV-USDT-SWAP
+      - EOS-USDT-SWAP
+      - ALGO-USDT-SWAP
+      - MANA-USDT-SWAP
+      - ICP-USDT-SWAP
+      - RVN-USDT-SWAP
+      - CHZ-USDT-SWAP
+      - CSPR-USDT-SWAP
+      - SUSHI-USDT-SWAP
+      - MKR-USDT-SWAP
+      - XLM-USDT-SWAP
+      - ZEC-USDT-SWAP
+      - KSM-USDT-SWAP
+      - MINA-USDT-SWAP
+      - FTM-USDT-SWAP
+      - AXS-USDT-SWAP
+      - OMG-USDT-SWAP
+      - XTZ-USDT-SWAP
+      - GRT-USDT-SWAP
+      - DASH-USDT-SWAP
+      - RSR-USDT-SWAP
+      - FIL-USDT-SWAP
+      - ^BTC-.*
+      - ^ETH-.*
+      - ^OKB-.*
+      - ^BTC-USD(?>:T|C)?-[0-9]+?$
+      - ^ETH-USD(?>:T|C)?-[0-9]+?$
+      - ETH-USDT
+      - BTC-USDT
+      - BTC-USD
+      - ETH-USD
+      - XRP-USDT
+      - ETC-USDT
+      - DOGE-USDT
+      - LTC-USDT
+      - ETH-DAI
+      - BCH-USDT
+      - OKB-USDT
+      - SOL-USDT
+      - ETH-USDC
+      - USDC-USDT
+      - BTC-USDC
+      - DOT-USDT
+      - BTC-USDK
+      - ADA-USDT
+      - OKT-USDT
+      - XMR-USDT
+      - SHIB-USDT
+      - EOS-USDT
+      - BNB-USDT
+      - ETHW-USDT
+      - AAVE-USDT
+      - APE-USDT
+      - LINK-USDT
+      - TRX-USDT
+      - ETH-USDK
+      - WBTC-USDT
+      - BTC-DAI
+      - ETH-BTC
+      - DOGE-BTC
+      - BAT-USDT
+      - BSV-BTC
+      - XRP-BTC
+      - DOGE-ETH
+      - WBTC-ETH
+      - LTC-ETH
+      - OP-USDT
+      - DYDX-USDT
+      - MATIC-USDT
+      - CHZ-USDT
+      - SAND-USDT
+      - FTM-USDT
+      - ZEC-USDT
+      - ALGO-USDT
+      - DAI-USDT
+      - ICP-USDT
+      - KSM-USDT
+      - AVAX-USDT
+      - FLOW-USDT
+      - GRT-USDT
+      - ENS-USDT
+      - XMR-BTC
+      - BTG-USDT
+
+
 Ftx:
   GroupedOrderBook:
     Parquet:
-      Enabled: true
+      Enabled: false
       PairFilter: 
         - BTC-PERP
         - ^BTC-MOVE.*
@@ -14,21 +285,50 @@ Ftx:
         - ^SOL/USDT?$
     Task:
       Period: 60000
-      Enabled: true
+      Enabled: false
       
   RegroupedOrderBook:
     Parquet:
       Enabled: true
       HighCompression: true
+    Task:
+      Enabled: false
       
   FutureStats:
-    Parquet:
-      Enabled: true
+    Task:
+      Enabled: false
       
 Bitfinex:
   OrderBook:
     Parquet:
-      Enabled: true
+      Enabled: false
+    Task:
+      Enabled: false
+      Period: 15000
+      PeriodOffset: -100
+      
+  OrderBookP0:
+    Task:
+      Enabled: false
+    PairFilter:
+      #- ^BTC.*?$
+      #- ^ETH.*?$
+      #- ^XRP.*?$
+      - BTCUSD
+      - USDUST
+      - USTUSD
+      - BTCUST
+      - ETHBTC
+      - ETHUSD
+      - ETHUST
+      - LTCUSD
+      - LTCBTC
+      - LTCUST
+      - XMRBTC
+      - XMRUSD
+      - XRPBTC
+      - XRPUST
+      - XRPUSD
 
 Trade:
   Collector:
@@ -82,7 +382,7 @@ Trade:
       - 60000
       - 0
     
-
+SetupTimescaleDb: false
 Postgres:
   ConnectionString: "Host=127.0.0.1;Username=cryptodduser;Password=cryptouserpass;Database=cryptodd;Port=5432;ConnectionLifetime=600;Keepalive=60;Application Name=cryptodd"
   

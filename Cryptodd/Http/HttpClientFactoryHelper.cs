@@ -15,7 +15,7 @@ public interface IHttpClientFactoryHelper
 // ReSharper disable once UnusedType.Global
 public class HttpClientFactoryHelper : IHttpClientFactoryHelper
 {
-    private readonly IConfigurationSection? _httpConfig;
+    private readonly IConfigurationSection _httpConfig;
 
     public HttpClientFactoryHelper(IConfiguration configuration)
     {
@@ -27,7 +27,7 @@ public class HttpClientFactoryHelper : IHttpClientFactoryHelper
         client.Timeout = TimeSpan.FromMilliseconds(_httpConfig.GetValue("TimeoutMs", 5 * 1000));
         client.MaxResponseContentBufferSize = _httpConfig.GetValue<long>("MaxResponseContentBufferSize", 64 << 20);
         var userAgent =
-            _httpConfig.GetValue<string>("UserAgent", $"CrytoDumper v{GetType().Assembly.GetName().Version}");
+            _httpConfig.GetValue<string>("UserAgent", $"Crytodd v{GetType().Assembly.GetName().Version}");
         if (!string.IsNullOrEmpty(userAgent))
         {
             client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);

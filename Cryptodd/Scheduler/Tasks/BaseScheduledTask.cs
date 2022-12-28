@@ -7,6 +7,8 @@ namespace Cryptodd.Scheduler.Tasks;
 
 public abstract class BaseScheduledTask : IDisposable
 {
+    protected internal AsyncLocal<TaskRunningContext>? TaskRunningContextAsyncLocal { get; internal set; }
+    protected TaskRunningContext? TaskRunningContext => TaskRunningContextAsyncLocal?.Value;
     protected readonly SemaphoreSlim _semaphore = new(1, 1);
     protected readonly ILogger Logger;
 

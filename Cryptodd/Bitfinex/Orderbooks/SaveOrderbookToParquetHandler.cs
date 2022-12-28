@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Parquet;
 using Parquet.Data;
 using Serilog;
+using SmartFormat;
 
 namespace Cryptodd.Bitfinex.Orderbooks;
 
@@ -16,7 +17,7 @@ namespace Cryptodd.Bitfinex.Orderbooks;
 public class SaveOrderbookToParquetHandler : IOrderbookHandler
 {
     public const string FileType = "parquet";
-    public const string DefaultFileName = "bitfinex_orderbook.parquet";
+    public const string DefaultFileName = "bitfinex_orderbook";
     private const int ChunkSize = 128;
     private readonly IConfiguration _configuration;
     private readonly ILogger _logger;
@@ -32,7 +33,7 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
         _logger = logger.ForContext(GetType());
     }
 
-    public async Task Handle(IReadOnlyCollection<OrderbookEnvelope> orderbooks,
+    public async Task Handle(OrderbookHandlerQuery query, IReadOnlyCollection<OrderbookEnvelope> orderbooks,
         CancellationToken cancellationToken)
     {
         if (!orderbooks.Any())
@@ -52,7 +53,11 @@ public class SaveOrderbookToParquetHandler : IOrderbookHandler
             return;
         }
 
-        var fileName = section.GetValue<string>("File", DefaultFileName);
+        var fileName = section.GetValue<string>("File", "");
+        if (string.IsNullOrEmpty(fileName))
+        {
+            fileName = $"{DefaultFileName}_p{query.Precision}_l{query.Length}.{FileType}";
+        }
         fileName = _pathResolver.Resolve(fileName,
             new ResolveOption
             {

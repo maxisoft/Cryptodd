@@ -67,7 +67,7 @@ public class TorifyPlugin : BasePlugin
     }
 }
 
-public sealed class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDisposable
+public class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDisposable
 {
     private readonly IConfiguration _configuration;
     private readonly DisposableManager _disposableManager = new();
@@ -133,6 +133,8 @@ public sealed class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDis
 
             return await BaseCall();
         }
+
+        return await BaseCall();
     }
 
     private readonly Lazy<string> _binanceHost =
