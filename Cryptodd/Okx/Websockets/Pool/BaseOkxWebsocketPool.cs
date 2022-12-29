@@ -77,7 +77,7 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
             }
 
 
-            if (entry.Websocket.State is not WebSocketState.Open)
+            if (IsUnusable(entry))
             {
                 await entry.DisposeAsync().ConfigureAwait(false);
                 entry = null;
@@ -98,11 +98,11 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
         }
         finally
         {
-            if (!res && entry.Websocket.State is WebSocketState.Open)
+            if (!res && !IsUnusable(entry))
             {
                 lock (_websocketPoolEntries)
                 {
-                    _websocketPoolEntries.PushFront(entry);
+                    _websocketPoolEntries.PushBack(entry);
                 }
             }
             else
@@ -176,6 +176,74 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
         }
     }
 
+    public async ValueTask<bool> Return<T, TData2, TOptions2>(T ws, CancellationToken cancellationToken)
+        where T : BaseOkxWebsocket<TData2, TOptions2>
+        where TData2 : PreParsedOkxWebSocketMessage, new()
+        where TOptions2 : BaseOkxWebsocketOptions, new()
+    {
+        if (Count >= _options.MaxCapacity)
+        {
+            await FastCleanupPoolEntries().ConfigureAwait(false);
+            if (Count >= _options.MaxCapacity)
+            {
+                return false;
+            }
+        }
+
+
+        var entryWs = await CreateNewWebsocket(cancellationToken).ConfigureAwait(false);
+        CancellationTokenSource cts;
+        try
+        {
+            if (!await entryWs.SwapWebSocket<T, TData2, TOptions2>(ws, cancellationToken).ConfigureAwait(false))
+            {
+                await entryWs.DisposeAsync().ConfigureAwait(false);
+                return false;
+            }
+
+            cts = CancellationTokenSource.CreateLinkedTokenSource(_cancellationTokenSource.Token);
+        }
+        catch
+        {
+            await entryWs.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+
+        try
+        {
+            var entry = new OkxWebsocketPoolEntry
+            {
+                Websocket = entryWs,
+                ActivityTask = ws.EnsureConnectionActivityTask(cts.Token),
+                CancellationTokenSource = cts
+            };
+            try
+            {
+                lock (_websocketPoolEntries)
+                {
+                    if (Count >= _options.MaxCapacity)
+                    {
+                        entry.Dispose();
+                        return false;
+                    }
+
+                    _websocketPoolEntries.PushBack(entry);
+                    return true;
+                }
+            }
+            catch
+            {
+                await entry.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
+        catch
+        {
+            cts.Dispose();
+            throw;
+        }
+    }
+
     // ReSharper disable once InconsistentlySynchronizedField
     public int Count => _websocketPoolEntries.Count;
 
@@ -243,7 +311,7 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
                 return ValueTask.CompletedTask;
             }
 
-            if (entry.Websocket.State is not WebSocketState.Open)
+            if (IsUnusable(entry))
             {
                 return entry.DisposeAsync();
             }
@@ -260,7 +328,7 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
                 return ValueTask.CompletedTask;
             }
 
-            if (entry.Websocket.State is not WebSocketState.Open)
+            if (IsUnusable(entry))
             {
                 return entry.DisposeAsync();
             }
@@ -269,6 +337,12 @@ public abstract class BaseOkxWebsocketPool<TOption> : IDisposable, IOkxWebsocket
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    private static bool IsUnusable(OkxWebsocketPoolEntry entry)
+    {
+        return entry.Websocket.State is not WebSocketState.Open || entry.ActivityTask.IsCompleted ||
+               entry.ElapsedSinceCreation > 30_000;
     }
 
     protected virtual void Dispose(bool disposing)
