@@ -53,7 +53,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
     public async ValueTask<bool> Ping(CancellationToken cancellationToken)
     {
         var ws = WebSocket;
-        if (ws is null)
+        if (ws?.State is not WebSocketState.Open)
         {
             return false;
         }
@@ -177,7 +177,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
             if (diff > interval)
             {
                 await Ping(cancellationToken).ConfigureAwait(false);
-                now = GetUnixTimeMilliseconds();
+                LastMessageDate = now = GetUnixTimeMilliseconds();
             }
 
 
@@ -397,8 +397,12 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
                 .Length;
         if (payloadLength <= 0)
         {
-            // TODO
-            return 0;
+            if (isSubscription)
+            {
+                throw new ArgumentException("subscription list doesn't contains any valid subscription");
+            }
+            // this is an error due to concurrency most likely
+            return -2;
         }
 
         var ws = WebSocket;

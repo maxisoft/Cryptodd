@@ -76,6 +76,8 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         }
     }
 
+    public WebSocketState State => WebSocket?.State ?? WebSocketState.None;
+
     public virtual void StopReceiveLoop(string reason = "", LogEventLevel logLevel = LogEventLevel.Information)
     {
         try
