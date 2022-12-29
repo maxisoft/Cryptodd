@@ -233,7 +233,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         GC.SuppressFinalize(this);
     }
 
-    public async ValueTask DisposeAsync()
+    public async virtual ValueTask DisposeAsync(bool disposing)
     {
         try
         {
@@ -257,14 +257,26 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             {
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
             }
-            catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException)
+            catch (WebSocketException e) 
+            {
+                if (ws.State is not (WebSocketState.Aborted or WebSocketState.Closed or WebSocketState.CloseReceived or WebSocketState.CloseSent))
+                {
+                    Logger.Debug(e, "Error when closing ws");
+                }
+            }
+            catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException)
             {
                 Logger.Debug(e, "Error when closing ws");
             }
+            
         }
+        Dispose(disposing);
+    }
 
-        Dispose();
+    public ValueTask DisposeAsync()
+    {
         GC.SuppressFinalize(this);
+        return DisposeAsync(true);
     }
 
     protected abstract ReceiveMessageFilter FilterReceivedMessage(Span<byte> message,
@@ -278,7 +290,12 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         set => _dataLocal.Value = value;
     }
 
-    public virtual async Task ReceiveLoop(CancellationToken cancellationToken)
+    public async Task ReceiveLoop(CancellationToken cancellationToken)
+    {
+        await ReceiveLoop(false, cancellationToken).ConfigureAwait(false);
+    }
+    
+    public virtual async Task ReceiveLoop(bool detached, CancellationToken cancellationToken)
     {
         try
         {
@@ -288,7 +305,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
 
                 var ws = WebSocket!;
                 using var receiveToken =
-                    CancellationTokenSource.CreateLinkedTokenSource(CancellationToken, cancellationToken);
+                    detached ? new CancellationTokenSource() : CancellationTokenSource.CreateLinkedTokenSource(CancellationToken, cancellationToken);
                 receiveToken.CancelAfter(Options.ReceiveTimeout);
                 var memoryPool = MemoryPool;
                 var mem = memoryPool.Rent(1 << 10);

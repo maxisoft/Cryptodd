@@ -29,19 +29,46 @@ public class OkxOrderbookTask : BasePeriodicScheduledTask
         OnConfigurationChange();
     }
 
-    private void RestartBackgroundWebsocketPoolTask(CancellationToken cancellationToken)
+    private async ValueTask RestartBackgroundWebsocketPoolTask(CancellationToken cancellationToken)
     {
         Logger.Verbose("There's {Count} websocket in pool", _websocketPool.Count);
         if (_websocketBackgroundTask.IsCompleted)
         {
+            if (_websocketBackgroundTask.IsFaulted)
+            {
+                Logger.Warning(_websocketBackgroundTask.Exception, "websocket pool background task faulted");
+            }
+
             _websocketBackgroundTask.Dispose();
             _websocketBackgroundTask = _websocketPool.BackgroundLoop(cancellationToken);
         }
+
+        try
+        {
+            await Task.WhenAny(
+                    _websocketBackgroundTask.WaitAsync(TimeSpan.FromMilliseconds(50), cancellationToken),
+                    _websocketPool.Tick(cancellationToken)
+                )
+                .ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            Logger.Verbose(e, "waiting for background task");
+            if (e is not (OperationCanceledException or TimeoutException))
+            {
+                throw;
+            }
+        }
+    }
+
+    public override async ValueTask<bool> PreExecute(CancellationToken cancellationToken)
+    {
+        await RestartBackgroundWebsocketPoolTask(cancellationToken);
+        return await base.PreExecute(cancellationToken);
     }
 
     public override async Task Execute(CancellationToken cancellationToken)
     {
-        RestartBackgroundWebsocketPoolTask(cancellationToken);
         var cts = CreateCancellationTokenSource(cancellationToken);
         await using var container = Container.GetNestedContainer();
         var orderBookService = container.GetInstance<IOkxOrderbookCollector>();

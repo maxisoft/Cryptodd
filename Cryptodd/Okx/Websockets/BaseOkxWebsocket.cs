@@ -50,7 +50,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
     }
 
 
-    public async ValueTask<bool> Ping(CancellationToken cancellationToken)
+    public virtual async Task<bool> Ping(CancellationToken cancellationToken)
     {
         var ws = WebSocket;
         if (ws?.State is not WebSocketState.Open)
@@ -63,8 +63,8 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
         return true;
     }
 
-
-    protected long LastMessageDate { get; set; } = DateTimeOffset.UnixEpoch.ToUnixTimeMilliseconds();
+    
+    public long LastMessageDate { get; protected set; } = -1;
 
     protected static long GetUnixTimeMilliseconds() => DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
@@ -176,7 +176,10 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
             diff = Math.Abs(diff);
             if (diff > interval)
             {
-                await Ping(cancellationToken).ConfigureAwait(false);
+                if (!await Ping(cancellationToken).ConfigureAwait(false))
+                {
+                    break;
+                }
                 LastMessageDate = now = GetUnixTimeMilliseconds();
             }
 

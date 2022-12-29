@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Diagnostics;
+using System.Net.WebSockets;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.IoC;
 using Cryptodd.Okx.Models;
@@ -244,9 +245,10 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
 
 
         var processBufferBlockTask = Task.FromResult(0);
+        IOkxWebsocketPool? pool = null;
         try
         {
-            var pool = container.GetInstance<IOkxWebsocketPool>();
+            pool = container.GetInstance<IOkxWebsocketPool>();
 
             async Task ConnectAndProcessSubscriptions<TCollection>(OkxWebsocketForOrderbook ws,
                 TCollection subscriptions, CancellationToken cancellationToken)
@@ -256,7 +258,7 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                 await ws.ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 backgroundTasks.Add(ws.EnsureConnectionActivityTask(cancellationToken));
-                backgroundTasks.Add(ws.ReceiveLoop(cancellationToken));
+                backgroundTasks.Add(ws.ReceiveLoop(_options.ReuseConnections ?? false, cancellationToken));
                 if (await ws.Subscribe(subscriptions, cancellationToken).ConfigureAwait(false) != subscriptions.Count)
                 {
                     _logger.Error("unable to subscribe to {Count} orderbook", subscriptions.Count);
@@ -346,13 +348,56 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
         }
         finally
         {
-            cts.Cancel();
-
-            foreach (var ws in websockets)
+            var cancelled = cancellationToken.IsCancellationRequested;
+            if (!cancelled)
             {
-                await ws.DisposeAsync().ConfigureAwait(false);
-                dm.UnlinkDisposable(ws);
+                try
+                {
+                    if (_options.ReuseConnections ?? false)
+                    {
+                        var pingTasks = new Task[websockets.Count];
+                        for (var index = 0; index < websockets.Count; index++)
+                        {
+                            var websocket = websockets[index];
+                            websocket.StopReceiveLoop();
+                            if (!websocket.IsClosed)
+                            {
+                                pingTasks[index] = websocket.Ping(cancellationToken);
+                            }
+                            else
+                            {
+                                pingTasks[index] = Task.CompletedTask;
+                            }
+                        }
+
+                        await Task.WhenAll(pingTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
+
+                        var returnTasks = pingTasks;
+                        if (pool is not null)
+                        {
+                            for (var index = 0; index < websockets.Count; index++)
+                            {
+                                var ws = websockets[index];
+                                if (ws.State is WebSocketState.Open && ws.SubscriptionCount == 0)
+                                {
+                                    returnTasks[index] = pool.Return(ws, cancellationToken).AsTask();
+                                }
+                            }
+                        }
+
+                        await Task.WhenAll(returnTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
+                    }
+
+                    cts.Cancel();
+                    await Task.WhenAll(websockets.Select(static ws => ws.DisposeAsync().AsTask()));
+                }
+                catch (OperationCanceledException e)
+                {
+                    cancelled = true;
+                }
             }
+
+            cts.Cancel();
 
             foreach (var task in tasks)
             {
@@ -361,12 +406,15 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                     continue;
                 }
 
-                if (!task.IsCompleted)
+                if (!task.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {
                     await task.ConfigureAwait(false);
                 }
 
-                task.Dispose();
+                if (task.IsCompleted)
+                {
+                    task.Dispose();
+                }
             }
 
             foreach (var task in backgroundTasks)
@@ -376,14 +424,17 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                     continue;
                 }
 
-                if (!task.IsCompleted)
+                if (!task.IsCompleted && !cancellationToken.IsCancellationRequested)
                 {
                     await task.ConfigureAwait(false);
                 }
 
-                task.Dispose();
+                if (task.IsCompleted)
+                {
+                    task.Dispose();
+                }
             }
-            
+
             orderbookContinuation?.Invoke();
 
             if (!processBufferBlockTask.IsCompleted && !cancellationToken.IsCancellationRequested)
