@@ -243,94 +243,104 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
             { BoundedCapacity = instruments.Count });
 
 
-        var processBufferBlockTask = Task.FromResult(1);
+        var processBufferBlockTask = Task.FromResult(0);
         try
         {
             var pool = container.GetInstance<IOkxWebsocketPool>();
 
-            async Task InjectOrConnect(OkxWebsocketForOrderbook ws, CancellationToken cancellationToken)
+            async Task ConnectAndProcessSubscriptions<TCollection>(OkxWebsocketForOrderbook ws,
+                TCollection subscriptions, CancellationToken cancellationToken)
+                where TCollection : IReadOnlyCollection<OkxSubscription>
             {
                 await pool.TryInjectWebsocket(ws, cancellationToken).ConfigureAwait(false);
                 await ws.ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                backgroundTasks.Add(ws.EnsureConnectionActivityTask(cancellationToken));
+                backgroundTasks.Add(ws.ReceiveLoop(cancellationToken));
+                if (await ws.Subscribe(subscriptions, cancellationToken).ConfigureAwait(false) != subscriptions.Count)
+                {
+                    _logger.Error("unable to subscribe to {Count} orderbook", subscriptions.Count);
+                }
             }
 
             for (var i = 0; i < numWebsocket; i++)
             {
                 var ws = container.GetInstance<OkxWebsocketForOrderbook>();
                 websockets.Add(ws);
-                dm.LinkDisposableAsWeak(ws);
+                dm.LinkDisposable(ws);
                 ws.AddBufferBlock(bufferBlock);
-                tasks.Add(InjectOrConnect(ws, cancellationTokenWithTimeout));
+                if (backgroundTasks.Count == 0)
+                {
+                    backgroundTasks.Add(pool.BackgroundLoop(cancellationTokenWithTimeout));
+                }
+
+                tasks.Add(ConnectAndProcessSubscriptions(ws, subscriptions[i], cancellationTokenWithTimeout));
             }
 
             processBufferBlockTask = ProcessBufferBlock(instruments.Count, container, bufferBlock, cancellationToken);
-
-            try
+            while (tasks.Count > 0 && !cancellationTokenWithTimeout.IsCancellationRequested)
             {
-                await Task.WhenAll(tasks).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException e)
-            {
-                cts.Cancel();
-                throw;
-            }
-
-            foreach (var task in tasks)
-            {
-                task.Dispose();
-            }
-
-            tasks.Clear();
-
-            static async Task ConnectThenSubscribe<TCollection>(OkxWebsocketForOrderbook ws, TCollection subscriptions,
-                CancellationToken cancellationToken) where TCollection : IReadOnlyCollection<OkxSubscription>
-            {
-                await ws.ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
-                if (await ws.Subscribe(subscriptions, cancellationToken).ConfigureAwait(false) != subscriptions.Count)
+                try
                 {
-                    throw new ArgumentOutOfRangeException(nameof(subscriptions), "unable to subscribe");
+                    await Task.WhenAll(tasks).ConfigureAwait(false);
+                    break;
                 }
-            }
-
-            for (var i = 0; i < numWebsocket; i++)
-            {
-                var subscriptionList = subscriptions[i];
-                var ws = websockets[i];
-                tasks.Add(ConnectThenSubscribe(ws, subscriptionList, cancellationTokenWithTimeout));
-                backgroundTasks.Add(ws.EnsureConnectionActivityTask(cancellationTokenWithTimeout));
-                backgroundTasks.Add(ws.ReceiveLoop(cancellationTokenWithTimeout));
-            }
-            
-            backgroundTasks.Add(pool.BackgroundLoop(cancellationTokenWithTimeout));
-
-            try
-            {
-                await Task.WhenAll(tasks).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                var cancellationRequested = cts.IsCancellationRequested;
-
-                if (!cancellationRequested)
+                catch
                 {
-                    cts.Cancel();
-                    throw;
+                    for (var i = 0; i < tasks.Count; i++)
+                    {
+                        var task = tasks[i];
+                        if (task.IsCompletedSuccessfully)
+                        {
+                            continue;
+                        }
+
+                        if (task.IsCompleted)
+                        {
+                            if (task.Exception is { InnerExceptions.Count: > 0 })
+                            {
+                                _logger.Error(task.Exception, "Task {Name} n°{Number} failed",
+                                    nameof(ConnectAndProcessSubscriptions), i);
+                            }
+
+                            if (task.IsCanceled && !cancellationTokenWithTimeout.IsCancellationRequested)
+                            {
+                                _logger.Warning("Task {Name} n°{Number} cancelled earlier than expected",
+                                    nameof(ConnectAndProcessSubscriptions), i);
+                            }
+
+                            tasks[i] = Task.CompletedTask;
+                            task.Dispose();
+                        }
+                    }
                 }
             }
 
             try
             {
-                await Task.WhenAny(Task.WhenAny(backgroundTasks), processBufferBlockTask)
+                await Task.WhenAny(Task.WhenAll(backgroundTasks), processBufferBlockTask)
                     .ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (Exception e)
             {
-                var cancellationRequested = cts.IsCancellationRequested;
-
-                if (!cancellationRequested)
+                var log = true;
+                if (e is OperationCanceledException ||
+                    (e is AggregateException agg && agg.InnerExceptions.All(exception =>
+                        exception is OperationCanceledException)))
                 {
-                    cts.Cancel();
-                    throw;
+                    log = false;
+                    var cancellationRequested = cts.IsCancellationRequested;
+
+                    if (!cancellationRequested)
+                    {
+                        log = true;
+                        cts.Cancel();
+                    }
+                }
+
+                if (log)
+                {
+                    _logger.Error(e, "unexpected error");
                 }
             }
         }
@@ -343,9 +353,6 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                 await ws.DisposeAsync().ConfigureAwait(false);
                 dm.UnlinkDisposable(ws);
             }
-
-            bufferBlock.Complete();
-            orderbookContinuation?.Invoke();
 
             foreach (var task in tasks)
             {
@@ -376,6 +383,15 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
 
                 task.Dispose();
             }
+            
+            orderbookContinuation?.Invoke();
+
+            if (!processBufferBlockTask.IsCompleted && !cancellationToken.IsCancellationRequested)
+            {
+                await processBufferBlockTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            bufferBlock.Complete();
         }
 
         return processBufferBlockTask.IsCompleted
