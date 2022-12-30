@@ -4,16 +4,15 @@ namespace Cryptodd.Okx.Http;
 
 public sealed class OkxHttpUrlBuilder
 {
-
     private readonly OkxPublicHttpApiOptions _options;
-    
+
     internal OkxHttpUrlBuilder(OkxPublicHttpApiOptions options)
     {
         _options = options;
     }
-    
+
     public string BaseUrl => _options.BaseUrl;
-    
+
     public ValueTask<Uri> UriCombine(string url, string? instrumentType = null, string? underlying = null,
         string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
     {
@@ -53,8 +52,8 @@ public sealed class OkxHttpUrlBuilder
         return ValueTask.FromResult(builder.Uri);
     }
 
-    public ValueTask<Uri> UriCombine(string url, OkxInstrumentType? instrumentType = null, string? underlying = null,
+    public ValueTask<Uri> UriCombine(string url, OkxInstrumentType instrumentType, string? underlying = null,
         string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
-        => UriCombine(url, instrumentType: instrumentType?.ToHttpString(), underlying: underlying,
-            instrumentFamily: instrumentFamily, instrumentId: instrumentId, cancellationToken: cancellationToken);
+        => UriCombine(url, instrumentType.ToHttpString(), underlying,
+            instrumentFamily, instrumentId, cancellationToken);
 }

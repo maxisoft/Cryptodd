@@ -133,4 +133,31 @@ public class OkxPublicHttpApiTests
         res = await api.GetOpenInterest(OkxInstrumentType.Option, instrumentFamily: "BTC-USD");
         Assert.NotEmpty(res.data);
     }
+    
+    
+    [RetryFact]
+    public async Task RealTestGetFundingRate()
+    {
+        using var httpclient = new HttpClient();
+        var logger = new Mock<RealLogger>() { CallBase = true }.Object;
+        var uriRewriteService = new Mock<MockableUriRewriteService>() { CallBase = true }.Object;
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+        var clientAbstraction = new OkxHttpClientAbstraction(httpclient, logger, uriRewriteService, new OkxLimiterRegistry(config));
+        var api = new OkxPublicHttpApi(clientAbstraction, config);
+
+        OkxHttpGetFundingRateResponse res;
+        try
+        {
+            res = await api.GetFundingRate("BTC-USD-SWAP");
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+        Assert.NotEmpty(res.data);
+    }
 }

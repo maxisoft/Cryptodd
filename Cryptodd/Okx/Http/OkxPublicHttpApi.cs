@@ -1,13 +1,13 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using Cryptodd.Binance.Json;
 using Cryptodd.Http;
 using Cryptodd.Http.Abstractions;
 using Cryptodd.IoC;
 using Cryptodd.Json;
 using Cryptodd.Json.Converters;
 using Cryptodd.Okx.Http.Abstractions;
+using Cryptodd.Okx.Json;
 using Cryptodd.Okx.Models;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +16,10 @@ namespace Cryptodd.Okx.Http;
 
 public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
 {
+    internal static readonly StringPool StringPool = new(10 << 10);
     private readonly IOkxHttpClientAbstraction _client;
+
+    private readonly Lazy<JsonSerializerOptions> _jsonSerializerOptions;
     private readonly OkxPublicHttpApiOptions _options = new();
     private readonly OkxHttpUrlBuilder _urlBuilder;
 
@@ -66,9 +69,9 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
         string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
     {
         var instrumentTypeString = instrumentType.ToHttpString();
-        var url = await _urlBuilder.UriCombine(_options.GetInstrumentsUrl, instrumentType: instrumentTypeString,
-                underlying: underlying, instrumentFamily: instrumentFamily, instrumentId: instrumentId,
-                cancellationToken: cancellationToken)
+        var url = await _urlBuilder.UriCombine(_options.GetInstrumentsUrl, instrumentTypeString,
+                underlying, instrumentFamily, instrumentId,
+                cancellationToken)
             .ConfigureAwait(false);
         using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:ListInstruments"))
         {
@@ -82,27 +85,48 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
         string? instrumentFamily = null, CancellationToken cancellationToken = default)
     {
         var instrumentTypeString = instrumentType.ToHttpString();
-        var url = await _urlBuilder.UriCombine(_options.GetTickersUrl, instrumentType: instrumentTypeString,
-                underlying: underlying, instrumentFamily: instrumentFamily, cancellationToken: cancellationToken)
+        var url = await _urlBuilder.UriCombine(_options.GetTickersUrl, instrumentTypeString,
+                underlying, instrumentFamily, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         using (_client.UseLimiter<InstrumentsHttpOkxLimiter>("", "Http:GetTickers"))
         {
-            return await _client.GetFromJsonAsync<OkxHttpGetTikersResponse>(url, _jsonSerializerOptions.Value, cancellationToken)
+            return await _client
+                .GetFromJsonAsync<OkxHttpGetTikersResponse>(url, _jsonSerializerOptions.Value, cancellationToken)
                 .ConfigureAwait(false) ?? new OkxHttpGetTikersResponse(-1, "", new PooledList<OkxHttpTickerInfo>());
         }
     }
-    
-    public async Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType, string? underlying = null,
+
+    public async Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType,
+        string? underlying = null,
         string? instrumentFamily = null, CancellationToken cancellationToken = default)
     {
         var instrumentTypeString = instrumentType.ToHttpString();
-        var url = await _urlBuilder.UriCombine(_options.GetOpenInterestUrl, instrumentType: instrumentTypeString,
-                underlying: underlying, instrumentFamily: instrumentFamily, cancellationToken: cancellationToken)
+        var url = await _urlBuilder.UriCombine(_options.GetOpenInterestUrl, instrumentTypeString,
+                underlying, instrumentFamily, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:GetOpenInterest"))
         {
-            return await _client.GetFromJsonAsync<OkxHttpGetOpenInterestResponse>(url, _jsonSerializerOptions.Value, cancellationToken)
-                .ConfigureAwait(false) ?? new OkxHttpGetOpenInterestResponse(-1, "", new PooledList<OkxHttpOpenInterest>());
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetOpenInterestResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetOpenInterestResponse(-1, "", new PooledList<OkxHttpOpenInterest>());
+        }
+    }
+
+    public async Task<OkxHttpGetFundingRateResponse> GetFundingRate(string instrumentId,
+        CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetFundingRateUrl, instrumentId: instrumentId,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentId, "Http:GetFundingRate"))
+        {
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetFundingRateResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetFundingRateResponse(-1, "", new OneItemList<OkxHttpFundingRate>());
         }
     }
 
@@ -118,10 +142,10 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
         res.Converters.Add(new PooledStringJsonConverter(StringPool));
         res.Converters.Add(new PooledListConverter<OkxHttpTickerInfo>());
         res.Converters.Add(new PooledListConverter<OkxHttpOpenInterest>());
+        var fundingRateJsonConverter = new OkxHttpFundingRateJsonConverter();
+        res.Converters.Add(new OneItemListJsonConverter<OkxHttpFundingRate>
+            { InnerConverter = fundingRateJsonConverter });
+        res.Converters.Add(fundingRateJsonConverter);
         return res;
     }
-
-    private readonly Lazy<JsonSerializerOptions> _jsonSerializerOptions;
-
-    private static readonly StringPool StringPool = new(10 << 10);
 }
