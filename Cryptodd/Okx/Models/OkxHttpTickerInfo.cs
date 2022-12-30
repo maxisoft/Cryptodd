@@ -1,11 +1,10 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Cryptodd.Json;
-using Maxisoft.Utils.Collections.Lists.Specialized;
 
 namespace Cryptodd.Okx.Models;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
-public readonly record struct TickerInfo(
+public readonly record struct OkxHttpTickerInfo(
     PooledString instType,
     PooledString instId,
     SafeJsonDouble<SafeJsonDoubleDefaultValueNegativeZero> last,
@@ -22,6 +21,3 @@ public readonly record struct TickerInfo(
     SafeJsonDouble<SafeJsonDoubleDefaultValueNegativeZero> sodUtc0,
     SafeJsonDouble<SafeJsonDoubleDefaultValueNegativeZero> sodUtc8,
     JsonLong ts);
-
-[SuppressMessage("ReSharper", "InconsistentNaming")]
-public record class GetTikersResponse(JsonLong code, PooledString msg, PooledList<TickerInfo> data) { }

@@ -76,7 +76,7 @@ public class OkxPublicHttpApiTests
         var clientAbstraction = new OkxHttpClientAbstraction(httpclient, logger, uriRewriteService, new OkxLimiterRegistry(config));
         var api = new OkxPublicHttpApi(clientAbstraction, config);
 
-        GetTikersResponse res;
+        OkxHttpGetTikersResponse res;
         try
         {
             res = await api.GetTickers(OkxInstrumentType.Spot);

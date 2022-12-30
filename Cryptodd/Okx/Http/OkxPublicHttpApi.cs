@@ -78,7 +78,7 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
     }
 
 
-    public async Task<GetTikersResponse> GetTickers(OkxInstrumentType instrumentType, string? underlying = null,
+    public async Task<OkxHttpGetTikersResponse> GetTickers(OkxInstrumentType instrumentType, string? underlying = null,
         string? instrumentFamily = null, CancellationToken cancellationToken = default)
     {
         var instrumentTypeString = instrumentType.ToHttpString();
@@ -87,8 +87,8 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
             .ConfigureAwait(false);
         using (_client.UseLimiter<InstrumentsHttpOkxLimiter>("", "Http:GetTickers"))
         {
-            return await _client.GetFromJsonAsync<GetTikersResponse>(url, _jsonSerializerOptions.Value, cancellationToken)
-                .ConfigureAwait(false) ?? new GetTikersResponse(-1, "", new PooledList<TickerInfo>());
+            return await _client.GetFromJsonAsync<OkxHttpGetTikersResponse>(url, _jsonSerializerOptions.Value, cancellationToken)
+                .ConfigureAwait(false) ?? new OkxHttpGetTikersResponse(-1, "", new PooledList<OkxHttpTickerInfo>());
         }
     }
 
@@ -101,7 +101,7 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
         res.Converters.Add(new SafeJsonDoubleConverter<SafeJsonDoubleDefaultValueNegativeZero>());
         res.Converters.Add(new JsonLongConverter());
         res.Converters.Add(new PooledStringJsonConverter(StringPool));
-        res.Converters.Add(new PooledListConverter<TickerInfo>());
+        res.Converters.Add(new PooledListConverter<OkxHttpTickerInfo>());
         return res;
     }
 
