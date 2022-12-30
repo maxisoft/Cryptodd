@@ -1,5 +1,6 @@
 ﻿using Cryptodd.IoC;
 using Cryptodd.Okx.Http;
+using Cryptodd.Okx.Models;
 
 namespace Cryptodd.Okx.Orderbooks;
 

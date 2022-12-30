@@ -1,8 +1,8 @@
-﻿namespace Cryptodd.Okx.Http;
+﻿namespace Cryptodd.Okx.Models;
 
-[Flags]
-public enum OkxInstrumentType
+public enum OkxInstrumentType: byte
 {
+    None = 0,
     Spot = 1,
     Margin = 1 << 1,
     Swap = 1 << 2,

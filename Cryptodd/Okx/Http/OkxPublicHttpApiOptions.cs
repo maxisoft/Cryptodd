@@ -6,4 +6,5 @@ public class OkxPublicHttpApiOptions
     public string BaseUrl { get; set; } = DefaultBaseUrl;
 
     public string GetInstrumentsUrl { get; set; } = "/api/v5/public/instruments";
+    public string GetTickersUrl { get; set; } = "/api/v5/market/tickers";
 }

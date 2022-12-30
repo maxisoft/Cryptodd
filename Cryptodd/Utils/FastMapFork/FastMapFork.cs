@@ -4,6 +4,7 @@
 */
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Faster.Map.Core;
@@ -166,7 +167,7 @@ namespace Cryptodd.Utils.FastMapFork
                 Resize();
             }
 
-            //Get object identity hashcode
+            //GetRef object identity hashcode
             var hashcode = key.GetHashCode();
 
             // Objectidentity hashcode * golden ratio (fibonnachi hashing) followed by a
@@ -258,9 +259,9 @@ namespace Cryptodd.Utils.FastMapFork
         /// <param name="defaultValue">The entry to returns if not found.</param>
         /// <returns></returns>
         [MethodImpl(256)]
-        public ref FastEntry<TKey, TValue> Get(in TKey key, ref FastEntry<TKey, TValue> defaultValue)
+        public ref FastEntry<TKey, TValue> GetRef(in TKey key, ref FastEntry<TKey, TValue> defaultValue)
         {
-            //Get object identity hashcode
+            //GetRef object identity hashcode
             var hashcode = key.GetHashCode();
 
             // Objectidentity hashcode * golden ratio (fibonnachi hashing) followed by a shift
@@ -271,7 +272,7 @@ namespace Cryptodd.Utils.FastMapFork
 
             do
             {
-                //Get entry by ref
+                //GetRef entry by ref
                 ref var info = ref _info[index];
 
                 if (info.IsEmpty())
@@ -292,6 +293,44 @@ namespace Cryptodd.Utils.FastMapFork
 
             return ref defaultValue;
         }
+        
+        [MethodImpl(256)]
+        public bool TryGetValue(in TKey key, [NotNullWhen(true)] out TValue? value)
+        {
+            //GetRef object identity hashcode
+            var hashcode = key.GetHashCode();
+
+            // Objectidentity hashcode * golden ratio (fibonnachi hashing) followed by a shift
+            uint index = ((uint)hashcode * GoldenRatio) >> _shift;
+
+            //Determine max distance
+            var maxDistance = index + _currentProbeSequenceLength;
+
+            do
+            {
+                //GetRef entry by ref
+                ref var info = ref _info[index];
+
+                if (info.IsEmpty())
+                {
+                    break;
+                }
+                
+                ref var entry = ref _entries[index];
+
+                if (IsKeyMatching(in key, in entry.Key))
+                {
+                    value = entry.Value!;
+                    return true;
+                }
+
+                ++index;
+                //increase index by one and validate if within bounds
+            } while (index <= maxDistance);
+
+            value = default;
+            return false;
+        }
 
         /// <summary>
         /// Update entry using a key and value
@@ -302,7 +341,7 @@ namespace Cryptodd.Utils.FastMapFork
         [MethodImpl(256)]
         public bool Update(in TKey key, in TValue value)
         {
-            //Get object identity hashcode
+            //GetRef object identity hashcode
             var hashcode = key.GetHashCode();
 
             //Objectidentity hashcode * golden ratio (fibonnachi hashing) followed by a shift
@@ -344,7 +383,7 @@ namespace Cryptodd.Utils.FastMapFork
         [MethodImpl(256)]
         public bool Remove(in TKey key)
         {
-            //Get ObjectIdentity hashcode
+            //GetRef ObjectIdentity hashcode
             int hashcode = key.GetHashCode();
 
             //Objectidentity hashcode * golden ratio (fibonnachi hashing) followed by a shift
@@ -396,7 +435,7 @@ namespace Cryptodd.Utils.FastMapFork
         [MethodImpl(256)]
         public bool Contains(in TKey key)
         {
-            //Get ObjectIdentity hashcode
+            //GetRef ObjectIdentity hashcode
             int hashcode = key.GetHashCode();
 
             //Objectidentity hashcode * golden ratio (fibonnachi hashing) followed by a shift
@@ -455,7 +494,7 @@ namespace Cryptodd.Utils.FastMapFork
         [MethodImpl(256)]
         public int IndexOf(in TKey key)
         {
-            //Get ObjectIdentity hashcode
+            //GetRef ObjectIdentity hashcode
             int hashcode = key.GetHashCode();
 
             //Objectidentity hashcode * golden ratio (fibonnachi hashing) followed by a shift
@@ -544,7 +583,7 @@ namespace Cryptodd.Utils.FastMapFork
         [MethodImpl(256)]
         private void ShiftRemove(ref uint index)
         {
-            //Get next entry
+            //GetRef next entry
             ref var next = ref _info[++index % _info.Length];
 
             while (!next.IsEmpty())

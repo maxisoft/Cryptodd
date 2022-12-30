@@ -1,9 +1,15 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using Cryptodd.Binance.Json;
 using Cryptodd.Http;
 using Cryptodd.Http.Abstractions;
 using Cryptodd.IoC;
+using Cryptodd.Json;
+using Cryptodd.Json.Converters;
 using Cryptodd.Okx.Http.Abstractions;
+using Cryptodd.Okx.Models;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 
 namespace Cryptodd.Okx.Http;
@@ -12,12 +18,15 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
 {
     private readonly IOkxHttpClientAbstraction _client;
     private readonly OkxPublicHttpApiOptions _options = new();
+    private readonly OkxHttpUrlBuilder _urlBuilder;
 
 
     public OkxPublicHttpApi(IOkxHttpClientAbstraction client, IConfiguration configuration)
     {
         _client = client;
         configuration.GetSection("Okx:Http").Bind(_options);
+        _urlBuilder = new OkxHttpUrlBuilder(_options);
+        _jsonSerializerOptions = new Lazy<JsonSerializerOptions>(CreateJsonSerializerOptions);
     }
 
     public async Task<List<string>> ListInstrumentIds(OkxInstrumentType instrumentType, string? underlying = null,
@@ -53,47 +62,50 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
         return new List<string>(Generator());
     }
 
-    protected ValueTask<Uri> UriCombine(string url)
-    {
-        if (Uri.TryCreate(url, UriKind.RelativeOrAbsolute, out var res) &&
-            res is { IsAbsoluteUri: true, IsFile: false, Scheme: "https" or "http" })
-        {
-            return ValueTask.FromResult(res);
-        }
-
-        var uri =
-            new UriBuilder(_options.BaseUrl)
-                .WithPathSegment(url)
-                .Uri;
-        return ValueTask.FromResult(uri);
-    }
-
     public async Task<JsonObject> GetInstruments(OkxInstrumentType instrumentType, string? underlying = null,
         string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
     {
         var instrumentTypeString = instrumentType.ToHttpString();
-        var url = await UriCombine(_options.GetInstrumentsUrl).ConfigureAwait(false);
-        var builder = new UriBuilder(url).WithParameter("instType", instrumentTypeString);
-        if (underlying is not null)
-        {
-            builder = builder.WithParameter("uly", underlying);
-        }
-
-        if (instrumentFamily is not null)
-        {
-            builder = builder.WithParameter("instFamily", instrumentFamily);
-        }
-
-        if (instrumentId is not null)
-        {
-            builder = builder.WithParameter("instId", instrumentId);
-        }
-
-        url = builder.Uri;
+        var url = await _urlBuilder.UriCombine(_options.GetInstrumentsUrl, instrumentType: instrumentTypeString,
+                underlying: underlying, instrumentFamily: instrumentFamily, instrumentId: instrumentId,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:ListInstruments"))
         {
-            return await _client.GetFromJsonAsync<JsonObject>(url, JsonSerializerOptions.Default, cancellationToken)
+            return await _client.GetFromJsonAsync<JsonObject>(url, _jsonSerializerOptions.Value, cancellationToken)
                 .ConfigureAwait(false) ?? new JsonObject();
         }
     }
+
+
+    public async Task<GetTikersResponse> GetTickers(OkxInstrumentType instrumentType, string? underlying = null,
+        string? instrumentFamily = null, CancellationToken cancellationToken = default)
+    {
+        var instrumentTypeString = instrumentType.ToHttpString();
+        var url = await _urlBuilder.UriCombine(_options.GetTickersUrl, instrumentType: instrumentTypeString,
+                underlying: underlying, instrumentFamily: instrumentFamily, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<InstrumentsHttpOkxLimiter>("", "Http:GetTickers"))
+        {
+            return await _client.GetFromJsonAsync<GetTikersResponse>(url, _jsonSerializerOptions.Value, cancellationToken)
+                .ConfigureAwait(false) ?? new GetTikersResponse(-1, "", new PooledList<TickerInfo>());
+        }
+    }
+
+    private static JsonSerializerOptions CreateJsonSerializerOptions()
+    {
+        var res = new JsonSerializerOptions
+            { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
+        res.Converters.Add(new JsonDoubleConverter());
+        res.Converters.Add(new JsonNullableDoubleConverter());
+        res.Converters.Add(new SafeJsonDoubleConverter<SafeJsonDoubleDefaultValueNegativeZero>());
+        res.Converters.Add(new JsonLongConverter());
+        res.Converters.Add(new PooledStringJsonConverter(StringPool));
+        res.Converters.Add(new PooledListConverter<TickerInfo>());
+        return res;
+    }
+
+    private Lazy<JsonSerializerOptions> _jsonSerializerOptions;
+
+    private static readonly StringPool StringPool = new(10 << 10);
 }

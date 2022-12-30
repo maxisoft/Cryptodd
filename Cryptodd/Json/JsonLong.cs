@@ -1,4 +1,6 @@
-﻿namespace Cryptodd.Json;
+﻿using System.Globalization;
+
+namespace Cryptodd.Json;
 
 public readonly struct JsonLong
 {
@@ -14,4 +16,8 @@ public readonly struct JsonLong
     public static implicit operator JsonLong(long value) => new JsonLong(value);
     
     public static implicit operator long(JsonLong value) => value.Value;
+
+    public override string ToString() => ToString(NumberFormatInfo.InvariantInfo);
+    
+    public string ToString(IFormatProvider? provider) => Value.ToString(provider);
 }

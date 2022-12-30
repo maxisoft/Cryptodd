@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Cryptodd.Okx.Http;
 using Cryptodd.Okx.Http.Abstractions;
 using Cryptodd.Okx.Limiters;
+using Cryptodd.Okx.Models;
 using Cryptodd.Tests.TestingHelpers;
 using Cryptodd.Tests.TestingHelpers.Logging;
 using Microsoft.Extensions.Configuration;
@@ -60,5 +62,42 @@ public class OkxPublicHttpApiTests
 
         res = await api.ListInstrumentIds(OkxInstrumentType.Option, instrumentFamily: "BTC-USD");
         Assert.NotEmpty(res);
+    }
+    
+    
+    [RetryFact]
+    public async Task RealTestGetTickers()
+    {
+        using var httpclient = new HttpClient();
+        var logger = new Mock<RealLogger>() { CallBase = true }.Object;
+        var uriRewriteService = new Mock<MockableUriRewriteService>() { CallBase = true }.Object;
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+        var clientAbstraction = new OkxHttpClientAbstraction(httpclient, logger, uriRewriteService, new OkxLimiterRegistry(config));
+        var api = new OkxPublicHttpApi(clientAbstraction, config);
+
+        GetTikersResponse res;
+        try
+        {
+            res = await api.GetTickers(OkxInstrumentType.Spot);
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+        Assert.NotEmpty(res.data);
+
+        res = await api.GetTickers(OkxInstrumentType.Swap);
+        Assert.NotEmpty(res.data);
+
+        res = await api.GetTickers(OkxInstrumentType.Futures);
+        Assert.NotEmpty(res.data);
+
+
+        res = await api.GetTickers(OkxInstrumentType.Option, instrumentFamily: "BTC-USD");
+        Assert.NotEmpty(res.data);
     }
 }

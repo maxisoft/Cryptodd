@@ -67,7 +67,7 @@ public abstract partial class BaseBinancePublicHttpApi<
         return res;
     }
 
-    # region Default HTTP API Get impl
+    # region Default HTTP API GetRef impl
 
     protected async Task<JsonObject> DoGetExchangeInfoAsync<TCallOptions>(TCallOptions? options = null,
         CancellationToken cancellationToken = default)
