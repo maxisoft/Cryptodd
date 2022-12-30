@@ -91,6 +91,20 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
                 .ConfigureAwait(false) ?? new OkxHttpGetTikersResponse(-1, "", new PooledList<OkxHttpTickerInfo>());
         }
     }
+    
+    public async Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType, string? underlying = null,
+        string? instrumentFamily = null, CancellationToken cancellationToken = default)
+    {
+        var instrumentTypeString = instrumentType.ToHttpString();
+        var url = await _urlBuilder.UriCombine(_options.GetOpenInterestUrl, instrumentType: instrumentTypeString,
+                underlying: underlying, instrumentFamily: instrumentFamily, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:GetOpenInterest"))
+        {
+            return await _client.GetFromJsonAsync<OkxHttpGetOpenInterestResponse>(url, _jsonSerializerOptions.Value, cancellationToken)
+                .ConfigureAwait(false) ?? new OkxHttpGetOpenInterestResponse(-1, "", new PooledList<OkxHttpOpenInterest>());
+        }
+    }
 
     private static JsonSerializerOptions CreateJsonSerializerOptions()
     {
@@ -98,14 +112,16 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
         res.Converters.Add(new JsonDoubleConverter());
         res.Converters.Add(new JsonNullableDoubleConverter());
+        res.Converters.Add(new SafeJsonDoubleConverter<SafeJsonDoubleDefaultValue>());
         res.Converters.Add(new SafeJsonDoubleConverter<SafeJsonDoubleDefaultValueNegativeZero>());
         res.Converters.Add(new JsonLongConverter());
         res.Converters.Add(new PooledStringJsonConverter(StringPool));
         res.Converters.Add(new PooledListConverter<OkxHttpTickerInfo>());
+        res.Converters.Add(new PooledListConverter<OkxHttpOpenInterest>());
         return res;
     }
 
-    private Lazy<JsonSerializerOptions> _jsonSerializerOptions;
+    private readonly Lazy<JsonSerializerOptions> _jsonSerializerOptions;
 
     private static readonly StringPool StringPool = new(10 << 10);
 }

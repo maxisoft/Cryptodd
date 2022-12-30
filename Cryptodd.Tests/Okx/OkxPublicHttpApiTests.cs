@@ -100,4 +100,37 @@ public class OkxPublicHttpApiTests
         res = await api.GetTickers(OkxInstrumentType.Option, instrumentFamily: "BTC-USD");
         Assert.NotEmpty(res.data);
     }
+    
+    [RetryFact]
+    public async Task RealTestGetOpenInterest()
+    {
+        using var httpclient = new HttpClient();
+        var logger = new Mock<RealLogger>() { CallBase = true }.Object;
+        var uriRewriteService = new Mock<MockableUriRewriteService>() { CallBase = true }.Object;
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+        var clientAbstraction = new OkxHttpClientAbstraction(httpclient, logger, uriRewriteService, new OkxLimiterRegistry(config));
+        var api = new OkxPublicHttpApi(clientAbstraction, config);
+
+        OkxHttpGetOpenInterestResponse res;
+        try
+        {
+            res = await api.GetOpenInterest(OkxInstrumentType.Swap);
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+        Assert.NotEmpty(res.data);
+
+        res = await api.GetOpenInterest(OkxInstrumentType.Futures);
+        Assert.NotEmpty(res.data);
+
+
+        res = await api.GetOpenInterest(OkxInstrumentType.Option, instrumentFamily: "BTC-USD");
+        Assert.NotEmpty(res.data);
+    }
 }
