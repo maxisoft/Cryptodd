@@ -5,7 +5,7 @@ namespace Cryptodd.Okx.Http.Abstractions;
 
 public interface IOkxHttpClientAbstraction : IHttpClientAbstraction
 {
-    public RemoveLimiterOnDispose<OkxLimiter, OkxHttpClientAbstractionContext> UseLimiter<TLimiter>(string name,
+    public RemoveLimiterOnDispose UseLimiter<TLimiter>(string name,
         string configName)
         where TLimiter : OkxLimiter, new();
 }
