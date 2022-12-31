@@ -15,7 +15,7 @@ public struct OneItemList<T> : IList<T>
     public bool IsEmpty => Count == 0;
     public T? NullableValue => HasValue ? Value : default;
 
-    public T Coalesce(T other) => HasValue ? ref Value : ref other;
+    public T Coalesce(T other) => HasValue ? Value : other;
 
     public void Add(T item)
     {

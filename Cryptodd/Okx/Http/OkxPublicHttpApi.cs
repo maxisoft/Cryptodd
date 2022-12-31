@@ -73,7 +73,7 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
                 underlying, instrumentFamily, instrumentId,
                 cancellationToken)
             .ConfigureAwait(false);
-        using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:ListInstruments"))
+        using (_client.UseLimiter<TickersHttpOkxLimiter>(instrumentTypeString, "Http:ListInstruments"))
         {
             return await _client.GetFromJsonAsync<JsonObject>(url, _jsonSerializerOptions.Value, cancellationToken)
                 .ConfigureAwait(false) ?? new JsonObject();
@@ -104,7 +104,7 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
         var url = await _urlBuilder.UriCombine(_options.GetOpenInterestUrl, instrumentTypeString,
                 underlying, instrumentFamily, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:GetOpenInterest"))
+        using (_client.UseLimiter<OpenInterestHttpOkxLimiter>(instrumentTypeString, "Http:GetOpenInterest"))
         {
             return await _client
                        .GetFromJsonAsync<OkxHttpGetOpenInterestResponse>(url, _jsonSerializerOptions.Value,
@@ -120,7 +120,7 @@ public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
         var url = await _urlBuilder.UriCombine(_options.GetFundingRateUrl, instrumentId: instrumentId,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentId, "Http:GetFundingRate"))
+        using (_client.UseLimiter<FundingRatetHttpOkxLimiter>(instrumentId, "Http:GetFundingRate"))
         {
             return await _client
                        .GetFromJsonAsync<OkxHttpGetFundingRateResponse>(url, _jsonSerializerOptions.Value,
