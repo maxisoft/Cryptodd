@@ -12,7 +12,7 @@ using Serilog;
 namespace Cryptodd.Okx.Collectors.Swap;
 
 // ReSharper disable once ClassNeverInstantiated.Global
-public class BackgroundSwapDataCollector : IService
+public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollector
 {
     private readonly IContainer _container;
     private readonly ILogger _logger;

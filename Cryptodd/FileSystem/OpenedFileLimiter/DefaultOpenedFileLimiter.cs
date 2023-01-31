@@ -3,7 +3,7 @@ using Lamar;
 using Maxisoft.Utils.Empties;
 using Microsoft.Extensions.Configuration;
 
-namespace Cryptodd.OrderBooks.Writer.OpenedFileLimiter;
+namespace Cryptodd.FileSystem.OpenedFileLimiter;
 
 [Singleton]
 public class DefaultOpenedFileLimiter : OpenedFileLimiter, IService, IDisposable, IDefaultOpenedFileLimiter

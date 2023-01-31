@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.OrderBooks.Writer.OpenedFileLimiter;
+﻿namespace Cryptodd.FileSystem.OpenedFileLimiter;
 
 public sealed class OpenedFileLimiterUnregisterOnDispose : IDisposable
 {

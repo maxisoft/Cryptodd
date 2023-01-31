@@ -61,6 +61,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Folder Include="Mmap" />
         <Folder Include="Redis" />
     </ItemGroup>
 
