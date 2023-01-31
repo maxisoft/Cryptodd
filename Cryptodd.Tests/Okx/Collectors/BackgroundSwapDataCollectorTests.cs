@@ -9,6 +9,7 @@ using Cryptodd.Ftx.Orderbooks;
 using Cryptodd.IoC;
 using Cryptodd.IoC.Registries.Customs;
 using Cryptodd.Okx.Collectors;
+using Cryptodd.Okx.Collectors.Swap;
 using Cryptodd.Pairs;
 using Lamar;
 using Maxisoft.Utils.Collections.Dictionaries;
@@ -93,7 +94,7 @@ public class BackgroundSwapDataCollectorTests : IDisposable
             Skip.Always(e.ToStringDemystified());
             throw;
         }
-        
+
 
         Assert.NotEmpty(repo.FundingRates);
         Assert.NotEmpty(repo.OpenInterests);
@@ -105,12 +106,12 @@ public class BackgroundSwapDataCollectorTests : IDisposable
             {
                 await Task.Delay(1000, cancellationToken);
             }
-            catch (OperationCanceledException) when(cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 break;
             }
-            
-        } while (!cancellationToken.IsCancellationRequested && Math.Abs(repo.FundingRates.Count - repo.OpenInterests.Count) > 1);
+        } while (!cancellationToken.IsCancellationRequested &&
+                 Math.Abs(repo.FundingRates.Count - repo.OpenInterests.Count) > 1);
 
         Assert.True(Math.Abs(repo.FundingRates.Count - repo.OpenInterests.Count) <= 5);
         cts.Cancel();

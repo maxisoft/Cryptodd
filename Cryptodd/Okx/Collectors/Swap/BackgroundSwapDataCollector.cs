@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.IoC;
 using Cryptodd.Okx.Http;
@@ -7,42 +6,12 @@ using Cryptodd.Okx.Models;
 using Cryptodd.Okx.Websockets;
 using Cryptodd.Okx.Websockets.Subscriptions;
 using Cryptodd.Pairs;
-using Cryptodd.Utils.FastMapFork;
 using Lamar;
 using Serilog;
 
-namespace Cryptodd.Okx.Collectors;
+namespace Cryptodd.Okx.Collectors.Swap;
 
-public class SwapDataCollector : IService
-{
-    private readonly IContainer _container;
-    private readonly ILogger _logger;
-
-    public SwapDataCollector(ILogger logger, IContainer container)
-    {
-        _logger = logger.ForContext(GetType());
-        _container = container;
-    }
-    
-    
-    
-}
-
-public readonly record struct OkxInstrumentIdentifier(string Id, string Type);
-
-public interface ISwapDataRepository
-{
-    ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpFundingRate> FundingRates { get; }
-    ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpOpenInterest> OpenInterests { get; }
-}
-
-[Singleton]
-public class SwapDataRepository : IService, ISwapDataRepository
-{
-    public ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpFundingRate> FundingRates { get; } = new();
-    public ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpOpenInterest> OpenInterests { get; } = new();
-}
-
+// ReSharper disable once ClassNeverInstantiated.Global
 public class BackgroundSwapDataCollector : IService
 {
     private readonly IContainer _container;
@@ -64,7 +33,7 @@ public class BackgroundSwapDataCollector : IService
         var receiveLoop = ws.ReceiveLoop(cancellationToken);
         var activityTask = ws.EnsureConnectionActivityTask(cancellationToken);
 
-        var bufferBlock = new BufferBlock<OkxWebsocketFundingRateResponse>(new DataflowBlockOptions()
+        var bufferBlock = new BufferBlock<OkxWebsocketFundingRateResponse>(new DataflowBlockOptions
             { CancellationToken = cancellationToken, BoundedCapacity = 8 << 10 });
         ws.AddBufferBlock(bufferBlock);
 
@@ -79,8 +48,9 @@ public class BackgroundSwapDataCollector : IService
                 {
                     continue;
                 }
+
                 var fr = fundingRateResponse.data.Value;
-                var identifier = new OkxInstrumentIdentifier(Id: fr.instId, Type: fr.instType);
+                var identifier = new OkxInstrumentIdentifier(fr.instId, fr.instType);
 
                 swapDataRepository.FundingRates.AddOrUpdate(identifier, _ => fr,
                     (_, prev) => fr.fundingTime >= prev.fundingTime ? fr : prev);
@@ -103,7 +73,8 @@ public class BackgroundSwapDataCollector : IService
                     var c = 0;
                     foreach (var openInterest in response.data)
                     {
-                        var identifier = new OkxInstrumentIdentifier(Id: openInterest.instId, Type: openInterest.instType);
+                        var identifier =
+                            new OkxInstrumentIdentifier(openInterest.instId, openInterest.instType);
                         swapDataRepository.OpenInterests.AddOrUpdate(identifier, _ => openInterest,
                             (_, prev) => openInterest.ts >= prev.ts ? openInterest : prev);
                         c++;
