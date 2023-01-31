@@ -7,7 +7,7 @@ namespace Cryptodd.Okx.Models;
 
 public readonly record struct OkxWebSocketArgWithChannelAndInstrumentId(PooledString channel, PooledString instId);
 
-public record struct OkxWebSocketOrderbookData(PooledList<OkxOrderbookEntry> asks, PooledList<OkxOrderbookEntry> bids,
+public sealed record OkxWebSocketOrderbookData(PooledList<OkxOrderbookEntry> asks, PooledList<OkxOrderbookEntry> bids,
     JsonLong ts, JsonLong checksum) : IDisposable
 {
     [JsonIgnore]
@@ -19,10 +19,10 @@ public record struct OkxWebSocketOrderbookData(PooledList<OkxOrderbookEntry> ask
         bids.Dispose();
     }
 }
-public record OkxWebsocketOrderbookResponse(OkxWebSocketArgWithChannelAndInstrumentId arg, PooledString action, OkxWebSocketOrderbookData[] data) : IDisposable
+public record OkxWebsocketOrderbookResponse(OkxWebSocketArgWithChannelAndInstrumentId arg, PooledString action, OneItemList<OkxWebSocketOrderbookData> data) : IDisposable
 {
     [JsonIgnore]
-    public ref OkxWebSocketOrderbookData FirstData => ref data[0];
+    public OkxWebSocketOrderbookData FirstData => data.Value;
     
     protected virtual void Dispose(bool disposing)
     {

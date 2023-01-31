@@ -41,9 +41,13 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
     {
         if (IsClosed)
         {
-            return await LimiterRegistry.WebsocketConnectionLimiter.WaitForLimit(
-                    _ => base.ConnectIfNeeded(cancellationToken).AsTask(), cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+            if (await LimiterRegistry.WebsocketConnectionLimiter.WaitForLimit(
+                        _ => base.ConnectIfNeeded(cancellationToken).AsTask(), cancellationToken: cancellationToken)
+                    .ConfigureAwait(false))
+            {
+                Subscriptions = new OkxSubscriptions();
+                return true;
+            }
         }
 
         return false;
@@ -63,7 +67,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
         return true;
     }
 
-    
+
     public long LastMessageDate { get; protected set; } = -1;
 
     protected static long GetUnixTimeMilliseconds() => DateTimeOffset.Now.ToUnixTimeMilliseconds();
@@ -104,7 +108,10 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
             case "books50-l2-tbt":
                 Subscriptions.ConfirmSubscription(new OkxOrderbookSubscription(data.ArgChannel, data.ArgInstrumentId));
                 break;
-
+            case OkxFundingRateSubscription.DefaultChannel:
+                Subscriptions.ConfirmSubscription(new OkxFundingRateSubscription(data.ArgChannel,
+                    data.ArgInstrumentId));
+                break;
             default:
                 Logger.Warning("Unhandled subscribed channel {Channel}", data.ArgChannel);
                 break;
@@ -122,7 +129,9 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
             case "books50-l2-tbt":
                 Subscriptions.ForceRemove(new OkxOrderbookSubscription(data.ArgChannel, data.ArgInstrumentId));
                 break;
-
+            case OkxFundingRateSubscription.DefaultChannel:
+                Subscriptions.ForceRemove(new OkxFundingRateSubscription(data.ArgChannel, data.ArgInstrumentId));
+                break;
             default:
                 Logger.Warning("Unhandled unsubscribed channel {Channel} {Instrument}", data.ArgChannel,
                     data.ArgInstrumentId);
@@ -180,6 +189,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
                 {
                     break;
                 }
+
                 LastMessageDate = now = GetUnixTimeMilliseconds();
             }
 
@@ -191,7 +201,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
         cts.Cancel();
     }
 
-    protected OkxSubscriptions Subscriptions { get; } = new();
+    protected OkxSubscriptions Subscriptions { get; set; } = new();
     protected SemaphoreSlim SubscriptionsSemaphore = new(1, 1);
     private readonly ReferenceCounterDisposable<OkxLimiter> _subscriptionsLimiter;
 
@@ -199,6 +209,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
 
     private static int WriteBytes(Span<byte> buffer, ReadOnlySpan<byte> b) =>
         OkxSubscription.WriteBytes(buffer, b);
+
     protected virtual Span<byte> CreateSubscriptionPayload<TEnumerable>(TEnumerable enumerable, Span<byte> buffer,
         ref int counter, bool isSubscription)
         where TEnumerable : IEnumerable<OkxSubscription>
@@ -218,10 +229,12 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
         }
 
         var checkPoint = c;
-        
+
         foreach (var subscription in enumerable)
         {
-            newSpan = isSubscription ? subscription.WriteSubscribePayload(buffer[c..]) : subscription.WriteUnsubscribePayload(buffer[c..]);
+            newSpan = isSubscription
+                ? subscription.WriteSubscribePayload(buffer[c..])
+                : subscription.WriteUnsubscribePayload(buffer[c..]);
             if (newSpan.IsEmpty)
             {
                 return newSpan;
@@ -247,7 +260,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
         {
             return Span<byte>.Empty;
         }
-        
+
         {
             var bytesWritten = WriteBytes(buffer[c..], "]}"u8);
             if (bytesWritten <= 0)
@@ -264,6 +277,33 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
     public async Task<int> Subscribe<T>(CancellationToken cancellationToken, params T[] subscriptions)
         where T : OkxSubscription
         => await Subscribe(subscriptions, cancellationToken);
+
+    public async Task<int> MultiSubscribe<TCollection>(TCollection subscriptions, CancellationToken cancellationToken)
+        where TCollection : IReadOnlyCollection<OkxSubscription> =>
+        await MultiSubscribe(subscriptions, Options.MaxStreamCountSoftLimit, cancellationToken);
+
+    public async Task<int> MultiSubscribe<TCollection>(TCollection subscriptions, int maxStreamPerMessage,
+        CancellationToken cancellationToken) where TCollection : IReadOnlyCollection<OkxSubscription>
+    {
+        if (subscriptions.Count <= maxStreamPerMessage)
+        {
+            return await Subscribe(subscriptions, cancellationToken).ConfigureAwait(false);
+        }
+
+        var res = 0;
+        foreach (var chunk in subscriptions.Chunk(maxStreamPerMessage))
+        {
+            var subCount = await Subscribe(chunk, cancellationToken).ConfigureAwait(false);
+            if (subCount < 0)
+            {
+                return subCount;
+            }
+
+            res += subCount;
+        }
+
+        return res;
+    }
 
     private async Task<int> DoSubscribe<TCollection>(TCollection subscriptions, CancellationToken cancellationToken)
         where TCollection : IReadOnlyCollection<OkxSubscription>
@@ -345,6 +385,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
         {
             return -1;
         }
+
         try
         {
             return await DoSubscribe(subscriptions, cancellationToken);
@@ -404,6 +445,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
             {
                 throw new ArgumentException("subscription list doesn't contains any valid subscription");
             }
+
             // this is an error due to concurrency most likely
             return -2;
         }
@@ -439,6 +481,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
                 }
                 catch (ArgumentException e)
                 {
+                    res--;
                     exceptions.Add(e);
                 }
             }
@@ -453,6 +496,7 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
                 }
                 catch (ArgumentException e)
                 {
+                    res--;
                     exceptions.Add(e);
                 }
             }

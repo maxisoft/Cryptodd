@@ -14,7 +14,14 @@ using Microsoft.Extensions.Configuration;
 
 namespace Cryptodd.Okx.Http;
 
-public class OkxPublicHttpApi : IOkxInstrumentIdsProvider, IService
+public interface IOkxPublicHttpApi: IOkxInstrumentIdsProvider
+{
+    public Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType,
+        string? underlying = null,
+        string? instrumentFamily = null, CancellationToken cancellationToken = default);
+}
+
+public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IService
 {
     internal static readonly StringPool StringPool = new(10 << 10);
     private readonly IOkxHttpClientAbstraction _client;

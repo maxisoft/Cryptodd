@@ -333,8 +333,9 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                             break;
                         }
                     }
-                    catch (WebSocketException e) when (IsClosed)
+                    catch (WebSocketException e)
                     {
+                        receiveToken.Token.ThrowIfCancellationRequested();
                         var logLevel = LogEventLevel.Warning;
                         if (e.WebSocketErrorCode is WebSocketError.InvalidState)
                         {

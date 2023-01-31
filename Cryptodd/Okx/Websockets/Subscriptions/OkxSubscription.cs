@@ -15,7 +15,7 @@ public abstract class OkxSubscription : IEquatable<OkxSubscription>
     }
 
     protected abstract Span<byte> WriteSubscribeArgs(Span<byte> buffer);
-    
+
     public virtual Span<byte> WriteSubscribePayload(Span<byte> buffer) => WriteSubscribeArgs(buffer);
     public virtual Span<byte> WriteUnsubscribePayload(Span<byte> buffer) => WriteSubscribeArgs(buffer);
 
@@ -25,7 +25,7 @@ public abstract class OkxSubscription : IEquatable<OkxSubscription>
     {
         if (escape != default && s.Contains(escape))
         {
-            s = s.Replace("\"", "\\\"", StringComparison.InvariantCulture);
+            s = s.Replace($"{escape}", $"\\{escape}", StringComparison.InvariantCulture);
         }
 
         return WriteString(buffer, (ReadOnlySpan<char>)s, default);
@@ -48,13 +48,13 @@ public abstract class OkxSubscription : IEquatable<OkxSubscription>
 
     protected internal static int WriteBytes(Span<byte> buffer, ReadOnlySpan<byte> b)
     {
-        if (b.Length <= buffer.Length)
+        if (b.Length > buffer.Length)
         {
-            b.CopyTo(buffer);
-            return b.Length;
+            return -1;
         }
 
-        return -1;
+        b.CopyTo(buffer);
+        return b.Length;
     }
 
     public override bool Equals(object? obj) => obj is OkxSubscription subscription && Equals(subscription);
