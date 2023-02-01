@@ -159,6 +159,7 @@ Okx:
   Orderbook:
     Task:
       #Period: 60000
+      Enabled: false
     PairFilter:
       - BTC-USDT-SWAP
       - BTC-USD-SWAP

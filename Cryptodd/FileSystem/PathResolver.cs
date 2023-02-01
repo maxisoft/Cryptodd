@@ -5,12 +5,12 @@ using Microsoft.Extensions.Configuration;
 namespace Cryptodd.FileSystem;
 
 [Singleton]
+// ReSharper disable once UnusedType.Global
 public class PathResolver : IPathResolver
 {
     private readonly IConfiguration _configuration;
 
-    private readonly ConcurrentDictionary<(string, ResolveOption), string> _cache =
-        new ConcurrentDictionary<(string, ResolveOption), string>();
+    private readonly ConcurrentDictionary<(string, ResolveOption), string> _cache = new();
 
     private readonly IContainer _container;
 

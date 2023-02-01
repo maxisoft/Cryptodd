@@ -25,6 +25,8 @@ public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollecto
 
     public async Task CollectLoop(CancellationToken cancellationToken)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cancellationToken = cts.Token;
         await using var container = _container.GetNestedContainer();
         var swapDataRepository = container.GetInstance<ISwapDataRepository>();
         var http = container.GetInstance<IOkxPublicHttpApi>();
@@ -52,8 +54,8 @@ public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollecto
                 var fr = fundingRateResponse.data.Value;
                 var identifier = new OkxInstrumentIdentifier(fr.instId, fr.instType);
 
-                swapDataRepository.FundingRates.AddOrUpdate(identifier, _ => fr,
-                    (_, prev) => fr.fundingTime >= prev.fundingTime ? fr : prev);
+                swapDataRepository.FundingRates.AddOrUpdate(identifier, _ => OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr),
+                    (_, prev) => fr.fundingTime >= prev.fundingTime ? OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr) : prev);
             }
         }
 
@@ -95,7 +97,8 @@ public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollecto
 
         await subscriptionTask.ConfigureAwait(false);
 
-        await Task.WhenAll(receiveLoop, activityTask, bufferTask, periodicTask).ConfigureAwait(false);
+        await Task.WhenAny(receiveLoop, activityTask, bufferTask, periodicTask).ConfigureAwait(false);
+        cts.Cancel(true);
     }
 
     private static async Task PerformSubscriptions(OkxWebsocketForFundingRate ws, IOkxInstrumentIdsProvider http,

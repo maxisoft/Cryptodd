@@ -5,6 +5,6 @@ namespace Cryptodd.Okx.Collectors.Swap;
 
 public interface ISwapDataRepository
 {
-    ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpFundingRate> FundingRates { get; }
+    ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpFundingRateWithDate> FundingRates { get; }
     ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpOpenInterest> OpenInterests { get; }
 }
