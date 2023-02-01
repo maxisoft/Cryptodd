@@ -3,8 +3,18 @@ using System.Runtime.CompilerServices;
 
 namespace Cryptodd.Json;
 
-public struct OneItemList<T> : IList<T>
+public struct OneItemList<T> : IList<T>, IReadOnlyList<T>
 {
+    public OneItemList() : this(default!, 0)
+    {
+    }
+
+    public OneItemList(T value, int count = 1)
+    {
+        Value = value;
+        Count = count;
+    }
+    
 #pragma warning disable CA1051
     public T Value;
 #pragma warning restore CA1051
