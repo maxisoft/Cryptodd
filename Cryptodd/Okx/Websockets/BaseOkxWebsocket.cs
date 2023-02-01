@@ -193,8 +193,9 @@ public abstract class BaseOkxWebsocket<TData, TOptions> : BaseWebsocket<TData, T
                 LastMessageDate = now = GetUnixTimeMilliseconds();
             }
 
-
-            await Task.Delay((int)(LastMessageDate + interval).Clamp(now + interval / 3, now + interval),
+            var delay = (LastMessageDate + interval).Clamp(now + interval / 3, now + interval);
+            delay -= GetUnixTimeMilliseconds();
+            await Task.Delay(Math.Max(checked((int) delay), 0),
                 cancellationToken).ConfigureAwait(false);
         }
 
