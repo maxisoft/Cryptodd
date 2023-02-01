@@ -112,7 +112,7 @@ public abstract class OkxWebsocketForFundingRate<TData, TOptions> : BaseOkxWebso
     public override async ValueTask<bool> ConnectIfNeeded(CancellationToken cancellationToken)
     {
         var res = await base.ConnectIfNeeded(cancellationToken).ConfigureAwait(false);
-        if (!IsClosed)
+        if (!res && WebSocket is {State: WebSocketState.Open})
         {
             await Resubscribe(cancellationToken).ConfigureAwait(false);
         }
