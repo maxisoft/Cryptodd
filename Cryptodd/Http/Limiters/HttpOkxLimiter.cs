@@ -1,6 +1,6 @@
 ﻿using Cryptodd.Okx.Limiters;
 
-namespace Cryptodd.Http;
+namespace Cryptodd.Http.Limiters;
 
 public abstract class HttpOkxLimiter : OkxLimiter
 {

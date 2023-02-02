@@ -1,4 +1,6 @@
-﻿namespace Cryptodd.Okx.Http;
+﻿using Cryptodd.Okx.Models;
+
+namespace Cryptodd.Okx.Http;
 
 public interface IOkxInstrumentIdsProvider
 {

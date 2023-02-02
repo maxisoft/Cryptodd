@@ -65,6 +65,7 @@ public abstract class OkxWebsocketForOrderbook<TData, TOptions> : BaseOkxWebsock
         res.Converters.Add(new OkxOrderbookEntryJsonConverter());
         res.Converters.Add(new PooledListConverter<OkxOrderbookEntry>()
             { DefaultCapacity = DefaultOrderbookDepthSize });
+        res.Converters.Add(new OneItemListJsonConverter<OkxWebSocketOrderbookData>());
 
         return res;
     }

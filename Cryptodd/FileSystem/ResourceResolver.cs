@@ -8,6 +8,7 @@ public interface IResourceResolver : IService
     ValueTask<string> GetResource(string path, CancellationToken cancellationToken);
 }
 
+// ReSharper disable once UnusedType.Global
 public class ResourceResolver: IResourceResolver
 {
     public async ValueTask<string> GetResource(string path, CancellationToken cancellationToken)

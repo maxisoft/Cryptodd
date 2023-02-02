@@ -71,8 +71,18 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         get
         {
             var ws = WebSocket;
-            return ws is null ||
-                   (!ws.State.HasFlag(WebSocketState.Open) && !ws.State.HasFlag(WebSocketState.Connecting));
+            if (ws is null)
+            {
+                return true;
+            }
+
+            return ws.State switch
+            {
+                WebSocketState.Connecting => false,
+                WebSocketState.Open => false,
+                WebSocketState.CloseSent => false,
+                _ => true
+            };
         }
     }
 
@@ -178,6 +188,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             {
                 throw;
             }
+
             Debug.Write(e);
         }
 
@@ -243,7 +254,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         {
             Logger.Verbose(e, "unable to cancel {Name}", nameof(LoopCancellationTokenSource));
         }
-        
+
         var ws = WebSocket;
         if (ws is { State: WebSocketState.Open })
         {
@@ -257,9 +268,10 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             {
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, closeCancellationToken.Token);
             }
-            catch (WebSocketException e) 
+            catch (WebSocketException e)
             {
-                if (ws.State is not (WebSocketState.Aborted or WebSocketState.Closed or WebSocketState.CloseReceived or WebSocketState.CloseSent))
+                if (ws.State is not (WebSocketState.Aborted or WebSocketState.Closed or WebSocketState.CloseReceived
+                    or WebSocketState.CloseSent))
                 {
                     Logger.Debug(e, "Error when closing ws");
                 }
@@ -268,8 +280,8 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
             {
                 Logger.Debug(e, "Error when closing ws");
             }
-            
         }
+
         Dispose(disposing);
     }
 
@@ -294,7 +306,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
     {
         await ReceiveLoop(false, cancellationToken).ConfigureAwait(false);
     }
-    
+
     public virtual async Task ReceiveLoop(bool detached, CancellationToken cancellationToken)
     {
         try
@@ -305,7 +317,9 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
 
                 var ws = WebSocket!;
                 using var receiveToken =
-                    detached ? new CancellationTokenSource() : CancellationTokenSource.CreateLinkedTokenSource(CancellationToken, cancellationToken);
+                    detached
+                        ? new CancellationTokenSource()
+                        : CancellationTokenSource.CreateLinkedTokenSource(CancellationToken, cancellationToken);
                 receiveToken.CancelAfter(Options.ReceiveTimeout);
                 var memoryPool = MemoryPool;
                 var mem = memoryPool.Rent(1 << 10);
@@ -333,14 +347,27 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                             break;
                         }
                     }
-                    catch (WebSocketException e) when (IsClosed)
+                    catch (WebSocketException e)
                     {
-                        var logLevel = LogEventLevel.Warning;
-                        if (e.WebSocketErrorCode is WebSocketError.InvalidState)
+                        receiveToken.Token.ThrowIfCancellationRequested();
+                        var logLevel = e.WebSocketErrorCode switch
                         {
-                            logLevel = LogEventLevel.Debug;
+                            WebSocketError.InvalidState => LogEventLevel.Debug,
+                            WebSocketError.Faulted when Const.IsDebug && ws.State is WebSocketState.Closed or WebSocketState.Aborted =>
+                                LogEventLevel.Debug,
+                            _ => LogEventLevel.Warning
+                        };
+
+                        if (e.InnerException is null)
+                        {
+                            Logger.Write(logLevel, e, "{Name}", nameof(ws.ReceiveAsync));
                         }
-                        Logger.Write(logLevel ,e, "{Name}", nameof(ws.ReceiveAsync));
+                        else
+                        {
+                            Logger.Write(logLevel, e, "{Name} {Inner}", nameof(ws.ReceiveAsync),
+                                Const.IsDebug ? e.InnerException?.Demystify() : "" ?? "");
+                        }
+
                         continue;
                     }
 

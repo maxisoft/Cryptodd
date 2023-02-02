@@ -1,13 +1,15 @@
-﻿namespace Cryptodd.Okx.Http.Abstractions;
+﻿using Cryptodd.Okx.Limiters;
 
-public sealed class RemoveLimiterOnDispose<T, TContext> : IDisposable
+namespace Cryptodd.Okx.Http.Abstractions;
+
+public class RemoveLimiterOnDispose<T, TContext> : IDisposable
     where TContext : OkxHttpClientAbstractionContext
     where T : class
 {
     private readonly WeakReference<TContext> _context;
     private T? _limiter;
 
-    public RemoveLimiterOnDispose(T? limiter, TContext context)
+    protected RemoveLimiterOnDispose(T? limiter, TContext context)
     {
         _limiter = limiter;
         _context = new WeakReference<TContext>(context);
@@ -23,5 +25,12 @@ public sealed class RemoveLimiterOnDispose<T, TContext> : IDisposable
         }
 
         _limiter = null;
+        
+        GC.SuppressFinalize(this);
     }
+}
+
+public sealed class RemoveLimiterOnDispose : RemoveLimiterOnDispose<OkxLimiter, OkxHttpClientAbstractionContext>
+{
+    public RemoveLimiterOnDispose(OkxLimiter? limiter, OkxHttpClientAbstractionContext context) : base(limiter, context) { }
 }
