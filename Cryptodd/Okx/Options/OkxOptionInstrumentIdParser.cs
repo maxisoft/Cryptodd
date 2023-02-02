@@ -5,14 +5,14 @@ namespace Cryptodd.Okx.Options;
 
 internal static class OkxOptionInstrumentIdParser
 {
-    private static readonly Regex ParseRegex = new(
+    private static readonly Lazy<Regex> ParseRegex = new(static () => new Regex(
         @"^(?<uly>[\w-]+?)-(?<date>[0-9]{6}?)-(?<price>(?:[0-9]+\.)?[0-9]+?)-(?<side>P|C)$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant |
-        RegexOptions.NonBacktracking | RegexOptions.IgnoreCase);
+        RegexOptions.NonBacktracking | RegexOptions.IgnoreCase));
 
     public static bool TryParse(string value, out OkxOptionInstrumentId instrumentId)
     {
-        var match = ParseRegex.Match(value);
+        var match = ParseRegex.Value.Match(value);
         if (!match.Success)
         {
             instrumentId = default!;
