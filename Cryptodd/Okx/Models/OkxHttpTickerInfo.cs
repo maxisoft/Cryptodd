@@ -4,7 +4,8 @@ using Cryptodd.Json;
 namespace Cryptodd.Okx.Models;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
-public readonly record struct OkxHttpTickerInfo(
+// ReSharper disable once ClassNeverInstantiated.Global
+public record OkxHttpTickerInfo(
     PooledString instType,
     PooledString instId,
     SafeJsonDouble<SafeJsonDoubleDefaultValueNegativeZero> last,

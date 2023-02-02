@@ -5,4 +5,5 @@ using Maxisoft.Utils.Collections.Lists.Specialized;
 namespace Cryptodd.Okx.Models;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
-public record OkxHttpGetTikersResponse(JsonLong code, PooledString msg, PooledList<OkxHttpTickerInfo> data): BaseOxkHttpResponse(code, msg) { }
+public record OkxHttpGetInstrumentsResponse
+    (JsonLong code, PooledString msg, List<OkxHttpInstrumentInfo> data) : BaseOxkHttpResponse(code, msg) { }

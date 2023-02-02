@@ -54,38 +54,146 @@ public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollecto
                 var fr = fundingRateResponse.data.Value;
                 var identifier = new OkxInstrumentIdentifier(fr.instId, fr.instType);
 
-                swapDataRepository.FundingRates.AddOrUpdate(identifier, _ => OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr),
-                    (_, prev) => fr.fundingTime >= prev.fundingTime ? OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr) : prev);
+                swapDataRepository.FundingRates.AddOrUpdate(identifier,
+                    _ => OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr),
+                    (_, prev) => fr.fundingTime >= prev.fundingTime
+                        ? OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr)
+                        : prev);
             }
         }
 
-        async Task PeriodicOpenInterest()
+        async Task PeriodicOpenInterestAndTickersAndMarkPrices()
         {
             var sw = Stopwatch.StartNew();
+            var instrumentSw = new Stopwatch();
+            Dictionary<OkxInstrumentIdentifier, OkxHttpInstrumentInfo> instruments = new();
             while (!cancellationToken.IsCancellationRequested)
             {
                 sw.Restart();
-                var openInterests =
-                    await http.GetOpenInterest(OkxInstrumentType.Swap, cancellationToken: cancellationToken)
-                        .ConfigureAwait(false);
 
-                static int ProcessOpenInterests(OkxHttpGetOpenInterestResponse response,
-                    ISwapDataRepository swapDataRepository)
+                var openInterestsTask =
+                    http.GetOpenInterest(OkxInstrumentType.Swap, cancellationToken: cancellationToken);
+
+                var tickersTask = http.GetTickers(OkxInstrumentType.Swap, cancellationToken: cancellationToken);
+
+                var markPricesTask = http.GetMarkPrices(OkxInstrumentType.Swap, cancellationToken: cancellationToken);
+
+                if (!instrumentSw.IsRunning || instrumentSw.ElapsedMilliseconds > 30_000)
+                {
+                    var rawInstruments = await
+                        http.GetInstruments(OkxInstrumentType.Swap, cancellationToken: cancellationToken)
+                            .ConfigureAwait(false);
+                    instruments =
+                        rawInstruments.data.ToDictionary(
+                            info => new OkxInstrumentIdentifier(info.instId, info.instType));
+                    instrumentSw.Restart();
+                }
+
+                var openInterests = await openInterestsTask.ConfigureAwait(false);
+                var rawTickers = await tickersTask.ConfigureAwait(false);
+                var rawMarkPrices = await markPricesTask.ConfigureAwait(false);
+                var tickers = new Lazy<Dictionary<OkxInstrumentIdentifier, OkxHttpTickerInfo>>(() =>
+                        rawTickers.data.ToDictionary(info => new OkxInstrumentIdentifier(info.instId, info.instType)))
+                    ;
+
+                var markPrices = new Lazy<Dictionary<OkxInstrumentIdentifier, OkxHttpMarkPrice>>(() =>
+                        rawMarkPrices.data.ToDictionary(info =>
+                            new OkxInstrumentIdentifier(info.instId, info.instType)))
+                    ;
+
+                int ProcessOpenInterests(OkxHttpGetOpenInterestResponse response)
                 {
                     var c = 0;
+                    var openInterestCollection = swapDataRepository.OpenInterests;
                     foreach (var openInterest in response.data)
                     {
                         var identifier =
                             new OkxInstrumentIdentifier(openInterest.instId, openInterest.instType);
-                        swapDataRepository.OpenInterests.AddOrUpdate(identifier, _ => openInterest,
-                            (_, prev) => openInterest.ts >= prev.ts ? openInterest : prev);
+                        var mult = 1.0;
+                        if (instruments.TryGetValue(identifier, out var instrumentInfo))
+                        {
+                            mult = instrumentInfo.ctVal;
+                            if (mult <= 0)
+                            {
+                                _logger.Warning("{Symbol} has invalid ctVal {CtVal}", identifier.Id, mult);
+                                mult = 1.0;
+                            }
+                        }
+
+                        var targetOi = openInterest;
+                        // ReSharper disable once CompareOfFloatsByEqualityOperator
+                        if (mult != 1.0)
+                        {
+                            targetOi = openInterest with { oi = openInterest.oi * mult };
+                        }
+
+                        /* fix "no meaning" open interest to suit the following equation : 
+                         * oi / oiCcy = current price
+                         */
+                        if (openInterest.oiCcy > 0 && targetOi.oi / openInterest.oiCcy - 1 < 0.001)
+                        {
+                            double price = 0;
+                            if (markPrices.Value.TryGetValue(identifier, out var markPrice) && markPrice.markPx > 0)
+                            {
+                                price = markPrice.markPx;
+                            }
+                            else if (tickers.Value.TryGetValue(identifier, out var tickerInfo))
+                            {
+                                price = tickerInfo.last;
+                            }
+
+                            if (price > 0)
+                            {
+                                targetOi = targetOi with { oi = openInterest.oiCcy * price };
+                            }
+                        }
+
+                        openInterestCollection.AddOrUpdate(identifier, _ => targetOi,
+                            (_, prev) => openInterest.ts >= prev.ts ? targetOi : prev);
                         c++;
                     }
 
                     return c;
                 }
 
-                ProcessOpenInterests(openInterests, swapDataRepository);
+                ProcessOpenInterests(openInterests);
+
+                int ProcessTickers(OkxHttpGetTickersResponse response)
+                {
+                    var c = 0;
+                    var tickerCollection = swapDataRepository.Tickers;
+                    foreach (var info in response.data)
+                    {
+                        var identifier =
+                            new OkxInstrumentIdentifier(info.instId, info.instType);
+                        tickerCollection.AddOrUpdate(identifier, _ => info,
+                            (_, prev) => info.ts >= prev.ts ? info : prev);
+                        c++;
+                    }
+
+                    return c;
+                }
+
+                ProcessTickers(rawTickers);
+
+
+                int ProcessMarkPrices(OkxHttpGetMarkPriceResponse response)
+                {
+                    var c = 0;
+                    var pricesCollection = swapDataRepository.MarkPrices;
+                    foreach (var info in response.data)
+                    {
+                        var identifier =
+                            new OkxInstrumentIdentifier(info.instId, info.instType);
+                        pricesCollection.AddOrUpdate(identifier, _ => info,
+                            (_, prev) => info.ts >= prev.ts ? info : prev);
+                        c++;
+                    }
+
+                    return c;
+                }
+
+                ProcessMarkPrices(rawMarkPrices);
 
                 var delay = Math.Max(1000 - sw.ElapsedMilliseconds, 0);
                 await Task.Delay(checked((int)delay), cancellationToken).ConfigureAwait(false);
@@ -93,12 +201,18 @@ public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollecto
         }
 
         var bufferTask = ProcessWebsocketBuffer();
-        var periodicTask = PeriodicOpenInterest();
+        var periodicTask = PeriodicOpenInterestAndTickersAndMarkPrices();
 
         await subscriptionTask.ConfigureAwait(false);
 
-        await Task.WhenAny(receiveLoop, activityTask, bufferTask, periodicTask).ConfigureAwait(false);
-        cts.Cancel(true);
+        try
+        {
+            await Task.WhenAny(receiveLoop, activityTask, bufferTask, periodicTask).ConfigureAwait(false);
+        }
+        finally
+        {
+            cts.Cancel();
+        }
     }
 
     private static async Task PerformSubscriptions(OkxWebsocketForFundingRate ws, IOkxInstrumentIdsProvider http,

@@ -61,6 +61,8 @@ public sealed class SwapDataCollector : IService, ISwapDataCollector
 
         var symbols = repo.FundingRates.Keys.ToHashSet();
         symbols.IntersectWith(repo.OpenInterests.Keys);
+        symbols.IntersectWith(repo.Tickers.Keys);
+        symbols.IntersectWith(repo.MarkPrices.Keys);
 
         beforeSerialisation?.Invoke(symbols);
         if (!symbols.Any())
@@ -74,9 +76,11 @@ public sealed class SwapDataCollector : IService, ISwapDataCollector
             Debug.Assert(identifier.Type.Equals("swap", StringComparison.OrdinalIgnoreCase));
             var fr = repo.FundingRates[identifier];
             var oi = repo.OpenInterests[identifier];
+            var ticker = repo.Tickers[identifier];
+            var markPrice = repo.MarkPrices[identifier];
             try
             {
-                await _swapDataWriter.Value.WriteAsync(identifier.Id, (oi, fr), fr.date, token).ConfigureAwait(true);
+                await _swapDataWriter.Value.WriteAsync(identifier.Id, (oi, fr, ticker, markPrice), fr.date, token).ConfigureAwait(true);
             }
             catch (Exception e)
             {

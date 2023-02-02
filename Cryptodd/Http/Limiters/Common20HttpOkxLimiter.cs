@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.Http;
+﻿namespace Cryptodd.Http.Limiters;
 
 public abstract class Common20HttpOkxLimiter : HttpOkxLimiter
 {
