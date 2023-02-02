@@ -14,6 +14,6 @@ public interface IOptionsDataRepository
 [Singleton]
 public class OptionsDataRepository : IService, IOptionsDataRepository
 {
-    public ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpOpenInterest> OpenInterests { get; }
-    public ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpTickerInfo> Tickers { get; }
+    public ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpOpenInterest> OpenInterests { get; } = new();
+    public ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpTickerInfo> Tickers { get; } = new();
 }
