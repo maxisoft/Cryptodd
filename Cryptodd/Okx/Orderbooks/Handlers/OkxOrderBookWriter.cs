@@ -13,9 +13,11 @@ public class OkxOrderBookWriter : OrderBookWriter<OkxOrderbookEntry, PriceSizeCo
     OkxFloatSerializableConverterConverter,
     OkxOrderBookWriterOptions>
 {
+    public const string DefaultExchange = "Okx";
+
     public OkxOrderBookWriter(ILogger logger, IConfiguration configuration, IServiceProvider serviceProvider) : base(
         logger, configuration.GetSection("Okx:Orderbook:Writer"), serviceProvider)
     {
-        Options.CoalesceExchange("Okx");
+        Options.CoalesceExchange(DefaultExchange);
     }
 }
