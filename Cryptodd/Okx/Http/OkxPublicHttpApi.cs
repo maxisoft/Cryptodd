@@ -10,6 +10,7 @@ using Cryptodd.Json.Converters;
 using Cryptodd.Okx.Http.Abstractions;
 using Cryptodd.Okx.Json;
 using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 
@@ -31,6 +32,9 @@ public interface IOkxPublicHttpApi : IOkxInstrumentIdsProvider
     public Task<OkxHttpGetMarkPriceResponse> GetMarkPrices(OkxInstrumentType instrumentType,
         string? underlying = null,
         string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default);
+
+    public Task<OkxHttpGetOptionMarketDataResponse> GetOptionMarketData(string? underlying = null,
+        string? instrumentFamily = null, string? expiryTime = null, CancellationToken cancellationToken = default);
 }
 
 public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IService
@@ -89,9 +93,9 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IS
         string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
     {
         var instrumentTypeString = instrumentType.ToHttpString();
-        var url = await _urlBuilder.UriCombine(_options.GetInstrumentsUrl, instrumentTypeString,
-                underlying, instrumentFamily, instrumentId,
-                cancellationToken)
+        var url = await _urlBuilder.UriCombine(_options.GetInstrumentsUrl, instrumentType: instrumentTypeString,
+                underlying: underlying, instrumentFamily: instrumentFamily, instrumentId: instrumentId,
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:ListInstruments"))
         {
@@ -105,9 +109,9 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IS
         string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
     {
         var instrumentTypeString = instrumentType.ToHttpString();
-        var url = await _urlBuilder.UriCombine(_options.GetInstrumentsUrl, instrumentTypeString,
-                underlying, instrumentFamily, instrumentId,
-                cancellationToken)
+        var url = await _urlBuilder.UriCombine(_options.GetInstrumentsUrl, instrumentType: instrumentTypeString,
+                underlying: underlying, instrumentFamily: instrumentFamily, instrumentId: instrumentId,
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         using (_client.UseLimiter<InstrumentsHttpOkxLimiter>(instrumentTypeString, "Http:ListInstruments"))
         {
@@ -166,6 +170,23 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IS
                            cancellationToken)
                        .ConfigureAwait(false) ??
                    new OkxHttpGetOpenInterestResponse(-1, "", new PooledList<OkxHttpOpenInterest>());
+        }
+    }
+
+
+    public async Task<OkxHttpGetOptionMarketDataResponse> GetOptionMarketData(string? underlying = null,
+        string? instrumentFamily = null, string? expiryTime = null, CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetOptionMarketDataUrl,
+                underlying: underlying, instrumentFamily: instrumentFamily, expiryTime: expiryTime,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<OptionMarketDataHttpOkxLimiter>(underlying ?? "", "Http:GetOptionMarketData"))
+        {
+            return await _client
+                .GetFromJsonAsync<OkxHttpGetOptionMarketDataResponse>(url, _jsonSerializerOptions.Value,
+                    cancellationToken)
+                .ConfigureAwait(false) ?? new OkxHttpGetOptionMarketDataResponse(-1, "", new List<OkxOptionSummary>());
         }
     }
 

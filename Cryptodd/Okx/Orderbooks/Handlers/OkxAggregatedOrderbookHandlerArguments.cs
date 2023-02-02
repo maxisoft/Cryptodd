@@ -1,5 +1,6 @@
 ﻿using Cryptodd.Binance.Orderbooks;
 using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 using Cryptodd.OrderBooks;
 
 namespace Cryptodd.Okx.Orderbooks.Handlers;

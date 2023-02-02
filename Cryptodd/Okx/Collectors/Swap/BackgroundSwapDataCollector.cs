@@ -3,6 +3,7 @@ using System.Threading.Tasks.Dataflow;
 using Cryptodd.IoC;
 using Cryptodd.Okx.Http;
 using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 using Cryptodd.Okx.Websockets;
 using Cryptodd.Okx.Websockets.Subscriptions;
 using Cryptodd.Pairs;
