@@ -1,4 +1,5 @@
 ﻿using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 
 namespace Cryptodd.Okx.Orderbooks.Handlers;
 

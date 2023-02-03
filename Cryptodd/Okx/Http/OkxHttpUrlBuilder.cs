@@ -1,4 +1,5 @@
-﻿using Cryptodd.Okx.Models;
+﻿using System.Runtime.CompilerServices;
+using Cryptodd.Okx.Models;
 
 namespace Cryptodd.Okx.Http;
 
@@ -13,8 +14,10 @@ public sealed class OkxHttpUrlBuilder
 
     public string BaseUrl => _options.BaseUrl;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     public ValueTask<Uri> UriCombine(string url, string? instrumentType = null, string? underlying = null,
-        string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
+        string? instrumentFamily = null, string? instrumentId = null,
+        string? expiryTime = null, CancellationToken cancellationToken = default)
     {
         UriBuilder builder;
         if (Uri.TryCreate(url, UriKind.RelativeOrAbsolute, out var res) &&
@@ -49,11 +52,17 @@ public sealed class OkxHttpUrlBuilder
             builder = builder.WithParameter("instId", instrumentId);
         }
 
+        if (expiryTime is not null)
+        {
+            builder = builder.WithParameter("expTime", expiryTime);
+        }
+
         return ValueTask.FromResult(builder.Uri);
     }
 
     public ValueTask<Uri> UriCombine(string url, OkxInstrumentType instrumentType, string? underlying = null,
-        string? instrumentFamily = null, string? instrumentId = null, CancellationToken cancellationToken = default)
+        string? instrumentFamily = null, string? instrumentId = null,
+        string? expiryTime = null, CancellationToken cancellationToken = default)
         => UriCombine(url, instrumentType.ToHttpString(), underlying,
-            instrumentFamily, instrumentId, cancellationToken);
+            instrumentFamily, instrumentId, expiryTime, cancellationToken);
 }

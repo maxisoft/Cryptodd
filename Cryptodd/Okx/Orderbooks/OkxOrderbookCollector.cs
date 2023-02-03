@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.IoC;
 using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 using Cryptodd.Okx.Orderbooks.Handlers;
 using Cryptodd.Okx.Websockets;
 using Cryptodd.Okx.Websockets.Pool;

@@ -1,9 +1,10 @@
 ﻿using System.Text.Json.Serialization;
 using Cryptodd.Json;
 using Maxisoft.Utils.Collections.Lists.Specialized;
+
 // ReSharper disable InconsistentNaming
 
-namespace Cryptodd.Okx.Models;
+namespace Cryptodd.Okx.Models.HttpResponse;
 
 public readonly record struct OkxWebSocketArgWithChannelAndInstrumentId(PooledString channel, PooledString instId);
 

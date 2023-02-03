@@ -1,8 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Cryptodd.Json;
-using Maxisoft.Utils.Collections.Lists.Specialized;
 
-namespace Cryptodd.Okx.Models;
+namespace Cryptodd.Okx.Models.HttpResponse;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public record OkxHttpGetInstrumentsResponse

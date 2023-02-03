@@ -12,4 +12,6 @@ public class OkxPublicHttpApiOptions
 
     public string GetOpenInterestUrl { get; set; } = "/api/v5/public/open-interest";
     public string GetFundingRateUrl { get; set; } = "/api/v5/public/funding-rate";
+    
+    public string GetOptionMarketDataUrl { get; set; } = "/api/v5/public/opt-summary";
 }

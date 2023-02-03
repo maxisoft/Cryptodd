@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Cryptodd.Json;
+using Cryptodd.Okx.Models.HttpResponse;
 
 namespace Cryptodd.Okx.Models;
 

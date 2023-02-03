@@ -2,6 +2,7 @@
 using System.Text;
 using System.Text.Json;
 using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 using Cryptodd.Okx.Websockets;
 using Xunit;
 
