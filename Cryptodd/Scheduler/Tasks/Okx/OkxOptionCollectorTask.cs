@@ -23,7 +23,7 @@ public class OkxOptionCollectorTask : BasePeriodicScheduledTask
         configuration, container)
     {
         _retryPolicy = Policy.NoOpAsync();
-        Period = TimeSpan.FromSeconds(60);
+        Period = TimeSpan.FromSeconds(15);
         Section = Configuration.GetSection("Okx:Collector:Option:Task");
         OnConfigurationChange();
     }
