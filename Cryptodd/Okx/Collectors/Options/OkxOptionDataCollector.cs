@@ -90,7 +90,8 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
             }
 
             tickers = await tickersTask.ConfigureAwait(false);
-            var selected = PickInstruments(oiResponse, tickers, cancellationToken);
+            var prefer24HVolume = _options.Prefer24HVolume ?? Random.NextBoolean();
+            var selected = PickInstruments(oiResponse, tickers, prefer24HVolume, cancellationToken);
             instruments = await instrumentsTask.ConfigureAwait(false);
 
             UpdateRepo();
@@ -129,8 +130,20 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
 
                 c++;
             }
-
+            
             ((Span<OkxOptionDataContext>)payload).Sort(OptionDataComparison);
+
+            if (_options.SkipOnNoChange ?? true)
+            {
+                var h = ComputeHash((Span<OkxOptionDataContext>)payload);
+                var hashes = repo.PreviousDataHashes;
+                if (hashes.TryGetValue((underlying, prefer24HVolume), out var previousHash) && previousHash == h)
+                {
+                    return;
+                }
+
+                hashes[(underlying, prefer24HVolume)] = h;
+            }
 
             Debug.Assert(minTs < long.MaxValue, "minTs < long.MaxValue");
             if (minTs < long.MaxValue)
@@ -142,6 +155,26 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
         });
 
         return res;
+    }
+
+    private static long ComputeHash(Span<OkxOptionDataContext> data)
+    {
+        var h1 = new HashCode();
+        h1.Add(data.Length);
+        var h2 = new HashCode();
+        h2.Add(-data.Length);
+        foreach (var c in data)
+        {
+            h1.Add(c.Item1);
+            h1.Add(c.Item2.oi);
+            
+            h2.Add(c.Item3.last);
+        }
+
+        unchecked
+        {
+            return (long)(((ulong)h1.ToHashCode() << 32) ^ (ulong)h2.ToHashCode());
+        }
     }
 
     public bool Disposed { get; private set; }
@@ -156,12 +189,12 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
 
     private Dictionary<OkxOptionInstrumentId, (OkxHttpOpenInterest, OkxHttpTickerInfo)> PickInstruments(
         OkxHttpGetOpenInterestResponse okxHttpGetOpenInterestResponse,
-        OkxHttpGetTickersResponse okxHttpGetTickersResponse, CancellationToken cancellationToken)
+        OkxHttpGetTickersResponse okxHttpGetTickersResponse, bool prefer24HVolume, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var topk = new TopK<TopKData, OkxHttpOpenInterestComparer>(
             _options.NumberOfOptionToPick,
-            new OkxHttpOpenInterestComparer(Random.NextBoolean()));
+            new OkxHttpOpenInterestComparer(prefer24HVolume));
 
         var tickerDictionary = okxHttpGetTickersResponse.data.ToDictionary(info => info.instId);
         foreach (ref var oi in okxHttpGetOpenInterestResponse.data)

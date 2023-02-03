@@ -7,4 +7,6 @@ public interface IOkxOptionsDataRepository
 {
     ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpOpenInterest> OpenInterests { get; }
     ConcurrentDictionary<OkxInstrumentIdentifier, OkxHttpTickerInfo> Tickers { get; }
+    
+    ConcurrentDictionary<(string Underlaying, bool prefer24HVolume), long> PreviousDataHashes { get; }
 }
