@@ -48,6 +48,7 @@ public struct OkxOptionDataDoubleSerializerConverter : IDoubleSerializerConverte
                 ? (price - ticker.low24h) / (ticker.high24h - ticker.low24h)
                 : 0.5,
             LastPrice: price,
+            StrikePrice: instrumentInfo.stk,
             Price: instrumentId.Price
         );
     }
