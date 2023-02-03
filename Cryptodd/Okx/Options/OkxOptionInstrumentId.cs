@@ -29,4 +29,7 @@ public readonly record struct OkxOptionInstrumentId(
         price = Price;
         side = Side;
     }
+
+    public override string ToString() =>
+        $"{Underlying}-{Year:00}{Month:00}{Day:00}-{Price}-{(IsCall ? 'C' : 'P')}";
 }
