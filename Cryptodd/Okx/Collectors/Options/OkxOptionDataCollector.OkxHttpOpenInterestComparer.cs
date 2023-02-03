@@ -5,8 +5,7 @@ namespace Cryptodd.Okx.Collectors.Options;
 
 public partial class OkxOptionDataCollector
 {
-    private struct
-        OkxHttpOpenInterestComparer : IComparer<TopKData>
+    private readonly struct OkxHttpOpenInterestComparer : IComparer<TopKData>
     {
         public OkxHttpOpenInterestComparer() { }
 
@@ -30,7 +29,7 @@ public partial class OkxOptionDataCollector
             {
                 return 1;
             }
-            
+
             if (x.Item1.oi == 0)
             {
                 if (y.Item1.oi == 0)

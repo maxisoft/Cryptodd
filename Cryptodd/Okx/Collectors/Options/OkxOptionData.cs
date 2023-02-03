@@ -28,7 +28,6 @@ public sealed record OkxOptionData(
     double Volume24H,
     double PriceRatio24H, // (price - low) / (high - low)
     double LastPrice,
-    double StrikePrice,
     double Price
 ) : IDoubleSerializable
 {
@@ -64,13 +63,12 @@ public sealed record OkxOptionData(
                 p[21] = Volume24H;
                 p[22] = PriceRatio24H;
                 p[23] = LastPrice;
-                p[24] = StrikePrice;
-                p[25] = Price;
+                p[24] = Price;
             }
         }
 
         return size;
     }
 
-    public int ExpectedSize => 26;
+    public int ExpectedSize => 25;
 }

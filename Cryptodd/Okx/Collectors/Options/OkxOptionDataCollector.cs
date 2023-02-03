@@ -150,17 +150,18 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
 
     private sealed class TopKData : Tuple<OkxHttpOpenInterest, OkxOptionInstrumentId, OkxHttpTickerInfo>
     {
-        public TopKData(OkxHttpOpenInterest item1, OkxOptionInstrumentId item2, OkxHttpTickerInfo item3) : base(item1, item2, item3) { }
+        public TopKData(OkxHttpOpenInterest item1, OkxOptionInstrumentId item2, OkxHttpTickerInfo item3) : base(item1,
+            item2, item3) { }
     }
+
     private Dictionary<OkxOptionInstrumentId, (OkxHttpOpenInterest, OkxHttpTickerInfo)> PickInstruments(
         OkxHttpGetOpenInterestResponse okxHttpGetOpenInterestResponse,
         OkxHttpGetTickersResponse okxHttpGetTickersResponse, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var topk =
-            new TopK<TopKData, OkxHttpOpenInterestComparer>(
-                _options.NumberOfOptionToPick,
-                new OkxHttpOpenInterestComparer(Random.NextBoolean()));
+        var topk = new TopK<TopKData, OkxHttpOpenInterestComparer>(
+            _options.NumberOfOptionToPick,
+            new OkxHttpOpenInterestComparer(Random.NextBoolean()));
 
         var tickerDictionary = okxHttpGetTickersResponse.data.ToDictionary(info => info.instId);
         foreach (ref var oi in okxHttpGetOpenInterestResponse.data)
