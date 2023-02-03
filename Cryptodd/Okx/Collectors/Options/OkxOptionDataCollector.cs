@@ -37,7 +37,8 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
         _writer = new OkxOptionDataWriter(logger, configuration.GetSection("Okx:Collector:Option:Writer"), container);
     }
 
-    public async Task<ISet<OkxOptionInstrumentId>> Collect(Action? onDownloadCompleted, CancellationToken cancellationToken)
+    public async Task<ISet<OkxOptionInstrumentId>> Collect(Action? onDownloadCompleted,
+        CancellationToken cancellationToken)
     {
         if (!_options.Underlyings.Any())
         {
@@ -98,9 +99,7 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
             onDownloadCompleted?.Invoke();
             var optionDict = options.data.ToDictionary(summary => summary.instId.Value);
 
-            var payload =
-                new (OkxOptionInstrumentId, OkxHttpOpenInterest, OkxHttpTickerInfo, OkxHttpOptionSummary,
-                    OkxHttpInstrumentInfo)[selected.Count];
+            var payload = new OkxOptionDataContext[selected.Count];
             var c = 0;
             var minTs = long.MaxValue;
             foreach (var (optionId, (oi, ticker)) in selected)
@@ -109,7 +108,7 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
                 var instrumentInfo = instrumentDict[instId];
                 var optionSummary = optionDict[instId];
 
-                payload[c] = (optionId, oi, ticker, optionSummary, instrumentInfo);
+                payload[c] = new OkxOptionDataContext(optionId, oi, ticker, optionSummary, instrumentInfo);
                 minTs = Math.Min(minTs, oi.ts);
                 minTs = Math.Min(minTs, ticker.ts);
                 minTs = Math.Min(minTs, optionSummary.ts);
@@ -131,8 +130,7 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
                 c++;
             }
 
-            ((Span<(OkxOptionInstrumentId, OkxHttpOpenInterest, OkxHttpTickerInfo, OkxHttpOptionSummary,
-                OkxHttpInstrumentInfo)>)payload).Sort(OptionDataComparison);
+            ((Span<OkxOptionDataContext>)payload).Sort(OptionDataComparison);
 
             Debug.Assert(minTs < long.MaxValue, "minTs < long.MaxValue");
             if (minTs < long.MaxValue)
@@ -148,15 +146,19 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
 
     public bool Disposed { get; private set; }
 
-    private static readonly Xoshiro256StarStar Random = new (true);
+    private static readonly Xoshiro256StarStar Random = new(true);
 
+    private sealed class TopKData : Tuple<OkxHttpOpenInterest, OkxOptionInstrumentId, OkxHttpTickerInfo>
+    {
+        public TopKData(OkxHttpOpenInterest item1, OkxOptionInstrumentId item2, OkxHttpTickerInfo item3) : base(item1, item2, item3) { }
+    }
     private Dictionary<OkxOptionInstrumentId, (OkxHttpOpenInterest, OkxHttpTickerInfo)> PickInstruments(
         OkxHttpGetOpenInterestResponse okxHttpGetOpenInterestResponse,
         OkxHttpGetTickersResponse okxHttpGetTickersResponse, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var topk =
-            new TopK<(OkxHttpOpenInterest, OkxOptionInstrumentId, OkxHttpTickerInfo), OkxHttpOpenInterestComparer>(
+            new TopK<TopKData, OkxHttpOpenInterestComparer>(
                 _options.NumberOfOptionToPick,
                 new OkxHttpOpenInterestComparer(Random.NextBoolean()));
 
@@ -173,7 +175,7 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
                 continue;
             }
 
-            topk.Add((oi, instrumentId, ticker));
+            topk.Add(new TopKData(oi, instrumentId, ticker));
         }
 
         return topk.ToDictionary(static tuple => tuple.Item2, static tuple => (tuple.Item1, tuple.Item3));
@@ -181,10 +183,10 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static int OptionDataComparison(
-        (OkxOptionInstrumentId, OkxHttpOpenInterest, OkxHttpTickerInfo, OkxHttpOptionSummary, OkxHttpInstrumentInfo) x,
-        (OkxOptionInstrumentId, OkxHttpOpenInterest, OkxHttpTickerInfo, OkxHttpOptionSummary, OkxHttpInstrumentInfo) y)
+        OkxOptionDataContext x,
+        OkxOptionDataContext y)
     {
-        var cmp = OptionInstrumentIdComparison(in x.Item1, in y.Item1);
+        var cmp = OptionInstrumentIdComparison(x.Item1, y.Item1);
 
         return cmp != 0 ? cmp : x.Item2.oi.Value.CompareTo(y.Item2.oi);
     }

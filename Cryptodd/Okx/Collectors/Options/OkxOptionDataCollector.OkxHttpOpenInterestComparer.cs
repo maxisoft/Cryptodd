@@ -6,7 +6,7 @@ namespace Cryptodd.Okx.Collectors.Options;
 public partial class OkxOptionDataCollector
 {
     private struct
-        OkxHttpOpenInterestComparer : IComparer<(OkxHttpOpenInterest, OkxOptionInstrumentId, OkxHttpTickerInfo)>
+        OkxHttpOpenInterestComparer : IComparer<TopKData>
     {
         public OkxHttpOpenInterestComparer() { }
 
@@ -19,14 +19,23 @@ public partial class OkxOptionDataCollector
 
         public bool Prefer24HVolume { get; }
 
-        public int Compare((OkxHttpOpenInterest, OkxOptionInstrumentId, OkxHttpTickerInfo) x,
-            (OkxHttpOpenInterest, OkxOptionInstrumentId, OkxHttpTickerInfo) y)
+        public int Compare(TopKData? x, TopKData? y)
         {
+            if (x is null)
+            {
+                return y is null ? 0 : -1;
+            }
+
+            if (y is null)
+            {
+                return 1;
+            }
+            
             if (x.Item1.oi == 0)
             {
                 if (y.Item1.oi == 0)
                 {
-                    return OptionInstrumentIdComparison(in x.Item2, in y.Item2);
+                    return OptionInstrumentIdComparison(x.Item2, y.Item2);
                 }
 
                 return -1;
@@ -58,7 +67,7 @@ public partial class OkxOptionDataCollector
                 }
             }
 
-            static double GetScore(in OkxHttpOpenInterest openInterest, in OkxOptionInstrumentId instrumentId,
+            static double GetScore(OkxHttpOpenInterest openInterest, OkxOptionInstrumentId instrumentId,
                 DateTime now)
             {
                 return openInterest.oi / (
@@ -68,7 +77,7 @@ public partial class OkxOptionDataCollector
                 );
             }
 
-            cmp = GetScore(in x.Item1, in x.Item2, Now).CompareTo(GetScore(in y.Item1, in y.Item2, Now));
+            cmp = GetScore(x.Item1, x.Item2, Now).CompareTo(GetScore(y.Item1, y.Item2, Now));
 
             if (cmp != 0)
             {
@@ -85,7 +94,7 @@ public partial class OkxOptionDataCollector
                 }
             }
 
-            return OptionInstrumentIdComparison(in x.Item2, in y.Item2);
+            return OptionInstrumentIdComparison(x.Item2, y.Item2);
         }
     }
 }

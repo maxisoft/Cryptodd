@@ -5,10 +5,9 @@ using Cryptodd.Okx.Options;
 
 namespace Cryptodd.Okx.Collectors.Options;
 
-public struct OkxOptionDataDoubleSerializerConverter : IDoubleSerializerConverter<
-    (OkxOptionInstrumentId, OkxHttpOpenInterest, OkxHttpTickerInfo, OkxHttpOptionSummary, OkxHttpInstrumentInfo), OkxOptionData>
+public struct OkxOptionDataDoubleSerializerConverter : IDoubleSerializerConverter<OkxOptionDataContext, OkxOptionData>
 {
-    public OkxOptionData Convert(in (OkxOptionInstrumentId, OkxHttpOpenInterest, OkxHttpTickerInfo, OkxHttpOptionSummary, OkxHttpInstrumentInfo) doubleSerializable)
+    public OkxOptionData Convert(in OkxOptionDataContext doubleSerializable)
     {
         var (instrumentId, oi, ticker, option, instrumentInfo) = doubleSerializable;
         var ts = Math.Max(oi.ts, ticker.ts);
