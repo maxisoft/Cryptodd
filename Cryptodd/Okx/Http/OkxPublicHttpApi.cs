@@ -186,7 +186,7 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IS
             return await _client
                 .GetFromJsonAsync<OkxHttpGetOptionMarketDataResponse>(url, _jsonSerializerOptions.Value,
                     cancellationToken)
-                .ConfigureAwait(false) ?? new OkxHttpGetOptionMarketDataResponse(-1, "", new List<OkxOptionSummary>());
+                .ConfigureAwait(false) ?? new OkxHttpGetOptionMarketDataResponse(-1, "", new List<OkxHttpOptionSummary>());
         }
     }
 
