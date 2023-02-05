@@ -67,6 +67,88 @@ public class OkxPublicHttpApiTests
     }
 
     [RetryFact]
+    public async Task RealTestRubikNonOptions()
+    {
+        using var httpclient = new HttpClient();
+        var logger = new Mock<RealLogger>() { CallBase = true }.Object;
+        var uriRewriteService = new Mock<MockableUriRewriteService>() { CallBase = true }.Object;
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+        var clientAbstraction = new OkxHttpClientAbstraction(httpclient, logger, uriRewriteService, new OkxLimiterRegistry(config));
+        var api = new OkxPublicHttpApi(clientAbstraction, config);
+
+        OkxHttpGetLongShortRatioResponse longShortRatio;
+        try
+        {
+            longShortRatio = await api.GetLongShortRatio("BTC");
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+
+        {
+            Assert.NotEmpty(longShortRatio.data);
+            var (ts, ratio) = longShortRatio.data[^1];
+            Assert.True(ts > 0);
+            Assert.True(ratio > 0);
+        }
+        
+        
+        
+        longShortRatio = await api.GetLongShortRatio("ETH");
+        {
+            Assert.NotEmpty(longShortRatio.data);
+            var (ts, ratio) = longShortRatio.data[^1];
+            Assert.True(ts > 0);
+            Assert.True(ratio > 0);
+        }
+        
+
+        var takerVolume = await api.GetTakerVolume("BTC", OkxInstrumentType.Contracts);
+        {
+            Assert.NotEmpty(takerVolume.data);
+            var (ts, buyVolume, sellVolume) = takerVolume.data[^1];
+            Assert.True(ts > 0);
+            Assert.True(buyVolume > 0);
+            Assert.True(sellVolume > 0);
+        }
+        
+        takerVolume = await api.GetTakerVolume("BTC", OkxInstrumentType.Spot);
+        {
+            Assert.NotEmpty(takerVolume.data);
+            var (ts, buyVolume, sellVolume) = takerVolume.data[^1];
+            Assert.True(ts > 0);
+            Assert.True(buyVolume > 0);
+            Assert.True(sellVolume > 0);
+        }
+
+        var marginLendingRatio = await api.GetMarginLendingRatio("BTC");
+        
+
+        {
+            Assert.NotEmpty(marginLendingRatio.data);
+            var (ts, ratio) = marginLendingRatio.data[^1];
+            Assert.True(ts > 0);
+            Assert.True(ratio > 0);
+        }
+
+        var openInterestAndVolume = await api.GetContractsOpenInterestAndVolume("BTC");
+
+        {
+            Assert.NotEmpty(openInterestAndVolume.data);
+            var (ts, openInterest, volume) = openInterestAndVolume.data[^1];
+            Assert.True(ts > 0);
+            Assert.True(openInterest > 0);
+            Assert.True(volume > 0);
+        }
+
+    }
+
+    [RetryFact]
     public async Task RealTestListInstrumentIds()
     {
         using var httpclient = new HttpClient();
