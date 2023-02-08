@@ -1,6 +1,6 @@
 ﻿namespace Cryptodd.Http.Limiters;
 
-public class OptionMarketDataHttpOkxLimiter : Common20HttpOkxLimiter
+public class OptionMarketDataHttpOkxLimiter : Common5HttpOkxLimiter
 {
 
 }

@@ -15,8 +15,11 @@ public class OkxPublicHttpApiOptions
 
     public string GetOptionMarketDataUrl { get; set; } = "/api/v5/public/opt-summary";
 
-    public string GetTakerVolume { get; set; } = "/api/v5/rubik/stat/taker-volume";
-    public string GetMarginLendingRatio { get; set; } = "/api/v5/rubik/stat/margin/loan-ratio";
-    public string GetLongShortRatio { get; set; } = "/api/v5/rubik/stat/contracts/long-short-account-ratio";
-    public string GetContractsOpenInterestAndVolume { get; set; } = "/api/v5/rubik/stat/contracts/open-interest-volume";
+    public string GetTakerVolumeUrl { get; set; } = "/api/v5/rubik/stat/taker-volume";
+    public string GetMarginLendingRatioUrl { get; set; } = "/api/v5/rubik/stat/margin/loan-ratio";
+    public string GetLongShortRatioUrl { get; set; } = "/api/v5/rubik/stat/contracts/long-short-account-ratio";
+    
+    public string GetSupportCoinUrl { get; set; } = "/api/v5/rubik/stat/trading-data/support-coin";
+    
+    public string GetContractsOpenInterestAndVolumeUrl { get; set; } = "/api/v5/rubik/stat/contracts/open-interest-volume";
 }

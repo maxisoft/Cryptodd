@@ -19,6 +19,7 @@ namespace Cryptodd.Okx.Http;
 
 public interface IOkxPublicHttpApi : IOkxInstrumentIdsProvider
 {
+    public Task<OkxHttpGetSupportCoinRatioResponse> GetSupportCoin(CancellationToken cancellationToken = default);
     public Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType,
         string? underlying = null,
         string? instrumentFamily = null, CancellationToken cancellationToken = default);
@@ -176,6 +177,20 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxPublicHttpRubikApi, IOkxI
         }
     }
 
+    public async Task<OkxHttpGetSupportCoinRatioResponse> GetSupportCoin(CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetSupportCoinUrl, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<SupportCoinHttpOkxLimiter>("", "Http:GetSupportCoin"))
+        {
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetSupportCoinRatioResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetSupportCoinRatioResponse(-1, "", new OkxHttpSupportCoin(new List<PooledString>(), new List<PooledString>(), new List<PooledString>()));
+        }
+    }
+
     public async Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType,
         string? underlying = null,
         string? instrumentFamily = null, CancellationToken cancellationToken = default)
@@ -232,7 +247,7 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxPublicHttpRubikApi, IOkxI
         string? begin = null, string? end = null, string period = "5m",
         CancellationToken cancellationToken = default)
     {
-        var url = await _urlBuilder.UriCombine(_options.GetTakerVolume,
+        var url = await _urlBuilder.UriCombine(_options.GetTakerVolumeUrl,
                 instrumentType, ccy: currency,
                 begin: begin, end: end, period: period,
                 cancellationToken: cancellationToken)
@@ -251,7 +266,7 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxPublicHttpRubikApi, IOkxI
         string? begin = null, string? end = null, string period = "5m",
         CancellationToken cancellationToken = default)
     {
-        var url = await _urlBuilder.UriCombine(_options.GetMarginLendingRatio, ccy: currency,
+        var url = await _urlBuilder.UriCombine(_options.GetMarginLendingRatioUrl, ccy: currency,
                 begin: begin, end: end, period: period,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
@@ -269,7 +284,7 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxPublicHttpRubikApi, IOkxI
         string? begin = null, string? end = null, string period = "5m",
         CancellationToken cancellationToken = default)
     {
-        var url = await _urlBuilder.UriCombine(_options.GetLongShortRatio, ccy: currency,
+        var url = await _urlBuilder.UriCombine(_options.GetLongShortRatioUrl, ccy: currency,
                 begin: begin, end: end, period: period,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
@@ -288,7 +303,7 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxPublicHttpRubikApi, IOkxI
         string? begin = null, string? end = null, string period = "5m",
         CancellationToken cancellationToken = default)
     {
-        var url = await _urlBuilder.UriCombine(_options.GetContractsOpenInterestAndVolume, ccy: currency,
+        var url = await _urlBuilder.UriCombine(_options.GetContractsOpenInterestAndVolumeUrl, ccy: currency,
                 begin: begin, end: end, period: period,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
