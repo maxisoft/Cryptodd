@@ -4,6 +4,8 @@ using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.BinanceFutures.Http;
 using Cryptodd.BinanceFutures.Http.RateLimiter;
 using Cryptodd.Bitfinex;
+using Cryptodd.Bitfinex.Http;
+using Cryptodd.Bitfinex.Http.Abstractions;
 using Cryptodd.Features;
 using Cryptodd.Ftx;
 using Cryptodd.Http;
@@ -100,7 +102,7 @@ public class ContainerFactory : IContainerFactory
                         (provider, _) => provider.GetService<IHttpClientFactoryHelper>()?.GetRetryPolicy())
                     .SetHandlerLifetime(TimeSpan.FromMinutes(5));
 
-                c.AddHttpClient<IBitfinexPublicHttpApi, BitfinexPublicHttpApi>((provider, client) =>
+                c.AddHttpClient<IBitfinexHttpClientAbstraction, BitfinexHttpClientAbstraction>((provider, client) =>
                     {
                         var httpClientFactoryHelper = provider.GetService<IHttpClientFactoryHelper>();
                         httpClientFactoryHelper?.Configure(client);
