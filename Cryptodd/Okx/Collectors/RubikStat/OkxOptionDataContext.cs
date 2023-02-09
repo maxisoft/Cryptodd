@@ -1,6 +1,4 @@
-﻿using Cryptodd.Okx.Models;
-using Cryptodd.Okx.Models.RubikStats;
-using Cryptodd.Okx.Options;
+﻿using Cryptodd.Okx.Models.RubikStats;
 
 namespace Cryptodd.Okx.Collectors.Options;
 
@@ -13,20 +11,42 @@ public sealed class OkxRubikDataContext : Tuple<string, OkxHttpRubikTakerVolume,
         OkxHttpRubikMarginLendingRatio item4, OkxHttpRubikLongShortRatio item5, OkxHttpRubikOpenInterestVolume item6) :
         base(item1, item2, item3, item4, item5, item6) { }
 
+    public static OkxRubikDataContextEqualityComparer TimestampComparer { get; } = new();
+
     public sealed class OkxRubikDataContextEqualityComparer : IEqualityComparer<OkxRubikDataContext>
     {
         public bool Equals(OkxRubikDataContext x, OkxRubikDataContext y)
         {
             var eq = x.Item1.Equals(y.Item1);
-            if (!eq) return eq;
+            if (!eq)
+            {
+                return eq;
+            }
+
             eq = x.Item2.Timestamp.Equals(y.Item2.Timestamp);
-            if (!eq) return eq;
+            if (!eq)
+            {
+                return eq;
+            }
+
             eq = x.Item3.Timestamp.Equals(y.Item3.Timestamp);
-            if (!eq) return eq;
+            if (!eq)
+            {
+                return eq;
+            }
+
             eq = x.Item4.Timestamp.Equals(y.Item4.Timestamp);
-            if (!eq) return eq;
+            if (!eq)
+            {
+                return eq;
+            }
+
             eq = x.Item5.Timestamp.Equals(y.Item5.Timestamp);
-            if (!eq) return eq;
+            if (!eq)
+            {
+                return eq;
+            }
+
             eq = x.Item6.Timestamp.Equals(y.Item6.Timestamp);
             return eq;
         }
@@ -43,7 +63,4 @@ public sealed class OkxRubikDataContext : Tuple<string, OkxHttpRubikTakerVolume,
             return hashCode.ToHashCode();
         }
     }
-
-    public static OkxRubikDataContextEqualityComparer TimestampComparer { get; } =
-        new OkxRubikDataContextEqualityComparer();
 }

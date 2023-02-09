@@ -13,7 +13,7 @@ public record RubikStatData(
     double LongShortRatio,
     double OpenInterest,
     double Volume
-): IDoubleSerializable
+) : IDoubleSerializable
 {
     public int WriteTo(Span<double> buffer)
     {

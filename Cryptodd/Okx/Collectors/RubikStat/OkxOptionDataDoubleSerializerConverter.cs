@@ -7,14 +7,14 @@ public struct OkxRubikDataDoubleSerializerConverter : IDoubleSerializerConverter
 {
     public RubikStatData Convert(in OkxRubikDataContext doubleSerializable) =>
         new(
-            Timestamp: DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-            SellTakerVolumeSpot: doubleSerializable.Item2.SellVolume,
-            BuyTakerVolumeSpot: doubleSerializable.Item2.BuyVolume,
-            SellTakerVolumeContracts: doubleSerializable.Item3.SellVolume,
-            BuyTakerVolumeContracts: doubleSerializable.Item3.BuyVolume,
-            MarginLendingRatio: doubleSerializable.Item4.Ratio,
-            LongShortRatio: doubleSerializable.Item5.Ratio,
-            OpenInterest: doubleSerializable.Item6.OpenInterest,
-            Volume: doubleSerializable.Item6.Volume
+            DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+            doubleSerializable.Item2.SellVolume,
+            doubleSerializable.Item2.BuyVolume,
+            doubleSerializable.Item3.SellVolume,
+            doubleSerializable.Item3.BuyVolume,
+            doubleSerializable.Item4.Ratio,
+            doubleSerializable.Item5.Ratio,
+            doubleSerializable.Item6.OpenInterest,
+            doubleSerializable.Item6.Volume
         );
 }

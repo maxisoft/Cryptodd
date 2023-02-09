@@ -12,10 +12,10 @@ namespace Cryptodd.Okx.Collectors.RubikStat;
 
 public class RubikStatDataCollectorOptions
 {
-    public HashSet<string> Coins = new HashSet<string>() { "BTC", "ETH", "XRP", "LTC" };
+    public HashSet<string> Coins = new() { "BTC", "ETH", "XRP", "LTC" };
 }
 
-public interface IRubikStatDataCollector: IAsyncDisposable
+public interface IRubikStatDataCollector : IAsyncDisposable
 {
     Task<IReadOnlySet<string>> Collect(Action? onDownloadCompleted, CancellationToken cancellationToken);
 }
@@ -24,8 +24,8 @@ public interface IRubikStatDataCollector: IAsyncDisposable
 public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDisposable
 {
     private readonly IContainer _container;
-    private readonly ILogger _logger;
     private readonly OkxRubikDataWriter _dataWriter;
+    private readonly ILogger _logger;
     private readonly RubikStatDataCollectorOptions _options = new();
     private readonly ConcurrentDictionary<string, OkxRubikDataContext> _previousContexts = new();
 
@@ -36,6 +36,12 @@ public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDispos
 
         configuration.GetSection("Okx:Collector:Rubik").Bind(_options);
         _dataWriter = new OkxRubikDataWriter(logger, configuration.GetSection("Okx:Collector:Rubik:Writer"), container);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     public async Task<IReadOnlySet<string>> Collect(Action? onDownloadCompleted, CancellationToken cancellationToken)
@@ -89,7 +95,7 @@ public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDispos
             (from coin in coins.data.contract where _options.Coins.Contains(coin) select CollectCoin(coin)).ToArray();
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
-        
+
         onDownloadCompleted?.Invoke();
 
         await Parallel.ForEachAsync(data, cancellationToken,
@@ -99,11 +105,19 @@ public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDispos
                 date = Math.Max(context.Item4.Timestamp, date);
                 date = Math.Max(context.Item5.Timestamp, date);
                 date = Math.Max(context.Item6.Timestamp, date);
-                
-                await _dataWriter.WriteAsync(context.Item1, context, DateTimeOffset.FromUnixTimeMilliseconds(date), token).ConfigureAwait(false);
+
+                await _dataWriter
+                    .WriteAsync(context.Item1, context, DateTimeOffset.FromUnixTimeMilliseconds(date), token)
+                    .ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         return data.Select(static context => context.Item1).ToImmutableHashSet();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeAsync(true).ConfigureAwait(false);
+        GC.SuppressFinalize(this);
     }
 
     protected virtual void Dispose(bool disposing)
@@ -114,17 +128,6 @@ public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDispos
         }
     }
 
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-    
-    public virtual ValueTask DisposeAsync(bool disposing) => disposing ? _dataWriter.DisposeAsync() : ValueTask.CompletedTask;
-
-    public async ValueTask DisposeAsync()
-    {
-        await DisposeAsync(true).ConfigureAwait(false);
-        GC.SuppressFinalize(this);
-    }
+    public virtual ValueTask DisposeAsync(bool disposing) =>
+        disposing ? _dataWriter.DisposeAsync() : ValueTask.CompletedTask;
 }

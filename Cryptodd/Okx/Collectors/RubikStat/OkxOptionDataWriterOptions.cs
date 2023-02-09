@@ -7,6 +7,7 @@ public class OkxRubikDataWriterOptions : DataWriterOptions
 {
     public const string DefaultExchange = OkxOrderBookWriter.DefaultExchange;
     public const string DefaultKind = "rubik";
+
     public OkxRubikDataWriterOptions()
     {
         CoalesceExchange(DefaultExchange);
