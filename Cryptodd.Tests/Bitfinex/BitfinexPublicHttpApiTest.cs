@@ -4,7 +4,10 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Cryptodd.Bitfinex;
+using Cryptodd.Bitfinex.Http;
+using Cryptodd.Bitfinex.Http.Abstractions;
 using Cryptodd.Http;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using xRetry;
 using Xunit;
@@ -27,8 +30,10 @@ public class BitfinexPublicHttpApiTest
         using var httpclient = new HttpClient();
         
         var uriServiceMock = new Mock<DirectUri>(){CallBase = true};
+        var httpClientAbstractionMock = new Mock<BitfinexHttpClientAbstraction>(httpclient, uriServiceMock.Object) { CallBase = true };
 
-        var api = new BitfinexPublicHttpApi(httpclient, uriServiceMock.Object);
+        var config = new ConfigurationBuilder().Build();
+        var api = new BitfinexPublicHttpApi(httpClientAbstractionMock.Object, config);
         var result = await api.GetAllPairs(CancellationToken.None);
         Assert.NotEmpty(result);
         Assert.Contains("BTCUSD", result);
@@ -40,8 +45,10 @@ public class BitfinexPublicHttpApiTest
         using var httpclient = new HttpClient();
         
         var uriServiceMock = new Mock<DirectUri>(){CallBase = true};
+        var httpClientAbstractionMock = new Mock<BitfinexHttpClientAbstraction>(httpclient, uriServiceMock.Object) { CallBase = true };
 
-        var api = new BitfinexPublicHttpApi(httpclient, uriServiceMock.Object);
+        var config = new ConfigurationBuilder().Build();
+        var api = new BitfinexPublicHttpApi(httpClientAbstractionMock.Object, config);
         var result = await api.GetDerivativeStatus(CancellationToken.None);
         Assert.NotEmpty(result);
         Assert.Empty(result.Where(status => string.IsNullOrWhiteSpace(status.Key)));
