@@ -11,6 +11,7 @@ using Cryptodd.Okx.Http.Abstractions;
 using Cryptodd.Okx.Json;
 using Cryptodd.Okx.Models;
 using Cryptodd.Okx.Models.HttpResponse;
+using Cryptodd.Okx.Models.RubikStats;
 using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 
@@ -37,7 +38,28 @@ public interface IOkxPublicHttpApi : IOkxInstrumentIdsProvider
         string? instrumentFamily = null, string? expiryTime = null, CancellationToken cancellationToken = default);
 }
 
-public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IService
+public interface IOkxPublicHttpRubikApi
+{
+    Task<OkxHttpGetSupportCoinRatioResponse> GetSupportCoin(CancellationToken cancellationToken = default);
+    Task<OkxHttpGetTakerVolumeResponse> GetTakerVolume(string currency, OkxInstrumentType instrumentType,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default);
+
+    Task<OkxHttpGetMarginLendingRatioResponse> GetMarginLendingRatio(string currency,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default);
+
+    Task<OkxHttpGetLongShortRatioResponse> GetLongShortRatio(string currency,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default);
+
+    Task<OkxHttpGetContractsOpenInterestAndVolumeVolumeResponse> GetContractsOpenInterestAndVolume(
+        string currency,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default);
+}
+
+public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxPublicHttpRubikApi, IOkxInstrumentIdsProvider, IService
 {
     internal static readonly StringPool StringPool = new(10 << 10);
     private readonly IOkxHttpClientAbstraction _client;
@@ -155,6 +177,20 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IS
         }
     }
 
+    public async Task<OkxHttpGetSupportCoinRatioResponse> GetSupportCoin(CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetSupportCoinUrl, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<SupportCoinHttpOkxLimiter>("", "Http:GetSupportCoin"))
+        {
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetSupportCoinRatioResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetSupportCoinRatioResponse(-1, "", new OkxHttpSupportCoin(new List<PooledString>(), new List<PooledString>(), new List<PooledString>()));
+        }
+    }
+
     public async Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType,
         string? underlying = null,
         string? instrumentFamily = null, CancellationToken cancellationToken = default)
@@ -184,9 +220,10 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IS
         using (_client.UseLimiter<OptionMarketDataHttpOkxLimiter>(underlying ?? "", "Http:GetOptionMarketData"))
         {
             return await _client
-                .GetFromJsonAsync<OkxHttpGetOptionMarketDataResponse>(url, _jsonSerializerOptions.Value,
-                    cancellationToken)
-                .ConfigureAwait(false) ?? new OkxHttpGetOptionMarketDataResponse(-1, "", new List<OkxHttpOptionSummary>());
+                       .GetFromJsonAsync<OkxHttpGetOptionMarketDataResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetOptionMarketDataResponse(-1, "", new List<OkxHttpOptionSummary>());
         }
     }
 
@@ -203,6 +240,83 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxInstrumentIdsProvider, IS
                            cancellationToken)
                        .ConfigureAwait(false) ??
                    new OkxHttpGetFundingRateResponse(-1, "", new OneItemList<OkxHttpFundingRate>());
+        }
+    }
+
+    public async Task<OkxHttpGetTakerVolumeResponse> GetTakerVolume(string currency, OkxInstrumentType instrumentType,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetTakerVolumeUrl,
+                instrumentType, ccy: currency,
+                begin: begin, end: end, period: period,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<RubikTakerVolumeHttpOkxLimiter>("", "Http:GetTakerVolume"))
+        {
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetTakerVolumeResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetTakerVolumeResponse(-1, "", new List<OkxHttpRubikTakerVolume>());
+        }
+    }
+
+    public async Task<OkxHttpGetMarginLendingRatioResponse> GetMarginLendingRatio(string currency,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetMarginLendingRatioUrl, ccy: currency,
+                begin: begin, end: end, period: period,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<RubikMarginLendingRatioHttpOkxLimiter>("", "Http:GetMarginLendingRatio"))
+        {
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetMarginLendingRatioResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetMarginLendingRatioResponse(-1, "", new List<OkxHttpRubikMarginLendingRatio>());
+        }
+    }
+
+    public async Task<OkxHttpGetLongShortRatioResponse> GetLongShortRatio(string currency,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetLongShortRatioUrl, ccy: currency,
+                begin: begin, end: end, period: period,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<RubikLongShortRatioHttpOkxLimiter>("", "Http:GetLongShortRatio"))
+        {
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetLongShortRatioResponse>(url, _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetLongShortRatioResponse(-1, "", new List<OkxHttpRubikLongShortRatio>());
+        }
+    }
+
+    public async Task<OkxHttpGetContractsOpenInterestAndVolumeVolumeResponse> GetContractsOpenInterestAndVolume(
+        string currency,
+        string? begin = null, string? end = null, string period = "5m",
+        CancellationToken cancellationToken = default)
+    {
+        var url = await _urlBuilder.UriCombine(_options.GetContractsOpenInterestAndVolumeUrl, ccy: currency,
+                begin: begin, end: end, period: period,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        using (_client.UseLimiter<RubikContractsOpenInterestsAndVolumeHttpOkxLimiter>("",
+                   "Http:GetContractsOpenInterestAndVolume"))
+        {
+            return await _client
+                       .GetFromJsonAsync<OkxHttpGetContractsOpenInterestAndVolumeVolumeResponse>(url,
+                           _jsonSerializerOptions.Value,
+                           cancellationToken)
+                       .ConfigureAwait(false) ??
+                   new OkxHttpGetContractsOpenInterestAndVolumeVolumeResponse(-1, "",
+                       new List<OkxHttpRubikOpenInterestVolume>());
         }
     }
 
