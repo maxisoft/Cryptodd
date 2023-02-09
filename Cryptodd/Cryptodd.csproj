@@ -61,7 +61,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Okx\Collectors\RubikStat" />
         <Folder Include="Redis" />
     </ItemGroup>
 

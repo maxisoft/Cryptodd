@@ -19,7 +19,6 @@ namespace Cryptodd.Okx.Http;
 
 public interface IOkxPublicHttpApi : IOkxInstrumentIdsProvider
 {
-    public Task<OkxHttpGetSupportCoinRatioResponse> GetSupportCoin(CancellationToken cancellationToken = default);
     public Task<OkxHttpGetOpenInterestResponse> GetOpenInterest(OkxInstrumentType instrumentType,
         string? underlying = null,
         string? instrumentFamily = null, CancellationToken cancellationToken = default);
@@ -41,6 +40,7 @@ public interface IOkxPublicHttpApi : IOkxInstrumentIdsProvider
 
 public interface IOkxPublicHttpRubikApi
 {
+    Task<OkxHttpGetSupportCoinRatioResponse> GetSupportCoin(CancellationToken cancellationToken = default);
     Task<OkxHttpGetTakerVolumeResponse> GetTakerVolume(string currency, OkxInstrumentType instrumentType,
         string? begin = null, string? end = null, string period = "5m",
         CancellationToken cancellationToken = default);
