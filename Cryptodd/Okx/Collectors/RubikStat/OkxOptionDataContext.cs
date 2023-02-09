@@ -15,6 +15,8 @@ public sealed class OkxRubikDataContext : Tuple<string, OkxHttpRubikTakerVolume,
 
     public sealed class OkxRubikDataContextEqualityComparer : IEqualityComparer<OkxRubikDataContext>
     {
+        internal OkxRubikDataContextEqualityComparer() { }
+
         public bool Equals(OkxRubikDataContext x, OkxRubikDataContext y)
         {
             var eq = x.Item1.Equals(y.Item1);
