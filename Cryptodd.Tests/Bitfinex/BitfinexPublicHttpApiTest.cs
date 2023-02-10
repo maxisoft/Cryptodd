@@ -53,4 +53,18 @@ public class BitfinexPublicHttpApiTest
         Assert.NotEmpty(result);
         Assert.Empty(result.Where(status => string.IsNullOrWhiteSpace(status.Key)));
     }
+    
+    [RetryFact]
+    public async Task TestGetTrades()
+    {
+        using var httpclient = new HttpClient();
+        
+        var uriServiceMock = new Mock<DirectUri>(){CallBase = true};
+        var httpClientAbstractionMock = new Mock<BitfinexHttpClientAbstraction>(httpclient, uriServiceMock.Object) { CallBase = true };
+
+        var config = new ConfigurationBuilder().Build();
+        var api = new BitfinexPublicHttpApi(httpClientAbstractionMock.Object, config);
+        var result = await api.GetTrades("tBTCUST", 10000, cancellationToken: CancellationToken.None);
+        Assert.NotEmpty(result);
+    }
 }
