@@ -1,7 +1,7 @@
 ﻿using Cryptodd.Pairs;
 using SmartFormat;
 
-namespace Cryptodd.Mmap.Writer;
+namespace Cryptodd.IO.Mmap.Writer;
 
 // ReSharper disable once ClassNeverInstantiated.Global
 public class DataWriterOptions

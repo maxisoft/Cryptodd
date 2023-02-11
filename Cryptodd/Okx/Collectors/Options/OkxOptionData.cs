@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
-using Cryptodd.Mmap;
+using Cryptodd.IO;
+using Cryptodd.IO.Mmap;
 
 namespace Cryptodd.Okx.Collectors.Options;
 

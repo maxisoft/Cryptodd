@@ -1,4 +1,4 @@
-﻿using Cryptodd.Mmap.Writer;
+﻿using Cryptodd.IO.Mmap.Writer;
 using Cryptodd.Okx.Orderbooks.Handlers;
 
 namespace Cryptodd.Okx.Collectors.Swap;

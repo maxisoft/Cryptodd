@@ -1,6 +1,4 @@
-﻿using Cryptodd.OrderBooks;
-
-namespace Cryptodd.Mmap.Writer;
+﻿namespace Cryptodd.IO.Mmap.Writer;
 
 public interface IWriterHandler<T> where T : IDoubleSerializable
 {

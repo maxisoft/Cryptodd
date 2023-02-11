@@ -1,4 +1,4 @@
-﻿using Cryptodd.Mmap.Writer;
+﻿using Cryptodd.IO.Mmap.Writer;
 using Cryptodd.Okx.Collectors.Options;
 using Microsoft.Extensions.Configuration;
 using Serilog;

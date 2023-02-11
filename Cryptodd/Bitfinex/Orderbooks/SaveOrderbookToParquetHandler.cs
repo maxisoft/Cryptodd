@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 using Cryptodd.Bitfinex.Models;
-using Cryptodd.FileSystem;
+using Cryptodd.IO.FileSystem;
 using Cryptodd.Pairs;
 using Maxisoft.Utils.Collections.Lists;
 using Microsoft.Extensions.Configuration;

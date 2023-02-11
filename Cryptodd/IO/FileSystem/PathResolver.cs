@@ -2,7 +2,7 @@
 using Lamar;
 using Microsoft.Extensions.Configuration;
 
-namespace Cryptodd.FileSystem;
+namespace Cryptodd.IO.FileSystem;
 
 [Singleton]
 // ReSharper disable once UnusedType.Global

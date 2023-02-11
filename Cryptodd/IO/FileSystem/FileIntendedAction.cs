@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.FileSystem;
+﻿namespace Cryptodd.IO.FileSystem;
 
 [Flags]
 public enum FileIntendedAction
