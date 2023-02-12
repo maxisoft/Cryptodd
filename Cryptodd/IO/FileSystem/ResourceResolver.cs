@@ -1,7 +1,7 @@
 ﻿using System.Reflection;
 using Cryptodd.IoC;
 
-namespace Cryptodd.FileSystem;
+namespace Cryptodd.IO.FileSystem;
 
 public interface IResourceResolver : IService
 {

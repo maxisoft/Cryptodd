@@ -1,8 +1,8 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Cryptodd.FileSystem;
 using Cryptodd.Ftx.Models;
+using Cryptodd.IO.FileSystem;
 using Cryptodd.Pairs;
 using Microsoft.Extensions.Configuration;
 using Parquet;

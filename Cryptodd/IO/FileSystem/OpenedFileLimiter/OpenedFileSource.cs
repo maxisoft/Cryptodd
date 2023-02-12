@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 
-namespace Cryptodd.FileSystem.OpenedFileLimiter;
+namespace Cryptodd.IO.FileSystem.OpenedFileLimiter;
 
 public class OpenedFileSource
 {

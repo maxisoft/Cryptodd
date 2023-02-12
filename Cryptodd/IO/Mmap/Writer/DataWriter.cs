@@ -1,14 +1,13 @@
 ﻿using System.Collections.Concurrent;
-using Cryptodd.FileSystem;
-using Cryptodd.FileSystem.OpenedFileLimiter;
+using Cryptodd.IO.FileSystem;
+using Cryptodd.IO.FileSystem.OpenedFileLimiter;
 using Cryptodd.Json;
-using Cryptodd.OrderBooks;
 using Maxisoft.Utils.Logic;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
-namespace Cryptodd.Mmap.Writer;
+namespace Cryptodd.IO.Mmap.Writer;
 
 public class DataWriter<TIn, TOut, TConverter, TOptions> : IDisposable, IAsyncDisposable
     where TConverter : struct, IDoubleSerializerConverter<TIn, TOut>

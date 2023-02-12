@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using Cryptodd.IO;
 
 namespace Cryptodd.OrderBooks;
 

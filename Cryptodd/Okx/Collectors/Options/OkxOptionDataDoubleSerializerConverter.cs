@@ -1,4 +1,5 @@
-﻿using Cryptodd.Mmap;
+﻿using Cryptodd.IO;
+using Cryptodd.IO.Mmap;
 using Cryptodd.Okx.Collectors.Swap;
 using Cryptodd.Okx.Models;
 using Cryptodd.Okx.Options;

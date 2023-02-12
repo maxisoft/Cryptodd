@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.FileSystem.OpenedFileLimiter;
+﻿namespace Cryptodd.IO.FileSystem.OpenedFileLimiter;
 
 public interface IOpenedFileLimiter
 {

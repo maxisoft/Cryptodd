@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.FileSystem;
+﻿namespace Cryptodd.IO.FileSystem;
 
 public interface IPluginPathResolver : IPathResolver
 {

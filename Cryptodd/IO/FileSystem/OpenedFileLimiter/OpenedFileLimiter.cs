@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Maxisoft.Utils.Collections.LinkedLists;
 
-namespace Cryptodd.FileSystem.OpenedFileLimiter;
+namespace Cryptodd.IO.FileSystem.OpenedFileLimiter;
 
 public class OpenedFileLimiter : IOpenedFileLimiter
 {

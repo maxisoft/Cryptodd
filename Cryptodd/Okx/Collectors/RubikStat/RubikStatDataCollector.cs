@@ -18,24 +18,26 @@ public class RubikStatDataCollectorOptions
 public interface IRubikStatDataCollector : IAsyncDisposable
 {
     Task<IReadOnlySet<string>> Collect(Action? onDownloadCompleted, CancellationToken cancellationToken);
+
+    ValueTask Flush(CancellationToken cancellationToken);
 }
 
 // ReSharper disable once UnusedType.Global
 public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDisposable
 {
     private readonly IContainer _container;
-    private readonly OkxRubikDataWriter _dataWriter;
+    private readonly Lazy<OkxRubikDataWriter> _dataWriter;
     private readonly ILogger _logger;
     private readonly RubikStatDataCollectorOptions _options = new();
     private readonly ConcurrentDictionary<string, OkxRubikDataContext> _previousContexts = new();
 
-    public RubikStatDataCollector(IContainer container, ILogger logger, IConfiguration configuration)
+    public RubikStatDataCollector(IContainer container, ILogger logger, IConfiguration configuration, Lazy<OkxRubikDataWriter> dataWriter)
     {
         _container = container;
         _logger = logger.ForContext(GetType());
 
         configuration.GetSection("Okx:Collector:Rubik").Bind(_options);
-        _dataWriter = new OkxRubikDataWriter(logger, configuration.GetSection("Okx:Collector:Rubik:Writer"), container);
+        _dataWriter = dataWriter;
     }
 
     public void Dispose()
@@ -106,12 +108,17 @@ public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDispos
                 date = Math.Max(context.Item5.Timestamp, date);
                 date = Math.Max(context.Item6.Timestamp, date);
 
-                await _dataWriter
+                await _dataWriter.Value
                     .WriteAsync(context.Item1, context, DateTimeOffset.FromUnixTimeMilliseconds(date), token)
                     .ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         return data.Select(static context => context.Item1).ToImmutableHashSet();
+    }
+
+    public async ValueTask Flush(CancellationToken cancellationToken)
+    {
+        await _dataWriter.Value.Flush(false, cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
@@ -124,10 +131,14 @@ public class RubikStatDataCollector : IRubikStatDataCollector, IService, IDispos
     {
         if (disposing)
         {
-            _dataWriter.Dispose();
+            if (_dataWriter.IsValueCreated)
+            {
+                _dataWriter.Value.Dispose();
+            }
+            
         }
     }
 
     public virtual ValueTask DisposeAsync(bool disposing) =>
-        disposing ? _dataWriter.DisposeAsync() : ValueTask.CompletedTask;
+        disposing && _dataWriter.IsValueCreated ? _dataWriter.Value.DisposeAsync() : ValueTask.CompletedTask;
 }

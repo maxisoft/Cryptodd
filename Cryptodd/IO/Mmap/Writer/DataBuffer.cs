@@ -1,10 +1,9 @@
 ﻿using System.Buffers;
 using System.Runtime.InteropServices;
-using Cryptodd.OrderBooks;
 using Maxisoft.Utils.Collections.Queues;
 using Maxisoft.Utils.Collections.Queues.Specialized;
 
-namespace Cryptodd.Mmap.Writer;
+namespace Cryptodd.IO.Mmap.Writer;
 
 // ReSharper disable once UnusedType.Global
 public sealed class DataBuffer : IDisposable
