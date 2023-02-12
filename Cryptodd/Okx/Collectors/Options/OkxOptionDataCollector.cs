@@ -27,14 +27,15 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
     private readonly ILogger _logger;
     private readonly IContainer _container;
     private readonly OkxOptionDataCollectorOptions _options = new();
-    private readonly OkxOptionDataWriter _writer;
+    private readonly Lazy<OkxOptionDataWriter> _writer;
 
-    public OkxOptionDataCollector(ILogger logger, IContainer container, IConfiguration configuration)
+    public OkxOptionDataCollector(ILogger logger, IContainer container, IConfiguration configuration,
+        Lazy<OkxOptionDataWriter> writer)
     {
         _logger = logger.ForContext(GetType());
         _container = container;
         configuration.GetSection("Okx:Collector:Option").Bind(_options);
-        _writer = new OkxOptionDataWriter(logger, configuration.GetSection("Okx:Collector:Option:Writer"), container);
+        _writer = writer;
     }
 
     public async Task<ISet<OkxOptionInstrumentId>> Collect(Action? onDownloadCompleted,
@@ -130,7 +131,7 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
 
                 c++;
             }
-            
+
             ((Span<OkxOptionDataContext>)payload).Sort(OptionDataComparison);
 
             if (_options.SkipOnNoChange ?? true)
@@ -148,7 +149,7 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
             Debug.Assert(minTs < long.MaxValue, "minTs < long.MaxValue");
             if (minTs < long.MaxValue)
             {
-                await _writer
+                await _writer.Value
                     .WriteAsync(underlying, payload, DateTimeOffset.FromUnixTimeMilliseconds(minTs), cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -167,7 +168,7 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
         {
             h1.Add(c.Item1);
             h1.Add(c.Item2.oi);
-            
+
             h2.Add(c.Item3.last);
         }
 
@@ -260,16 +261,20 @@ public partial class OkxOptionDataCollector : IService, IOkxOptionDataCollector
 
     public async ValueTask DisposeAsync()
     {
-        await _writer.DisposeAsync().ConfigureAwait(false);
+        if (_writer.IsValueCreated)
+        {
+            await _writer.Value.DisposeAsync().ConfigureAwait(false);
+        }
+
         Dispose(false);
         GC.SuppressFinalize(this);
     }
 
     protected virtual void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && _writer.IsValueCreated)
         {
-            _writer.Dispose();
+            _writer.Value.Dispose();
         }
 
         Disposed = true;

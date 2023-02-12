@@ -31,13 +31,12 @@ public sealed class SwapDataCollector : IService, ISwapDataCollector
     private AtomicBoolean _disposed = new AtomicBoolean();
 
     public SwapDataCollector(ILogger logger, IContainer container, IConfiguration configuration,
-        IBackgroundSwapDataCollector backgroundSwapDataCollector, Boxed<CancellationToken> cancellationToken)
+        IBackgroundSwapDataCollector backgroundSwapDataCollector, Lazy<SwapDataWriter> swapDataWriter, Boxed<CancellationToken> cancellationToken)
     {
         _logger = logger.ForContext(GetType());
         _container = container;
         _backgroundSwapDataCollector = backgroundSwapDataCollector;
-        _swapDataWriter = new Lazy<SwapDataWriter>(() => new SwapDataWriter(logger,
-            configuration.GetSection("Okx:Swap:Writer"), container));
+        _swapDataWriter = swapDataWriter;
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     }
 
