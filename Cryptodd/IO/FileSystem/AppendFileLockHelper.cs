@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace Cryptodd.FileSystem;
+namespace Cryptodd.IO.FileSystem;
 
 public struct AppendFileLockHelper : IDisposable
 {

@@ -1,4 +1,6 @@
-﻿namespace Cryptodd.OrderBooks.Writer;
+﻿using Cryptodd.IO;
+
+namespace Cryptodd.OrderBooks.Writer;
 
 public interface IOrderBookWriterHandler<T> where T : IFloatSerializable
 {

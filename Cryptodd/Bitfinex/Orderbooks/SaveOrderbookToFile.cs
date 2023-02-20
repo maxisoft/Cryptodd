@@ -5,6 +5,7 @@ using Cryptodd.Databases;
 using Cryptodd.Databases.Postgres;
 using Cryptodd.Databases.Tables.Bitfinex;
 using Cryptodd.Features;
+using Cryptodd.IO;
 using Cryptodd.IoC;
 using Cryptodd.OrderBooks;
 using Cryptodd.OrderBooks.Writer;

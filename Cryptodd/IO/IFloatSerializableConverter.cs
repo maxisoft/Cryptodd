@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.OrderBooks;
+﻿namespace Cryptodd.IO;
 
 public interface IFloatSerializableConverter<TIn, out TOut> where TOut: IFloatSerializable
 {

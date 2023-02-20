@@ -1,11 +1,9 @@
-﻿using System.Text;
-using Cryptodd.FileSystem;
-using Cryptodd.FileSystem.OpenedFileLimiter;
-using Cryptodd.OrderBooks;
+﻿using Cryptodd.IO.FileSystem;
+using Cryptodd.IO.FileSystem.OpenedFileLimiter;
 using Maxisoft.Utils.Empties;
 using Serilog;
 
-namespace Cryptodd.Mmap.Writer;
+namespace Cryptodd.IO.Mmap.Writer;
 
 internal class InternalWriterHandler<T> : IWriterHandler<T>, IDisposable, IAsyncDisposable
     where T : IDoubleSerializable

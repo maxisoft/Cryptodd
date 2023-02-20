@@ -1,4 +1,4 @@
-﻿namespace Cryptodd.Mmap;
+﻿namespace Cryptodd.IO;
 
 public interface IDoubleSerializerConverter<TIn, out TOut> where TOut: IDoubleSerializable
 {

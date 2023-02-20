@@ -40,7 +40,7 @@ public class OkxSwapCollectorTask : BasePeriodicScheduledTask
 
             return _swapDataCollector;
         }
-        
+
 
         var mainTask = _retryPolicy.ExecuteAsync(
             _ => SwapDataCollector().Collect(null, cts.Token),
@@ -53,16 +53,17 @@ public class OkxSwapCollectorTask : BasePeriodicScheduledTask
         catch (Exception e)
         {
             Logger.Debug(e, "");
-            if (_swapDataCollector is not null)
-            {
-                await _swapDataCollector.DisposeAsync().ConfigureAwait(false);
-            }
 
-            _swapDataCollector = null;
             var wasCancelled = cts.IsCancellationRequested;
             if (!wasCancelled)
             {
                 cts.Cancel();
+                if (_swapDataCollector is not null)
+                {
+                    await _swapDataCollector.DisposeAsync().ConfigureAwait(false);
+                }
+
+                _swapDataCollector = null;
             }
         }
 

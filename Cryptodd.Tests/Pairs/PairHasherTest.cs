@@ -14,9 +14,12 @@ using Cryptodd.Binance;
 using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Bitfinex;
+using Cryptodd.Bitfinex.Http;
+using Cryptodd.Bitfinex.Http.Abstractions;
 using Cryptodd.Ftx;
 using Cryptodd.Http;
 using Cryptodd.Pairs;
+using Cryptodd.Tests.Bitfinex;
 using Cryptodd.Tests.TestingHelpers;
 using Cryptodd.Tests.TestingHelpers.Logging;
 using Microsoft.Extensions.Configuration;
@@ -63,6 +66,11 @@ public class PairHasherTest
     {
         var cancellationToken = CancellationToken.None;
         using var httpclient = new HttpClient();
+        
+        var uriServiceMock = new Mock<BitfinexPublicHttpApiTest.DirectUri>(){CallBase = true};
+        var httpClientAbstractionMock = new Mock<BitfinexHttpClientAbstraction>(httpclient, uriServiceMock.Object) { CallBase = true };
+
+        var config = new ConfigurationBuilder().Build();
         List<string> symbols;
         var client = new BinanceHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
             new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
@@ -79,7 +87,7 @@ public class PairHasherTest
 
         try
         {
-            var tmp = await new BitfinexPublicHttpApi(httpclient, new Mock<MockableUriRewriteService>() { CallBase = true }.Object)
+            var tmp = await new BitfinexPublicHttpApi(httpClientAbstractionMock.Object, config)
                 .GetAllPairs(cancellationToken);
             symbols.AddRange(tmp);
         }

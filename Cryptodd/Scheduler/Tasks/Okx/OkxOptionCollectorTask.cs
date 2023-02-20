@@ -74,14 +74,13 @@ public class OkxOptionCollectorTask : BasePeriodicScheduledTask
             if (!wasCancelled)
             {
                 cts.Cancel();
-            }
-            
-            if (_optionDataCollector is not null)
-            {
-                await _optionDataCollector.DisposeAsync().ConfigureAwait(false);
-            }
+                if (_optionDataCollector is not null)
+                {
+                    await _optionDataCollector.DisposeAsync().ConfigureAwait(false);
+                }
 
-            _optionDataCollector = null;
+                _optionDataCollector = null;
+            }
         }
 
         if (!mainTask.IsCanceled || cts.IsCancellationRequested)

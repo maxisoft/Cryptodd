@@ -1,6 +1,6 @@
 ﻿using Cryptodd.IoC;
 
-namespace Cryptodd.FileSystem;
+namespace Cryptodd.IO.FileSystem;
 
 public interface IPathResolver : IService
 {

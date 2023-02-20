@@ -75,14 +75,14 @@ public class OkxRubikCollectorTask : BasePeriodicScheduledTask
             if (!wasCancelled)
             {
                 cts.Cancel();
-            }
 
-            if (_rubikDataCollector is not null)
-            {
-                await _rubikDataCollector.DisposeAsync().ConfigureAwait(false);
-            }
+                if (_rubikDataCollector is not null)
+                {
+                    await _rubikDataCollector.DisposeAsync().ConfigureAwait(false);
+                }
 
-            _rubikDataCollector = null;
+                _rubikDataCollector = null;
+            }
         }
 
         if (!mainTask.IsCanceled || cts.IsCancellationRequested)
@@ -147,7 +147,10 @@ public class OkxRubikCollectorTask : BasePeriodicScheduledTask
     private void ConfigureRetryPolicy()
     {
         var maxRetry = Section.GetValue("MaxRetry", 3);
-        _retryPolicy = Policy.Handle<Exception>(static e => e is not OperationCanceledException)
+        _retryPolicy = Policy.Handle<Exception>(static e =>
+                e is not OperationCanceledException && !(e is AggregateException ae &&
+                                                         ae.InnerExceptions.All(e2 =>
+                                                             e2 is OperationCanceledException)))
             .WaitAndRetryAsync(maxRetry, i => TimeSpan.FromSeconds(1 + i));
     }
 
