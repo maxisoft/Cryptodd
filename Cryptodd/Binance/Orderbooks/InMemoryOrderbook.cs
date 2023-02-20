@@ -16,6 +16,9 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
     private long _lastUpdateId = long.MinValue;
 
+    public bool SafeToRemoveEntries { get; set; } = false;
+    
+
     public long LastUpdateId
     {
         get => _lastUpdateId;
@@ -45,7 +48,8 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         PooledList<BinancePriceQuantityEntry<double>> update,
         DateTimeOffset time,
         long updateId,
-        ref long version)
+        ref long version,
+        bool safeToRemove)
     {
         foreach (var entry in update)
         {
@@ -55,7 +59,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
                 // ReSharper disable once InvertIf
                 if (updateId >= prev.UpdateId)
                 {
-                    if (entry.Quantity <= 0 && prev.ChangeCounter == 0 && updateId != prev.UpdateId)
+                    if (safeToRemove && entry.Quantity <= 0 && prev.ChangeCounter == 0 && updateId != prev.UpdateId)
                     {
                         dictionary.TryRemove(key, out _);
                         // ReSharper disable once RedundantOverflowCheckingContext
@@ -97,7 +101,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
         lock (_asks)
         {
-            UpdatePart(_asks, asks, dateTime, updateId, ref _asksVersion);
+            UpdatePart(_asks, asks, dateTime, updateId, ref _asksVersion, SafeToRemoveEntries);
         }
     }
 
@@ -110,7 +114,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
         lock (_bids)
         {
-            UpdatePart(_bids, bids, dateTime, updateId, ref _bidsVersion);
+            UpdatePart(_bids, bids, dateTime, updateId, ref _bidsVersion, SafeToRemoveEntries);
         }
     }
 

@@ -382,15 +382,34 @@ public abstract class
 
             try
             {
+                var orderbook = Orderbooks[symbol];
+                bool prevSafeToRemoveEntries;
+                lock (orderbook)
+                {
+                    prevSafeToRemoveEntries = orderbook.SafeToRemoveEntries;
+                    orderbook.SafeToRemoveEntries = false;
+                }
+
                 using var remoteOb =
                     await HttpOrderbookProvider.GetOrderbook(symbol, MaxOrderBookLimit,
                         cancellationToken).ConfigureAwait(false);
                 var dateTime = remoteOb.DateTime ?? DateTimeOffset.Now;
-                var orderbook = Orderbooks[symbol];
+                
                 lock (orderbook)
                 {
+                    orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
                     orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect, MaxOrderBookLimit);
-                    orderbook.Update(in remoteOb, dateTime);
+                    orderbook.SafeToRemoveEntries = false;
+                    try
+                    {
+                        orderbook.Update(in remoteOb, dateTime);
+                    }
+                    catch
+                    {
+                        orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
+                        throw;
+                    }
+                    orderbook.SafeToRemoveEntries = true;
                 }
 
                 lock (_pendingSymbolsForHttp)

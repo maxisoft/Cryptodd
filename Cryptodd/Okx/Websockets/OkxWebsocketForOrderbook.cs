@@ -10,6 +10,7 @@ using Cryptodd.Json.Converters;
 using Cryptodd.Okx.Json;
 using Cryptodd.Okx.Limiters;
 using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 using Cryptodd.Okx.Websockets.Subscriptions;
 using Cryptodd.Utils;
 using Cryptodd.Websockets;
@@ -65,6 +66,7 @@ public abstract class OkxWebsocketForOrderbook<TData, TOptions> : BaseOkxWebsock
         res.Converters.Add(new OkxOrderbookEntryJsonConverter());
         res.Converters.Add(new PooledListConverter<OkxOrderbookEntry>()
             { DefaultCapacity = DefaultOrderbookDepthSize });
+        res.Converters.Add(new OneItemListJsonConverter<OkxWebSocketOrderbookData>());
 
         return res;
     }

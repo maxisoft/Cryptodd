@@ -19,6 +19,9 @@ public readonly struct PooledString : IEquatable<PooledString>, IEquatable<strin
     public int Length => _string.Length;
     public bool IsEmpty => string.IsNullOrEmpty(_string);
 
+    // ReSharper disable once ConvertToAutoPropertyWhenPossible
+    public string Value => _string;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override string ToString() => _string;
     

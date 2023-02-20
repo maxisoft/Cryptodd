@@ -13,4 +13,6 @@ public sealed class OkxWebsocketPool : BaseOkxWebsocketPool<OkxWebsocketPoolOpti
     public OkxWebsocketPool(ILogger logger, IContainer container, IConfiguration configuration,
         IOkxLimiterRegistry limiterRegistry, Boxed<CancellationToken> cancellationToken) : base(logger, container,
         configuration.GetSection("Okx:Websocket:Pool"), limiterRegistry, cancellationToken) { }
+    
+    
 }

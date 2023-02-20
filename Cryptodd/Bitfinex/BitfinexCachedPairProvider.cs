@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Cryptodd.Bitfinex.Http;
 using Cryptodd.IoC;
 using Lamar;
 using Maxisoft.Utils.Collections.Lists;
@@ -33,7 +34,7 @@ public class BitfinexCachedPairProvider : IBitfinexCachedPairProvider, IService,
             .GetValue("CacheDuration", TimeSpan.FromMinutes(1));
     }
 
-    public async ValueTask<ArrayList<string>> GetAllPairs(CancellationToken cancellationToken)
+    public async Task<ArrayList<string>> GetAllPairs(CancellationToken cancellationToken)
     {
         async Task<ArrayList<string>> BackgroundTask()
         {

@@ -3,7 +3,7 @@
 Torify:
   ProxyAddress: socks5://192.168.1.200:19050
   UseForBitfinex: false
-  UseForOkx: false
+  UseForOkx: true
   Enabled: true
   DebugLog: false
   ConnectTimeoutMs: 1900
@@ -159,6 +159,7 @@ Okx:
   Orderbook:
     Task:
       #Period: 60000
+      Enabled: false
     PairFilter:
       - BTC-USDT-SWAP
       - BTC-USD-SWAP

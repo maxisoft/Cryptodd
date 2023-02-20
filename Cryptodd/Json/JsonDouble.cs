@@ -1,4 +1,6 @@
-﻿namespace Cryptodd.Json;
+﻿using System.Globalization;
+
+namespace Cryptodd.Json;
 
 public readonly struct JsonDouble
 {
@@ -14,4 +16,8 @@ public readonly struct JsonDouble
     public static implicit operator JsonDouble(double value) => new JsonDouble(value);
     
     public static implicit operator double(JsonDouble value) => value.Value;
+    
+    public override string ToString() => ToString(NumberFormatInfo.InvariantInfo);
+    
+    public string ToString(IFormatProvider? provider) => Value.ToString(provider);
 }

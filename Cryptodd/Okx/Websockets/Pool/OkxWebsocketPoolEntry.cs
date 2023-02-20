@@ -1,4 +1,6 @@
-﻿namespace Cryptodd.Okx.Websockets.Pool;
+﻿using System.Diagnostics;
+
+namespace Cryptodd.Okx.Websockets.Pool;
 
 internal sealed class OkxWebsocketPoolEntry : IDisposable, IAsyncDisposable
 {
@@ -6,6 +8,10 @@ internal sealed class OkxWebsocketPoolEntry : IDisposable, IAsyncDisposable
     internal Task ActivityTask { get; set; } = Task.CompletedTask;
 
     internal required CancellationTokenSource CancellationTokenSource { get; init; }
+    
+    private Stopwatch _stopwatch = Stopwatch.StartNew();
+
+    public long ElapsedSinceCreation => _stopwatch.ElapsedMilliseconds;
 
     public async ValueTask DisposeAsync()
     {

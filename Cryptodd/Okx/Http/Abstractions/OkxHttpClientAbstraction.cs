@@ -19,7 +19,7 @@ public class OkxHttpClientAbstraction :
 
     protected ILogger Logger { get; }
 
-    public RemoveLimiterOnDispose<OkxLimiter, OkxHttpClientAbstractionContext> UseLimiter<TLimiter>(string name,
+    public RemoveLimiterOnDispose UseLimiter<TLimiter>(string name,
         string configName) where TLimiter : OkxLimiter, new()
     {
         if (!TryGetContext(out var context))
@@ -29,7 +29,7 @@ public class OkxHttpClientAbstraction :
 
         var limiter = context.Limiter = _limiterRegistry.GetHttpSubscriptionLimiter<TLimiter>(name, configName);
 
-        return new RemoveLimiterOnDispose<OkxLimiter, OkxHttpClientAbstractionContext>(limiter, context);
+        return new RemoveLimiterOnDispose(limiter, context);
     }
 
     public override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,

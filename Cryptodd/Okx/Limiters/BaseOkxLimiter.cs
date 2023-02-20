@@ -90,22 +90,30 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
                 throw new RetryException();
             }
 
+            var waitCount = 0;
+
             var semaphore = Semaphore;
 
             if (semaphore is null || MaxLimit == 1)
             {
                 semaphore = _internalSemaphore;
                 await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                waitCount = 1;
             }
             else
             {
-                await SemaphoreMultiWaitViaPollingAsync(semaphore, count, cancellationToken: cancellationToken)
+                waitCount = await SemaphoreMultiWaitViaPollingAsync(semaphore, count, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
             }
 
 
             try
             {
+                if (count > 0 && waitCount < count)
+                {
+                    throw new RetryException();
+                }
+                
                 if (Check() && !cancellationToken.IsCancellationRequested)
                 {
                     var parameters = new OkxLimiterOnSuccessParametersInternalImpl
@@ -127,13 +135,9 @@ public abstract class BaseOkxLimiter : IOkxLimiter, IDisposable
             finally
             {
                 // check not disposed
-                if (ReferenceEquals(semaphore, Semaphore))
+                if (waitCount > 0)
                 {
-                    semaphore.Release(count);
-                }
-                else if (ReferenceEquals(semaphore, _internalSemaphore))
-                {
-                    semaphore.Release();
+                    semaphore.Release(waitCount);
                 }
             }
 

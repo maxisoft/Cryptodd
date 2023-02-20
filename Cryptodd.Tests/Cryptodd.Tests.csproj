@@ -40,7 +40,6 @@
       <Folder Include="BinanceFutures\Resources" />
       <Folder Include="Binance\Resources" />
       <Folder Include="OrderBooks" />
-      <Folder Include="TradeAggregates" />
     </ItemGroup>
 
 </Project>

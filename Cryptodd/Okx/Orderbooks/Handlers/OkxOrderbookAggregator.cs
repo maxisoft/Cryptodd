@@ -6,6 +6,7 @@ using Cryptodd.Binance.Orderbooks;
 using Cryptodd.Binance.Orderbooks.Handlers;
 using Cryptodd.IoC;
 using Cryptodd.Okx.Models;
+using Cryptodd.Okx.Models.HttpResponse;
 using Cryptodd.OrderBooks;
 using MathNet.Numerics.Random;
 using Maxisoft.Utils.Collections.Lists;

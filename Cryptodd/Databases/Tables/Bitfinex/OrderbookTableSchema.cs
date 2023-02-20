@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 using Cryptodd.Bitfinex.WebSockets;
-using Cryptodd.FileSystem;
+using Cryptodd.IO.FileSystem;
 using Cryptodd.IoC;
 using PetaPoco.SqlKata;
 

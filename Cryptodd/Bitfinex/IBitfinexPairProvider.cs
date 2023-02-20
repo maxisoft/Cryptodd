@@ -4,5 +4,5 @@ namespace Cryptodd.Bitfinex;
 
 public interface IBitfinexPairProvider
 {
-    ValueTask<ArrayList<string>> GetAllPairs(CancellationToken cancellationToken);
+    Task<ArrayList<string>> GetAllPairs(CancellationToken cancellationToken);
 }

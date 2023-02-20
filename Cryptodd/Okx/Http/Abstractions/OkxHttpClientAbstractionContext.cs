@@ -1,5 +1,6 @@
 ﻿using Cryptodd.Http;
 using Cryptodd.Http.Abstractions;
+using Cryptodd.Http.Limiters;
 using Cryptodd.Okx.Limiters;
 
 namespace Cryptodd.Okx.Http.Abstractions;
