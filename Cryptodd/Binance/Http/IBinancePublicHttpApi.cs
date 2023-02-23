@@ -15,6 +15,8 @@ public interface IBinancePublicHttpApi : IBinanceHttpSymbolLister, IBinanceHttpO
 {
     public const int DefaultOrderbookLimit = 100;
     public const int MaxOrderbookLimit = 5000;
+    public const int DefaultKlineLimit = 500;
+    public const int MaxKlineLimit = 1000;
 
     public IBinanceRateLimiter RateLimiter { get; }
 

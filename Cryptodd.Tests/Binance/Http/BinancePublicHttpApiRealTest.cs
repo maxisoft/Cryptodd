@@ -11,6 +11,7 @@ using Cryptodd.Binance.Models;
 using Cryptodd.Http;
 using Cryptodd.Tests.TestingHelpers;
 using Cryptodd.Tests.TestingHelpers.Logging;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using Serilog;
@@ -76,5 +77,32 @@ public class BinancePublicHttpApiRealTest
 
         Assert.NotEmpty(res.Asks);
         Assert.NotEmpty(res.Bids);
+    }
+    
+    [RetryFact]
+    public async void TestGetKlines()
+    {
+        using var httpclient = new HttpClient();
+        var client = new BinanceHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+
+        PooledList<BinanceHttpKline> res;
+        try
+        {
+            res = await new BinancePublicHttpApi(client,
+                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
+                new EmptyBinanceRateLimiter()).GetKlines("ETHBTC");
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+
+        Assert.NotEmpty(res);
     }
 }

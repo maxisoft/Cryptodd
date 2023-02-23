@@ -7,6 +7,8 @@ using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Json;
 using Cryptodd.Binance.Models;
 using Cryptodd.Http.Abstractions;
+using Cryptodd.Json.Converters;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -64,6 +66,7 @@ public abstract partial class BaseBinancePublicHttpApi<
         var res = new JsonSerializerOptions
             { NumberHandling = JsonNumberHandling.AllowReadingFromString, PropertyNameCaseInsensitive = true };
         res.Converters.Add(new BinancePriceQuantityEntryJsonConverter());
+        res.Converters.Add(new BinanceHttpKlineJsonConverter());
         return res;
     }
 
@@ -125,6 +128,46 @@ public abstract partial class BaseBinancePublicHttpApi<
         }
 
         return res with { DateTime = date };
+    }
+
+    protected async Task<PooledList<BinanceHttpKline>> DotGetKlines<TCallOptions>(string symbol,
+        string interval = "1m",
+        long? startTime = null,
+        long? endTime = null,
+        int limit = IBinancePublicHttpApi.DefaultKlineLimit,
+        TCallOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TCallOptions : class, IBinancePublicHttpApiCallOptions, new()
+    {
+        options ??= new TCallOptions();
+        var uri = await UriCombine(options.Url);
+        var uriBuilder = new UriBuilder(uri)
+            .WithParameter("symbol", symbol)
+            .WithParameter("interval", interval);
+        if (startTime is not null)
+        {
+            uriBuilder = uriBuilder.WithParameter("startTime", startTime.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (endTime is not null)
+        {
+            uriBuilder = uriBuilder.WithParameter("endTime", endTime.Value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (limit > 0)
+        {
+            uriBuilder = uriBuilder.WithParameter("limit", limit.ToString(CultureInfo.InvariantCulture));
+        }
+
+        uri = uriBuilder.Uri;
+        var serializerOptions = options.JsonSerializerOptions ?? JsonSerializerOptions.Value;
+        var weight = options.ComputeWeight(limit);
+        using var registration = await InternalRateLimiter.WaitForSlot(uri, weight, cancellationToken);
+        var res = await GetFromJsonAsync<PooledList<BinanceHttpKline>>(Client, uri, serializerOptions,
+            cancellationToken);
+        registration.SetRegistrationDate();
+
+        return res ?? new PooledList<BinanceHttpKline>();
     }
 
     protected async Task<List<string>> DoListSymbols<TCallOptions>(bool useCache = false, bool checkStatus = false,

@@ -4,5 +4,6 @@ public enum BinancePublicHttpApiEndPoint
 {
     None,
     ExchangeInfo,
-    OrderBook
+    OrderBook,
+    Kline
 }
