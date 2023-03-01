@@ -4,11 +4,37 @@ Torify:
   ProxyAddress: socks5://192.168.1.200:19050
   UseForBitfinex: false
   UseForOkx: true
+  UseForBinance: false
   Enabled: true
   DebugLog: false
   ConnectTimeoutMs: 1900
 
 Binance:
+  Collector:
+    Kline:
+      Task:
+        Enabled: true
+      PairFilter:
+        - BTCUSDT
+        - BTCBUSD
+        - BTCUSD
+        - BUSDUSDT
+        - ETHBUSD
+        - ETHUSDT
+        - BTCGBP
+        - BTCEUR
+        - ETHBTC
+        - DOGEUSDT
+        - BNBUSDT
+        - XRPUSDT
+        - MATICUSDT
+        - BNBBUSD
+        - LTCUSDT
+        - USDTTRY
+        - BTCTRY
+        - SOLUSDT
+        - BTCAUD
+        - BTCBRL
   Orderbook:
     Task:
       Enabled: false
@@ -22,7 +48,7 @@ Binance:
       - DOGEUSDT
       - BNBUSDT
       - XRPUSDT
-      - XRP/BUSD
+      - XRPBUSD
       - MATICUSDT
       - BNBBUSD
       - LTCUSDT

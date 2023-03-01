@@ -26,12 +26,14 @@ public abstract class BasePeriodicScheduledTask : BaseScheduledTask
 
     public IConfigurationSection Section { get; protected init; }
 
+    protected bool DefaultEnabledState { get; set; } = true;
+
     protected void OnConfigurationChange()
     {
         var section = Section;
         Period = TimeSpan.FromMilliseconds(section.GetValue("Period", Period.TotalMilliseconds));
         PeriodOffset = TimeSpan.FromMilliseconds(section.GetValue("PeriodOffset", PeriodOffset.TotalMilliseconds));
-        if (!section.GetValue<bool>("Enabled", !section.GetValue<bool>("Disabled", false)))
+        if (!section.GetValue<bool>("Enabled", !section.GetValue<bool>("Disabled", !DefaultEnabledState)))
         {
             NextSchedule = DateTimeOffset.MaxValue;
         }

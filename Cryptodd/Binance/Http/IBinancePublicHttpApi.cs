@@ -2,6 +2,7 @@
 using Cryptodd.Binance.Http.Options;
 using Cryptodd.Binance.Http.RateLimiter;
 using Cryptodd.Binance.Models;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 
 namespace Cryptodd.Binance.Http;
 
@@ -11,7 +12,27 @@ public interface IBinanceHttpOrderbookProvider
         CancellationToken cancellationToken = default);
 }
 
-public interface IBinancePublicHttpApi : IBinanceHttpSymbolLister, IBinanceHttpOrderbookProvider
+public interface IBinanceHttpKlineProvider
+{
+    Task<PooledList<BinanceHttpKline>> GetKlines(string symbol,
+        string interval = "1m",
+        long? startTime = null,
+        long? endTime = null,
+        int limit = IBinancePublicHttpApi.DefaultKlineLimit,
+        BinancePublicHttpApiCallKlinesOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    async Task<PooledList<BinanceHttpKline>> GetCandles(string symbol,
+        string interval = "1m",
+        long? startTime = null,
+        long? endTime = null,
+        int limit = IBinancePublicHttpApi.DefaultKlineLimit,
+        BinancePublicHttpApiCallKlinesOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        await GetKlines(symbol, interval, startTime, endTime, limit, options, cancellationToken);
+}
+
+public interface IBinancePublicHttpApi : IBinanceHttpSymbolLister, IBinanceHttpOrderbookProvider, IBinanceHttpKlineProvider
 {
     public const int DefaultOrderbookLimit = 100;
     public const int MaxOrderbookLimit = 5000;

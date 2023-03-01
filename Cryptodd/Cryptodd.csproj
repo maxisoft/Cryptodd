@@ -61,6 +61,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Folder Include="Binance\Collector" />
         <Folder Include="Redis" />
     </ItemGroup>
 

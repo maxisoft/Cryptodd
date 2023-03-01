@@ -93,7 +93,7 @@ public class BinancePublicHttpApiRealTest
         {
             res = await new BinancePublicHttpApi(client,
                 new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
-                new EmptyBinanceRateLimiter()).GetKlines("ETHBTC");
+                new EmptyBinanceRateLimiter()).GetKlines("BTCUSDT");
         }
         catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
                                                  or (HttpStatusCode)451
