@@ -3,6 +3,33 @@ using Cryptodd.IO;
 
 namespace Cryptodd.Binance.Models;
 
+/***
+
+BinanceHttpKline is a readonly record that represents the aggregated trades data from the Binance exchange.
+
+It has the following fields:
+
+- OpenTime: the time the order was placed
+
+- Open: the price the order was placed at
+
+- High: the highest price the order was placed at
+
+- Low: the lowest price the order was placed at
+
+- Close: the price the order was filled at
+
+- CloseTime: the time the order was filled
+
+- QuoteAssetVolume: the total volume of the base asset being traded
+
+- NumberOfTrades: the number of trades that were executed as part of this order
+
+- TakerBuyBaseAssetVolume: the total volume of the base asset bought by the taker
+
+- TakerBuyQuoteAssetVolume: the total volume of the quote asset bought by the taker
+
+*/
 public readonly record struct BinanceHttpKline(
     long OpenTime,
     double Open,

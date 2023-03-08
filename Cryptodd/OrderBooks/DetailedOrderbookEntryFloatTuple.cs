@@ -4,6 +4,25 @@ using Cryptodd.IO;
 
 namespace Cryptodd.OrderBooks;
 
+/**
+DetailedOrderbookEntryFloatTuple is a record type. It has the following fields:
+
+Price: The price of the order book entry
+
+Size: The size of the order book entry
+
+RawSize: The raw size of the order book entry
+
+MeanPrice: The mean price of the order book entry
+
+ChangeCounter: The number of changes to the order book entry
+
+TotalChangeCounter: The total number of changes to the order book entry
+
+SizeStd: The standard deviation of the order book entry size
+
+AggregateCount: The number of aggregate orders for the order book entry
+*/
 public record struct DetailedOrderbookEntryFloatTuple(float Price, float Size, float RawSize, float MeanPrice,
     float ChangeCounter, float TotalChangeCounter, float SizeStd, float AggregateCount) : IComparable<DetailedOrderbookEntryFloatTuple>, IFloatSerializable
 {
