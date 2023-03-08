@@ -192,5 +192,31 @@ public abstract partial class BaseBinancePublicHttpApi<
         return res;
     }
 
+    protected async Task<BinanceHttpServerTime> DoGetServerTime<TCallOptions>(
+        TCallOptions? options = null,
+        CancellationToken cancellationToken = default)
+        where TCallOptions : class, IBinancePublicHttpApiCallOptions, new()
+    {
+        options ??= new TCallOptions();
+        var uri = await UriCombine(options.Url);
+        var serializerOptions = options.JsonSerializerOptions ?? JsonSerializerOptions.Value;
+        var date = DateTimeOffset.Now;
+        BinanceHttpServerTime res;
+        var weight = options.ComputeWeight(1);
+        using var registration = await InternalRateLimiter.WaitForSlot(uri, weight, cancellationToken);
+        using (AddResponseCallbacks(message => date = message.Headers.Date ?? DateTimeOffset.Now))
+        {
+            res = await GetFromJsonAsync<BinanceHttpServerTime>(Client, uri, serializerOptions, cancellationToken);
+            registration.SetRegistrationDate();
+        }
+
+        if (res.serverTime <= 0)
+        {
+            res = new BinanceHttpServerTime(serverTime: date.ToUnixTimeMilliseconds());
+        }
+
+        return res;
+    }
+
     #endregion
 }

@@ -32,7 +32,8 @@ public interface IBinanceHttpKlineProvider
         await GetKlines(symbol, interval, startTime, endTime, limit, options, cancellationToken);
 }
 
-public interface IBinancePublicHttpApi : IBinanceHttpSymbolLister, IBinanceHttpOrderbookProvider, IBinanceHttpKlineProvider
+public interface IBinancePublicHttpApi : IBinanceHttpSymbolLister, IBinanceHttpOrderbookProvider,
+    IBinanceHttpKlineProvider
 {
     public const int DefaultOrderbookLimit = 100;
     public const int MaxOrderbookLimit = 5000;
@@ -46,5 +47,9 @@ public interface IBinancePublicHttpApi : IBinanceHttpSymbolLister, IBinanceHttpO
 
     Task<BinanceHttpOrderbook> GetOrderbook(string symbol, int limit = DefaultOrderbookLimit,
         BinancePublicHttpApiCallOrderBookOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    Task<BinanceHttpServerTime> GetServerTime(
+        BinancePublicHttpApiCallServerTimeOptions? options = null,
         CancellationToken cancellationToken = default);
 }

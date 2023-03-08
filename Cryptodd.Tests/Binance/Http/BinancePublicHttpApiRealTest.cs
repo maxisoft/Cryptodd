@@ -105,4 +105,31 @@ public class BinancePublicHttpApiRealTest
 
         Assert.NotEmpty(res);
     }
+    
+    [RetryFact]
+    public async void TestGetServerTime()
+    {
+        using var httpclient = new HttpClient();
+        var client = new BinanceHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+
+        BinanceHttpServerTime res;
+        try
+        {
+            res = await new BinancePublicHttpApi(client,
+                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
+                new EmptyBinanceRateLimiter()).GetServerTime();
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+
+        Assert.True(res.serverTime >= 0);
+    }
 }

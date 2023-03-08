@@ -5,5 +5,6 @@ public enum BinancePublicHttpApiEndPoint
     None,
     ExchangeInfo,
     OrderBook,
-    Kline
+    Kline,
+    ServerTime
 }
