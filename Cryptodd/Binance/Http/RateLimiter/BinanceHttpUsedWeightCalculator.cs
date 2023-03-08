@@ -106,8 +106,11 @@ public class BinanceHttpUsedWeightCalculator : IService
         }
         finally
         {
-            registration.Node?.List?.Remove(registration.Node);
-            registration.Node = null;
+            lock (_lockObject)
+            {
+                registration.Node?.List?.Remove(registration.Node);
+                registration.Node = null;
+            }
         }
     }
 
@@ -176,7 +179,7 @@ public class BinanceHttpUsedWeightCalculator : IService
                 var next = node.Next;
                 if (!node.ValueRef.TryGetTarget(out registration))
                 {
-                    _registrations.Remove(node);
+                    node.List?.Remove(node);
                     res++;
                 }
                 else if (registration.RegistrationDate < date)
