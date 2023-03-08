@@ -66,7 +66,7 @@ public class BinanceHttpKlineDataWriter : DataWriter<BinanceHttpKline,
 
 [Singleton]
 public class BinanceFuturesHttpKlineDataWriter : DataWriter<BinanceHttpKline,
-    BinanceHttpKline, BinanceHttpKlineDoubleSerializerConverter, BinanceHttpKlineDataWriterOptions>
+    BinanceHttpKline, BinanceHttpKlineDoubleSerializerConverter, BinanceFuturesHttpKlineDataWriterOptions>
 {
     public BinanceFuturesHttpKlineDataWriter(ILogger logger, IConfiguration configuration,
         IServiceProvider serviceProvider) :
@@ -158,6 +158,11 @@ public interface IBinanceKlineCollector : IAsyncDisposable
     Task Collect(CancellationToken cancellationToken);
 }
 
+public interface IBinanceFuturesKlineCollector : IAsyncDisposable
+{
+    Task Collect(CancellationToken cancellationToken);
+}
+
 public class BinanceKlineCollectorOptions
 {
     public long StartTime { get; set; } = 1577836800000; // 2020-01-01
@@ -189,7 +194,7 @@ public interface IBinanceKlineCollectorAdapter
 
 public struct BinanceSpotKlineCollectorAdapter : IBinanceKlineCollectorAdapter
 {
-    public required IBinancePublicHttpApi BinancePublicHttpApi { get; set; }
+    public required IBinancePublicHttpApi HttpApi { get; set; }
     public required IPairFilterLoader PairFilterLoader { get; set; }
 
     public required BinanceSpotFuturesHttpKlineDataWriterUnion DataWriter { get; set; }
@@ -198,17 +203,17 @@ public struct BinanceSpotKlineCollectorAdapter : IBinanceKlineCollectorAdapter
         configuration.GetSection("Binance:Collector:Kline");
 
     public async ValueTask<DateTimeOffset> RemoteTime(CancellationToken cancellationToken) =>
-        (await BinancePublicHttpApi.GetServerTime(cancellationToken: cancellationToken).ConfigureAwait(false))
+        (await HttpApi.GetServerTime(cancellationToken: cancellationToken).ConfigureAwait(false))
         .DateTimeOffset;
 
     public async Task<ICollection<string>> ListSymbols(CancellationToken cancellationToken) =>
-        await BinancePublicHttpApi.ListSymbols(true, checkStatus: true, cancellationToken: cancellationToken);
+        await HttpApi.ListSymbols(true, checkStatus: true, cancellationToken: cancellationToken);
 
     public async Task<IPairFilter> GetPairFilter(CancellationToken cancellationToken) =>
         await PairFilterLoader.GetPairFilterAsync("Binance:Collector:Kline", cancellationToken)
             .ConfigureAwait(false);
 
-    public IBinanceRateLimiter RateLimiter => BinancePublicHttpApi.RateLimiter;
+    public IBinanceRateLimiter RateLimiter => HttpApi.RateLimiter;
 
     public async Task<PooledList<BinanceHttpKline>> GetKlines(string symbol,
         string interval = "1m",
@@ -216,7 +221,7 @@ public struct BinanceSpotKlineCollectorAdapter : IBinanceKlineCollectorAdapter
         long? endTime = null,
         int? limit = null,
         CancellationToken cancellationToken = default) =>
-        await BinancePublicHttpApi.GetKlines(symbol, interval, startTime, endTime, limit ?? OptimalKlineLimit,
+        await HttpApi.GetKlines(symbol, interval, startTime, endTime, limit ?? OptimalKlineLimit,
             cancellationToken: cancellationToken);
 
     public int OptimalKlineLimit => IBinancePublicHttpApi.MaxKlineLimit;
@@ -340,14 +345,15 @@ public abstract class BaseBinanceKlineCollector<TBinanceKlineCollectorAdapter>
                 {
                     if (klines.Count == 1)
                     {
-                        ref var data = ref klines.Front();
+                        ref var data = ref klines.Back();
                         return data.CloseTime - data.OpenTime < 59999;
                     }
 
                     ref var first = ref klines.Front();
                     ref var last = ref klines.Back();
 
-                    return (first.CloseTime - first.OpenTime) > (last.CloseTime - first.OpenTime);
+                    return first.OpenTime == last.OpenTime ||
+                           (first.CloseTime - first.OpenTime) > (last.CloseTime - last.OpenTime);
                 }
 
                 if (klines.Count > 0 && RemoveTail(klines))
@@ -504,6 +510,21 @@ public class BinanceKlineCollector : BaseBinanceKlineCollector<BinanceSpotKlineC
             {
                 DataWriter = new BinanceSpotFuturesHttpKlineDataWriterUnion(dataWriter),
                 PairFilterLoader = pairFilterLoader,
-                BinancePublicHttpApi = binancePublicHttpApi
+                HttpApi = binancePublicHttpApi
+            }) { }
+}
+
+public class BinanceFuturesKlineCollector : BaseBinanceKlineCollector<BinanceFuturesKlineCollectorAdapter>,
+    IBinanceFuturesKlineCollector
+{
+    public BinanceFuturesKlineCollector(ILogger logger, IPathResolver pathResolver, IConfiguration configuration,
+        BinanceFuturesHttpKlineDataWriter dataWriter, IPairFilterLoader pairFilterLoader,
+        IBinanceFuturesPublicHttpApi binancePublicHttpApi) :
+        base(logger, pathResolver, configuration,
+            new BinanceFuturesKlineCollectorAdapter()
+            {
+                DataWriter = new BinanceSpotFuturesHttpKlineDataWriterUnion(dataWriter),
+                PairFilterLoader = pairFilterLoader,
+                HttpApi = binancePublicHttpApi
             }) { }
 }

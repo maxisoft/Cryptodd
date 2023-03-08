@@ -10,16 +10,16 @@ using Serilog;
 namespace Cryptodd.Scheduler.Tasks.Binance;
 
 // ReSharper disable once UnusedType.Global
-public class BinanceKlineCollectorTask : BasePeriodicScheduledTaskWithRetryPolicyAndCancellationTokenSources
+public class BinanceFuturesKlineCollectorTask : BasePeriodicScheduledTaskWithRetryPolicyAndCancellationTokenSources
 {
-    private IBinanceKlineCollector? _klineDataCollector;
+    private IBinanceFuturesKlineCollector? _klineDataCollector;
 
-    public BinanceKlineCollectorTask(IContainer container, ILogger logger, IConfiguration configuration) : base(
+    public BinanceFuturesKlineCollectorTask(IContainer container, ILogger logger, IConfiguration configuration) : base(
         logger,
         configuration, container)
     {
         Period = TimeSpan.FromSeconds(1);
-        Section = Configuration.GetSection("Binance:Collector:Kline:Task");
+        Section = Configuration.GetSection("BinanceFutures:Collector:Kline:Task");
         AdaptativeReschedule = false;
         DefaultEnabledState = false;
         OnConfigurationChange();
@@ -29,11 +29,11 @@ public class BinanceKlineCollectorTask : BasePeriodicScheduledTaskWithRetryPolic
     {
         var cts = CreateCancellationTokenSource(cancellationToken);
 
-        IBinanceKlineCollector KlineDataCollector()
+        IBinanceFuturesKlineCollector KlineDataCollector()
         {
             if (_klineDataCollector is null)
             {
-                _klineDataCollector = Container.GetInstance<IBinanceKlineCollector>();
+                _klineDataCollector = Container.GetInstance<IBinanceFuturesKlineCollector>();
             }
 
             return _klineDataCollector;

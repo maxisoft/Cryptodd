@@ -131,6 +131,33 @@ Binance:
       - KSMUSDT
 
 BinanceFutures:
+  Collector:
+    Kline:
+      Task:
+        Enabled: true
+      PairFilter:
+        - BTCUSDT
+        - BTCBUSD
+        - BTCUSD
+        - BUSDUSDT
+        - ETHBUSD
+        - ETHUSDT
+        - ETHUSD
+        - MATICUSDT
+        - DOGEUSDT
+        - BNBUSDT
+        - XRPUSDT
+        - BNBBUSD
+        - LTCUSDT
+        - SOLUSDT
+        - ADAUSDT
+        - 1000SHIBUSDT
+        - ETCUSDT
+        - SOLBUSD
+        - SOLUSD
+        - MATICBUSD
+        - DOGEBUSD
+
   Orderbook:
     Collector:
       FullCleanupOrderbookOnReconnect: false
