@@ -26,7 +26,7 @@
         <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="7.0.4" />
         <PackageReference Include="NetEscapades.Configuration.Yaml" Version="3.0.0" />
         <PackageReference Include="Npgsql" Version="7.0.2" />
-        <PackageReference Include="Parquet.Net" Version="4.0.2" />
+        <PackageReference Include="Parquet.Net" Version="4.6.2" />
         <PackageReference Include="PathLib" Version="0.9.7.1" />
         <PackageReference Include="PetaPoco.Compiled" Version="6.0.532" />
         <PackageReference Include="PetaPoco.SqlKata" Version="2.1.11" />
