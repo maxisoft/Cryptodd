@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Net.WebSockets;
 using Cryptodd.Http;
 using Cryptodd.IoC;
-using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 using Lamar;
 using Maxisoft.Utils.Algorithms;
 using Maxisoft.Utils.Collections.LinkedLists;
@@ -18,9 +18,9 @@ namespace Cryptodd.Bitfinex.WebSockets;
 public class BitfinexPublicWebSocketPoolOptions
 {
     /// <summary>
-    /// set accordingly to <a href="https://docs.bitfinex.com/docs/requirements-and-limitations">requirements-and-limitations</a>
+    ///     set accordingly to
+    ///     <a href="https://docs.bitfinex.com/docs/requirements-and-limitations">requirements-and-limitations</a>
     /// </summary>
-    /// 
     public float ConnectionPerMinute { get; set; } = 20;
 
     public int DefaultSocketInPool { get; set; } = 3;
@@ -29,13 +29,10 @@ public class BitfinexPublicWebSocketPoolOptions
 
 internal sealed class ConnectionLimiter
 {
-    public int Limit { get; internal set; }
-    private int _counter;
-    public int Available => Math.Max(Limit - _counter, 0);
-    private readonly Stopwatch _stopwatch = new();
     private readonly object _lockObject = new();
+    private readonly Stopwatch _stopwatch = new();
     private readonly ConcurrentQueue<TaskCompletionSource> _taskCompletionSourceQueue = new();
-    public int WaiterCount => _taskCompletionSourceQueue.Count;
+    private int _counter;
 
     public ConnectionLimiter(int limit)
     {
@@ -43,6 +40,10 @@ internal sealed class ConnectionLimiter
         _stopwatch.Restart();
         _counter = 0;
     }
+
+    public int Limit { get; internal set; }
+    public int Available => Math.Max(Limit - _counter, 0);
+    public int WaiterCount => _taskCompletionSourceQueue.Count;
 
     private bool Notify()
     {
@@ -114,20 +115,22 @@ internal sealed class ConnectionLimiter
 
 public class RentedBitfinexPublicWebSocket : BitfinexPublicWebSocket
 {
-    internal BitfinexPublicWebSocketPool? Pool { get; set; }
-    private readonly AtomicBoolean _safeToReuse = new AtomicBoolean();
-
-    private readonly ConcurrentBag<ClientWebSocket> _webSockets = new();
     private readonly BitfinexPublicWebSocket429Handler _429Handler;
     private readonly ILogger _logger;
+    private readonly AtomicBoolean _safeToReuse = new();
+
+    private readonly ConcurrentBag<ClientWebSocket> _webSockets = new();
 
     public RentedBitfinexPublicWebSocket(IClientWebSocketFactory webSocketFactory, IConfiguration configuration,
-        ILogger logger, Boxed<CancellationToken> cancellationToken, BitfinexPublicWebSocket429Handler handler) : base(webSocketFactory, configuration, logger,
+        ILogger logger, Boxed<CancellationToken> cancellationToken, BitfinexPublicWebSocket429Handler handler) : base(
+        webSocketFactory, configuration, logger,
         cancellationToken)
     {
         _429Handler = handler;
         _logger = logger.ForContext(GetType());
     }
+
+    internal BitfinexPublicWebSocketPool? Pool { get; set; }
 
 
     protected override async ValueTask<ClientWebSocket> CreateWebSocket()
@@ -156,6 +159,7 @@ public class RentedBitfinexPublicWebSocket : BitfinexPublicWebSocket
                     throttle = true;
                 }
             }
+
             _safeToReuse.Value = false;
             throw;
         }
@@ -202,7 +206,7 @@ public class RentedBitfinexPublicWebSocket : BitfinexPublicWebSocket
             _safeToReuse.Value = false;
             throw;
         }
-        
+
         _safeToReuse.Value = !IsClosed;
     }
 }
@@ -210,14 +214,25 @@ public class RentedBitfinexPublicWebSocket : BitfinexPublicWebSocket
 [Singleton]
 public class BitfinexPublicWebSocketPool : IService, IDisposable
 {
-    private readonly ILogger _logger;
-    private readonly BitfinexPublicWebSocketPoolOptions _options = new();
-    private readonly ConnectionLimiter _connectionLimiter;
-    private readonly Lazy<INestedContainer> _nestedContainer;
-    private readonly LinkedListAsIList<ClientWebSocket> _webSockets = new();
-    private readonly LinkedListAsIList<WeakReference> _subscribers = new LinkedListAsIList<WeakReference>();
-    private float _dynamicWebsocketCount;
     private readonly BitfinexPublicWebSocket429Handler _429Handler;
+    private readonly ConnectionLimiter _connectionLimiter;
+    private readonly ILogger _logger;
+    private readonly Lazy<INestedContainer> _nestedContainer;
+    private readonly BitfinexPublicWebSocketPoolOptions _options = new();
+    private readonly LinkedListAsIList<WeakReference> _subscribers = new();
+    private readonly LinkedListAsIList<ClientWebSocket> _webSockets = new();
+    private float _dynamicWebsocketCount;
+
+    public BitfinexPublicWebSocketPool(ILogger logger, IContainer container, IConfiguration configuration,
+        BitfinexPublicWebSocket429Handler handler)
+    {
+        _logger = logger.ForContext(GetType());
+        _429Handler = handler;
+        configuration.GetSection("Bitfinex:Websocket:Pool").Bind(_options);
+        _connectionLimiter = new ConnectionLimiter(checked((int)(uint)_options.ConnectionPerMinute));
+        _nestedContainer = new Lazy<INestedContainer>(container.GetNestedContainer);
+        _dynamicWebsocketCount = Math.Max(_options.DefaultSocketInPool, 1);
+    }
 
     public int AvailableWebsocketCount
     {
@@ -228,19 +243,32 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
         }
     }
 
-    public BitfinexPublicWebSocketPool(ILogger logger, IContainer container, IConfiguration configuration, BitfinexPublicWebSocket429Handler handler)
+    public void Dispose()
     {
-        _logger = logger.ForContext(GetType());
-        _429Handler = handler;
-        configuration.GetSection("Bitfinex:Websocket:Pool").Bind(_options);
-        _connectionLimiter = new ConnectionLimiter(checked((int)(uint)_options.ConnectionPerMinute));
-        _nestedContainer = new Lazy<INestedContainer>(container.GetNestedContainer);
-        _dynamicWebsocketCount = Math.Max(_options.DefaultSocketInPool, 1);
+        GC.SuppressFinalize(this);
+#if DEBUG
+        _logger.Warning("Disposing {Name} singleton", GetType().NameInCode());
+#endif
+        if (_nestedContainer.IsValueCreated)
+        {
+            _nestedContainer.Value.Dispose();
+        }
+
+        lock (_webSockets)
+        {
+            foreach (var webSocket in _webSockets)
+            {
+                webSocket.Dispose();
+            }
+
+            _webSockets.Clear();
+            _dynamicWebsocketCount = _options.DefaultSocketInPool;
+        }
     }
 
 
     /// <summary>
-    /// Return a pooled websocket or wait until caller could create a new one
+    ///     Return a pooled websocket or wait until caller could create a new one
     /// </summary>
     /// <param name="cancellationToken"></param>
     /// <returns>an opened websocket or <c>null</c></returns>
@@ -269,12 +297,13 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
             {
                 _logger.Verbose(e, "Polling _connectionLimiter");
             }
+
             res = GetOpenedWebSocket();
             if (res is not null)
             {
                 return res;
             }
-            
+
             if (_429Handler.ShouldThrottle)
             {
                 increment = false;
@@ -295,8 +324,10 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
         finally
         {
             _dynamicWebsocketCount = (increment
-                    ? (_dynamicWebsocketCount + 1)
-                    : (_webSockets.Count > 0 ? _dynamicWebsocketCount - 0.1f : _dynamicWebsocketCount))
+                    ? _dynamicWebsocketCount + 1
+                    : _webSockets.Count > 0
+                        ? _dynamicWebsocketCount - 0.1f
+                        : _dynamicWebsocketCount)
                 .Clamp(_options.DefaultSocketInPool, _options.MaxSocketInPool);
         }
     }
@@ -381,7 +412,8 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
     public void ReturnWebSocket(ClientWebSocket webSocket, bool reusable)
     {
         // ReSharper disable once InconsistentlySynchronizedField
-        if (!reusable || webSocket.State != WebSocketState.Open || (!_429Handler.ShouldThrottle && _webSockets.Count >= _dynamicWebsocketCount))
+        if (!reusable || webSocket.State != WebSocketState.Open ||
+            (!_429Handler.ShouldThrottle && _webSockets.Count >= _dynamicWebsocketCount))
         {
             webSocket.Abort();
             webSocket.Dispose();
@@ -400,29 +432,6 @@ public class BitfinexPublicWebSocketPool : IService, IDisposable
         }
 
         _connectionLimiter.OnConnectionReturned(false);
-    }
-
-    public void Dispose()
-    {
-        GC.SuppressFinalize(this);
-#if DEBUG
-        _logger.Warning("Disposing {Name} singleton", GetType().NameInCode());
-#endif
-        if (_nestedContainer.IsValueCreated)
-        {
-            _nestedContainer.Value.Dispose();
-        }
-
-        lock (_webSockets)
-        {
-            foreach (var webSocket in _webSockets)
-            {
-                webSocket.Dispose();
-            }
-
-            _webSockets.Clear();
-            _dynamicWebsocketCount = _options.DefaultSocketInPool;
-        }
     }
 
     # region Subscriber

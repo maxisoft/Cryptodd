@@ -10,7 +10,7 @@ using Cryptodd.Binance.Orderbooks.Websockets;
 using Cryptodd.IoC;
 using Cryptodd.Pairs;
 using Cryptodd.Utils;
-using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 using Lamar;
 using MathNet.Numerics.Random;
 using Maxisoft.Utils.Collections.Lists;
@@ -43,7 +43,6 @@ public abstract class
     private readonly DisposableManager _disposableManager = new();
 
     private readonly Stopwatch _expiryCleanupStopwatch = new();
-    protected ILogger Logger { get; }
 
     private readonly ConcurrentBag<TaskCompletionSource<string>> _newPendingSymbolForHttpCompletionSources = new();
 
@@ -56,9 +55,6 @@ public abstract class
 
     private Task _websocketTask = Task.CompletedTask;
 
-    protected BufferBlock<ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>> TargetBlock { get; } =
-        new(new DataflowBlockOptions { EnsureOrdered = true, BoundedCapacity = 8192 });
-
     protected BaseBinanceOrderbookCollector(IContainer container, ILogger logger,
         IConfiguration configuration, Boxed<CancellationToken> cancellationToken)
     {
@@ -66,6 +62,11 @@ public abstract class
         Logger = logger.ForContext(GetType());
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
     }
+
+    protected ILogger Logger { get; }
+
+    protected BufferBlock<ReferenceCounterDisposable<CombinedStreamEnvelope<DepthUpdateMessage>>> TargetBlock { get; } =
+        new(new DataflowBlockOptions { EnsureOrdered = true, BoundedCapacity = 8192 });
 
     private INestedContainer? NestedContainer { get; set; }
 
@@ -83,6 +84,12 @@ public abstract class
     protected abstract int MaxOrderBookLimit { get; }
 
     protected abstract IBinanceRateLimiter RateLimiter { get; }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeAsync(true);
+        GC.SuppressFinalize(this);
+    }
 
     protected abstract TBinanceWebsocketCollection CreateWebsockets(ArrayList<string> symbols,
         IServiceProvider serviceProvider);
@@ -102,12 +109,6 @@ public abstract class
         await (NestedContainer?.DisposeAsync() ?? ValueTask.CompletedTask);
         _semaphoreSlim.Dispose();
         _cancellationTokenSource.Dispose();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await DisposeAsync(true);
-        GC.SuppressFinalize(this);
     }
 
     protected virtual async Task Setup(CancellationToken cancellationToken)
@@ -371,7 +372,8 @@ public abstract class
                 tcs.TrySetCanceled(cancellationToken);
                 continue;
             }
-            else if (symbol == prevSymbol)
+
+            if (symbol == prevSymbol)
             {
                 await Task.Delay(expWait, cancellationToken).ConfigureAwait(false);
             }
@@ -394,7 +396,7 @@ public abstract class
                     await HttpOrderbookProvider.GetOrderbook(symbol, MaxOrderBookLimit,
                         cancellationToken).ConfigureAwait(false);
                 var dateTime = remoteOb.DateTime ?? DateTimeOffset.Now;
-                
+
                 lock (orderbook)
                 {
                     orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
@@ -409,6 +411,7 @@ public abstract class
                         orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
                         throw;
                     }
+
                     orderbook.SafeToRemoveEntries = true;
                 }
 
