@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics;
-using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
 using Maxisoft.Utils.Logic;
 
 namespace Cryptodd.Binance.Http.RateLimiter;
