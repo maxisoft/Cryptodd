@@ -56,7 +56,7 @@ Binance:
       - ETHBTC
       - SOLUSDT
       - BTCEUR
-      - DOGEBUSD
+      - DOGEUSDT
       - LINKUSDT
       - GRTUSDT
       - BTCGBP
@@ -73,7 +73,7 @@ Binance:
       - ALGOUSDT
       - AVAXUSDT
       - LTCBTC
-      - FTMBUSD
+      - FTMUSDT
       - BTCAUD
       - FILUSDT
       - WBTCBTC
@@ -84,7 +84,7 @@ Binance:
       - MANAUSDT
       - PAXGUSDT
       - XLMUSDT
-      - ATOMBUSD
+      - ATOMUSDT
       - BTCSTUSDT
       - BNBETH
       - USDTRUB
@@ -93,26 +93,26 @@ Binance:
       - RSRUSDT
       - ETHDOWNUSDT
       - RVNUSDT
-      - ICPBUSD
+      - ICPUSDT
       - MINAUSDT
       - BTCRUB
       - USDTUAH
       - DODOUSDT
       - ENSBNB
-      - CTXCBUSD
-      - FTTBUSD
+      - CTXCUSDT
+      - FTTUSDT
       - FETUSDT
       - OPUSDT
       - APEUSDT
-      - MATICBUSD
+      - MATICUSDT
       - FTMUSDT
       - EOSUSDT
-      - APEBUSD
+      - APEUSDT
       - SANDUSDT
       - ATOMUSDT
       - ENSUSDT
       - WAVESUSDT
-      - AXSBUSD
+      - AXSUSDT
       - OCEANUSDT
       - LRCUSDT
       - UNIUSDT
@@ -153,10 +153,10 @@ BinanceFutures:
         - ADAUSDT
         - 1000SHIBUSDT
         - ETCUSDT
-        - SOLBUSD
+        - SOLUSDT
         - SOLUSD
-        - MATICBUSD
-        - DOGEBUSD
+        - MATICUSDT
+        - DOGEUSDT
 
   Orderbook:
     Collector:
@@ -205,7 +205,7 @@ BinanceFutures:
       - RVNUSDT
       - ^BTCUSDT_[0-9]+?$
       - ^ETHUSDT_[0-9]+?$
-      - ^[0-9]*?SHIBBUSD$
+      - ^[0-9]*?SHIBB?USDT?$
         
         
 Okx:
