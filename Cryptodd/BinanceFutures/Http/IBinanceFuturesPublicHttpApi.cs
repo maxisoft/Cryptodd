@@ -17,6 +17,12 @@ public interface IBinanceFuturesPublicHttpApi : IBinanceHttpSymbolLister, IBinan
 
     public IBinanceFuturesRateLimiter RateLimiter { get; }
 
+    /// <summary>
+    /// retrieves exchange info from the Binance public API
+    /// </summary>
+    /// <param name="options">An object that specifies the options for retrieving exchange info from the Binance public API</param>
+    /// <param name="cancellationToken">A token that indicates whether the request should be cancelled</param>
+    /// <returns></returns>
     Task<JsonObject> GetExchangeInfoAsync(BinanceFuturesPublicHttpApiCallExchangeInfoOptions? options = null,
         CancellationToken cancellationToken = default);
 
@@ -24,6 +30,12 @@ public interface IBinanceFuturesPublicHttpApi : IBinanceHttpSymbolLister, IBinan
         BinanceFuturesPublicHttpApiCallOrderBookOptions? options = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Get the server time from the API.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     Task<BinanceHttpServerTime> GetServerTime(
         BinanceFuturesPublicHttpApiCallServerTimeOptions? options = null,
         CancellationToken cancellationToken = default);
