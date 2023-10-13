@@ -28,10 +28,10 @@
         <PackageReference Include="Npgsql" Version="7.0.4" />
         <PackageReference Include="Parquet.Net" Version="4.0.2" />
         <PackageReference Include="PathLib" Version="0.9.7.1" />
-        <PackageReference Include="PetaPoco.Compiled" Version="6.0.532" />
+        <PackageReference Include="PetaPoco.Compiled" Version="6.0.566" />
         <PackageReference Include="PetaPoco.SqlKata" Version="2.1.11" />
         <PackageReference Include="Polly" Version="7.2.3" />
-        <PackageReference Include="Serilog" Version="2.12.0" />
+        <PackageReference Include="Serilog" Version="3.0.1" />
         <PackageReference Include="Serilog.Exceptions" Version="8.4.0" />
         <PackageReference Include="Serilog.Settings.Configuration" Version="7.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
@@ -48,10 +48,10 @@
         <PackageReference Include="System.Buffers" Version="4.5.1" />
         <PackageReference Include="System.Interactive.Async" Version="6.0.1" />
         <PackageReference Include="System.Net.Http.Json" Version="7.0.1" />
-        <PackageReference Include="System.Reactive" Version="5.0.0" />
-        <PackageReference Include="System.Reactive.Linq" Version="5.0.0" />
+        <PackageReference Include="System.Reactive" Version="6.0.0" />
+        <PackageReference Include="System.Reactive.Linq" Version="6.0.0" />
         <PackageReference Include="T-Digest" Version="1.0.0" />
-        <PackageReference Include="System.Text.Json" Version="7.0.2" />
+        <PackageReference Include="System.Text.Json" Version="7.0.3" />
         <PackageReference Include="Towel" Version="1.0.40" />
         <PackageReference Include="UriBuilder.Fluent" Version="1.5.2" />
     </ItemGroup>
