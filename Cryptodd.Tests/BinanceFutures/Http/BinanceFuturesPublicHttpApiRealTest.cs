@@ -12,6 +12,7 @@ using Cryptodd.BinanceFutures.Http.RateLimiter;
 using Cryptodd.Http;
 using Cryptodd.Tests.TestingHelpers;
 using Cryptodd.Tests.TestingHelpers.Logging;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using Serilog.Core;
@@ -73,5 +74,59 @@ public class BinancePublicHttpApiRealTest
 
         Assert.NotEmpty(res.Asks);
         Assert.NotEmpty(res.Bids);
+    }
+    
+    [RetryFact]
+    public async void TestGetKlines()
+    {
+        using var httpclient = new HttpClient();
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+        var client = new BinanceFuturesHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
+
+        PooledList<BinanceHttpKline> res;
+        try
+        {
+            res = await new BinanceFuturesPublicHttpApi(client,
+                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
+                new EmptyBinanceFuturesRateLimiter()).GetKlines("BTCUSDT");
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+
+        Assert.NotEmpty(res);
+    }
+    
+    [RetryFact]
+    public async void TestGetServerTime()
+    {
+        using var httpclient = new HttpClient();
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+        var client = new BinanceFuturesHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
+
+        BinanceHttpServerTime res;
+        try
+        {
+            res = await new BinanceFuturesPublicHttpApi(client,
+                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
+                new EmptyBinanceFuturesRateLimiter()).GetServerTime();
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+
+        Assert.True(res.serverTime >= 0);
     }
 }

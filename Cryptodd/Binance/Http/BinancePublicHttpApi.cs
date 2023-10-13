@@ -2,21 +2,25 @@
 using System.Text.Json.Nodes;
 using Cryptodd.Binance.Http.Options;
 using Cryptodd.Binance.Http.RateLimiter;
+using Cryptodd.Binance.Json;
 using Cryptodd.Binance.Models;
 using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.IoC;
 using Cryptodd.Json;
 using Cryptodd.Json.Converters;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
-public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpApiOptions, IInternalBinanceRateLimiter, IBinanceHttpClientAbstraction>,
+public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpApiOptions, IInternalBinanceRateLimiter,
+        IBinanceHttpClientAbstraction>,
     IBinancePublicHttpApi, INoAutoRegister
 {
-    public BinancePublicHttpApi(IBinanceHttpClientAbstraction client, ILogger logger, IConfiguration configuration, IInternalBinanceRateLimiter internalRateLimiter) : base(client,
+    public BinancePublicHttpApi(IBinanceHttpClientAbstraction client, ILogger logger, IConfiguration configuration,
+        IInternalBinanceRateLimiter internalRateLimiter) : base(client,
         logger, configuration, internalRateLimiter)
     {
         Section = configuration.GetSection("Binance:Http");
@@ -34,13 +38,28 @@ public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpAp
         int limit = IBinancePublicHttpApi.DefaultOrderbookLimit,
         BinancePublicHttpApiCallOrderBookOptions? options = null,
         CancellationToken cancellationToken = default) =>
-        await DotGetOrderbook(symbol, limit, options, cancellationToken);
+        await DotGetOrderbook(symbol, limit, options, cancellationToken).ConfigureAwait(false);
+
+    public async Task<PooledList<BinanceHttpKline>> GetKlines(string symbol,
+        string interval = "1m",
+        long? startTime = null,
+        long? endTime = null,
+        int limit = IBinancePublicHttpApi.DefaultKlineLimit,
+        BinancePublicHttpApiCallKlinesOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        await DotGetKlines(symbol, interval, startTime, endTime, limit, options, cancellationToken)
+            .ConfigureAwait(false);
 
     public async Task<List<string>> ListSymbols(bool useCache = false, bool checkStatus = false,
         CancellationToken cancellationToken = default) =>
         await DoListSymbols<BinancePublicHttpApiCallExchangeInfoOptions>(useCache,
             checkStatus,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<BinanceHttpServerTime> GetServerTime(
+        BinancePublicHttpApiCallServerTimeOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        await DoGetServerTime(options, cancellationToken).ConfigureAwait(false);
 
     Task<BinanceHttpOrderbook> IBinanceHttpOrderbookProvider.GetOrderbook(string symbol, int limit,
         CancellationToken cancellationToken) => GetOrderbook(symbol, limit, cancellationToken: cancellationToken);
@@ -57,6 +76,8 @@ public class BinancePublicHttpApi : BaseBinancePublicHttpApi<BinancePublicHttpAp
         var res = base.CreateJsonSerializerOptions();
         res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>
             { DefaultCapacity = IBinancePublicHttpApi.MaxOrderbookLimit });
+        res.Converters.Add(new PooledListConverter<BinanceHttpKline>()
+            { DefaultCapacity = IBinancePublicHttpApi.MaxKlineLimit });
         return res;
     }
 }

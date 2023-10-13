@@ -5,6 +5,9 @@ using Maxisoft.Utils.Empties;
 
 namespace Cryptodd.Pairs;
 
+/// <summary>
+/// Store a pair filter entry which is either a text entry or a regex entry
+/// </summary>
 public readonly struct PairFilterEntry
 {
     public readonly string Text;

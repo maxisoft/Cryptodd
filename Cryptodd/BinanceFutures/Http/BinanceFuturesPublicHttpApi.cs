@@ -8,6 +8,7 @@ using Cryptodd.Ftx.Models.Json;
 using Cryptodd.Http;
 using Cryptodd.Json;
 using Cryptodd.Json.Converters;
+using Maxisoft.Utils.Collections.Lists.Specialized;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -49,6 +50,22 @@ public class
     Task<BinanceHttpOrderbook> IBinanceHttpOrderbookProvider.GetOrderbook(string symbol, int limit,
         CancellationToken cancellationToken) => GetOrderbook(symbol, limit, cancellationToken: cancellationToken);
 
+    public async Task<PooledList<BinanceHttpKline>> GetKlines(string symbol,
+        string interval = "1m",
+        long? startTime = null,
+        long? endTime = null,
+        int limit = IBinanceFuturesPublicHttpApi.DefaultKlineLimit,
+        BinanceFuturesPublicHttpApiCallKlinesOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        await DotGetKlines(symbol, interval, startTime, endTime, limit, options, cancellationToken)
+            .ConfigureAwait(false);
+
+
+    public async Task<BinanceHttpServerTime> GetServerTime(
+        BinanceFuturesPublicHttpApiCallServerTimeOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        await DoGetServerTime(options, cancellationToken).ConfigureAwait(false);
+
     protected override BinanceFuturesPublicHttpApiOptions OptionsValueFactory()
     {
         var res = new BinanceFuturesPublicHttpApiOptions();
@@ -61,6 +78,8 @@ public class
         var res = base.CreateJsonSerializerOptions();
         res.Converters.Add(new PooledListConverter<BinancePriceQuantityEntry<double>>
             { DefaultCapacity = IBinanceFuturesPublicHttpApi.MaxOrderbookLimit });
+        res.Converters.Add(new PooledListConverter<BinanceHttpKline>()
+            { DefaultCapacity = IBinanceFuturesPublicHttpApi.MaxKlineLimit });
         return res;
     }
 }

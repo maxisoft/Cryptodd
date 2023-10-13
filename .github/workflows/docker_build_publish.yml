@@ -17,7 +17,7 @@ jobs:
 
     steps:
     - 
-      uses: actions/checkout@v3.3.0
+      uses: actions/checkout@v4.0.0
       with:
         submodules: 'recursive'
 
@@ -44,7 +44,7 @@ jobs:
     # cross publish locally to reduce time taken
     - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/amd64 --runtime linux-musl-x64 --self-contained false
     - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm/v7 --runtime linux-musl-arm --self-contained false
-    - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm64/v8 --runtime linux-musl-arm64 --self-contained false
+    - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm64 --runtime linux-musl-arm64 --self-contained false
 
     # https://github.com/docker/setup-qemu-action
     - name: Set up QEMU

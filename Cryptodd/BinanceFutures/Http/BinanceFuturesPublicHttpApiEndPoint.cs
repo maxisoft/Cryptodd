@@ -4,5 +4,7 @@ public enum BinanceFuturesPublicHttpApiEndPoint
 {
     None,
     ExchangeInfo,
-    OrderBook
+    OrderBook,
+    Kline,
+    ServerTime
 }

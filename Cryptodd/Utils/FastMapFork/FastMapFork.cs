@@ -53,7 +53,7 @@ namespace Cryptodd.Utils.FastMapFork
 
         public ref struct Enumerator
         {
-            private readonly Span<InfoByte> _info;
+            private readonly Span<Metabyte> _info;
             private readonly Span<FastEntry<TKey, TValue>> _entries;
 
             /// <summary>The next index to yield.</summary>
@@ -105,7 +105,7 @@ namespace Cryptodd.Utils.FastMapFork
 
         #region Fields
 
-        private InfoByte[] _info;
+        private Metabyte[] _info;
         private FastEntry<TKey, TValue>[] _entries;
         private uint _length;
         private readonly double _loadFactor;
@@ -145,7 +145,7 @@ namespace Cryptodd.Utils.FastMapFork
 
             _shift = _shift - Log2(_length) + 1;
             _entries = new FastEntry<TKey, TValue>[size + _maxProbeSequenceLength + 1];
-            _info = new InfoByte[size + _maxProbeSequenceLength + 1];
+            _info = new Metabyte[size + _maxProbeSequenceLength + 1];
         }
 
         #endregion
@@ -180,7 +180,7 @@ namespace Cryptodd.Utils.FastMapFork
             }
 
             //Create default info byte
-            InfoByte current = default;
+            Metabyte current = default;
 
             //Assign 0 to psl so it wont be seen as empty
             current.Psl = 0;
@@ -608,7 +608,7 @@ namespace Cryptodd.Utils.FastMapFork
         /// <param name="entry">The fast entry.</param>
         /// <param name="current">The information byte.</param>
         [MethodImpl(256)]
-        private void EmplaceInternal(ref FastEntry<TKey, TValue> entry, ref InfoByte current)
+        private void EmplaceInternal(ref FastEntry<TKey, TValue> entry, ref Metabyte current)
         {
             //get objectidentiy
             var hashcode = entry.Key.GetHashCode();
@@ -663,7 +663,7 @@ namespace Cryptodd.Utils.FastMapFork
         /// <param name="x">The x.</param>
         /// <param name="y">The y.</param>
         [MethodImpl(256)]
-        private static void Swap(ref InfoByte x, ref InfoByte y)
+        private static void Swap(ref Metabyte x, ref Metabyte y)
         {
             (x, y) = (y, x);
         }
@@ -754,7 +754,7 @@ namespace Cryptodd.Utils.FastMapFork
             var oldInfo = _info;
 
             _entries = new FastEntry<TKey, TValue>[_length + _maxProbeSequenceLength + 1];
-            _info = new InfoByte[_length + _maxProbeSequenceLength + 1];
+            _info = new Metabyte[_length + _maxProbeSequenceLength + 1];
 
             for (var i = 0; i < oldEntries.Length; ++i)
             {

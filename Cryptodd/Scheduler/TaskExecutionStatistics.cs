@@ -3,6 +3,13 @@ using Maxisoft.Utils.Collections.Queues.Specialized;
 
 namespace Cryptodd.Scheduler;
 
+/// <summary>
+/// The TaskExecutionStatistics class stores various running statistics for a given task.
+/// These statistics include the number of errors that have occurred,
+/// the number of times the task has been executed,
+/// and the total amount of time that the task has taken to execute.
+/// The class also stores a list of exceptions that have been thrown during the execution of the task.
+/// </summary>
 public class TaskExecutionStatistics
 {
     // ReSharper disable once InconsistentNaming
