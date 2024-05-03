@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
 using Cryptodd.IoC;
+using Cryptodd.Json;
 using Cryptodd.Okx.Http;
 using Cryptodd.Okx.Models;
 using Cryptodd.Okx.Models.HttpResponse;
@@ -56,9 +57,9 @@ public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollecto
                 var identifier = new OkxInstrumentIdentifier(fr.instId, fr.instType);
 
                 swapDataRepository.FundingRates.AddOrUpdate(identifier,
-                    _ => OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr),
-                    (_, prev) => fr.fundingTime >= prev.fundingTime
-                        ? OkxHttpFundingRateWithDate.FromOkxHttpFundingRate(fr)
+                    _ => fr,
+                    (_, prev) => fr.ts > prev.ts && fr.fundingTime >= prev.fundingTime
+                        ? fr
                         : prev);
             }
         }
@@ -212,7 +213,7 @@ public class BackgroundSwapDataCollector : IService, IBackgroundSwapDataCollecto
         }
         finally
         {
-            cts.Cancel();
+            await cts.CancelAsync();
         }
     }
 

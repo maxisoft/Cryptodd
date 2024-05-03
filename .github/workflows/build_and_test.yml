@@ -9,17 +9,17 @@ jobs:
     
     strategy:
       matrix:
-        dotnet-version: [ '7.0.x' ]
+        dotnet-version: [ '8.0.x' ]
         os: [ ubuntu-latest ]
 
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4.0.0
+      - uses: actions/checkout@v4.1.1
         with:
           submodules: 'recursive'
       - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
       - name: Install dependencies
@@ -36,14 +36,14 @@ jobs:
         timeout-minutes: 10
 
       - name: Create artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Cryptodd_${{ matrix.os }}_${{ matrix.dotnet-version }}
           path: Cryptodd.Console/bin/Release/*
 
       - name: Create artifact TestResults
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Cryptodd_TestResults_${{ matrix.os }}_${{ matrix.dotnet-version }}

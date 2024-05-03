@@ -21,26 +21,24 @@ namespace Maxisoft.Plugins.Loader
             CancellationToken cancellationToken = default);
     }
 
-    public class PluginCompiler : IPluginCompiler
+    public class PluginCompiler(IAssemblyReferenceCollector assemblyReferenceCollector) : IPluginCompiler
     {
-        public PluginCompiler(IAssemblyReferenceCollector assemblyReferenceCollector)
-        {
-            _assemblyReferenceCollector = assemblyReferenceCollector ??
-                                          throw new ArgumentNullException(nameof(assemblyReferenceCollector));
-        }
-
-        private readonly IAssemblyReferenceCollector _assemblyReferenceCollector;
+        private readonly IAssemblyReferenceCollector _assemblyReferenceCollector = assemblyReferenceCollector ??
+                                                                                   throw new ArgumentNullException(nameof(assemblyReferenceCollector));
 
         /// <inheritdoc />
         public async Task<CompilerResult> CompileAsync(string path, Assembly? parent = null,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(path))
+            {
                 throw new ArgumentNullException(nameof(path));
+            }
+
             var context = CreateContextFromPath(path);
             context.RootAssembly = parent ?? GetType().Assembly;
             var linkedAssemblies = _assemblyReferenceCollector.CollectMetadataReferences(context.RootAssembly).ToHashSet();
-            context.LinkedAssemblies = linkedAssemblies.ToImmutableArray();
+            context.LinkedAssemblies = [..linkedAssemblies];
 
             await ParallelParse(context, cancellationToken);
             var compilationOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
@@ -86,13 +84,13 @@ namespace Maxisoft.Plugins.Loader
                 }
                 catch (Exception)
                 {
-                    pdbStream.Dispose();
+                    await pdbStream.DisposeAsync();
                     throw;
                 }
             }
             catch (Exception)
             {
-                outputStream.Dispose();
+                await outputStream.DisposeAsync();
                 throw;
             }
         }
@@ -103,19 +101,19 @@ namespace Maxisoft.Plugins.Loader
 
             async Task<CompilerFileTree> StartParseTask(int i)
             {
+                // ReSharper disable once AccessToDisposedClosure
                 await semaphore.WaitAsync(cancellationToken);
                 try
                 {
                     var file = context.CompilerFileTrees[i];
-                    using (var reader = File.OpenText(file.Path))
-                    {
-                        var tree = CSharpSyntaxTree.ParseText(await reader.ReadToEndAsync(),
-                            new CSharpParseOptions(LanguageVersion.Latest), cancellationToken: cancellationToken);
-                        return new CompilerFileTree(file.Path, tree);
-                    }
+                    using var reader = File.OpenText(file.Path);
+                    var tree = CSharpSyntaxTree.ParseText(await reader.ReadToEndAsync(),
+                        new CSharpParseOptions(LanguageVersion.Latest), cancellationToken: cancellationToken);
+                    return new CompilerFileTree(file.Path, tree);
                 }
                 finally
                 {
+                    // ReSharper disable once AccessToDisposedClosure
                     semaphore.Release();
                 }
             }
@@ -130,7 +128,7 @@ namespace Maxisoft.Plugins.Loader
             }
         }
 
-        internal static CompilerContext CreateContextFromPath(string path)
+        private static CompilerContext CreateContextFromPath(string path)
         {
             if (!Directory.Exists(path))
             {
@@ -149,6 +147,7 @@ namespace Maxisoft.Plugins.Loader
 
         public class CompilationException : Exception
         {
+            // ReSharper disable once MemberCanBePrivate.Global
             public ImmutableArray<Diagnostic> Diagnostics { get; internal set; } = ImmutableArray<Diagnostic>.Empty;
 
             internal CompilationException()
@@ -159,6 +158,7 @@ namespace Maxisoft.Plugins.Loader
             {
             }
 
+            // ReSharper disable once MemberCanBePrivate.Global
             internal CompilationException(string message) : base(message)
             {
             }
