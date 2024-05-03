@@ -32,7 +32,7 @@ public static class OkxInstrumentTypeExtensions
         ref var entry = ref CachedToHttpString.GetRef((int)instrumentType, ref defaultValue);
         return !string.IsNullOrEmpty(entry.Value) ? entry.Value : ConvertToHttpStringOrThrow(instrumentType);
     }
-
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static string? ConvertToHttpString(OkxInstrumentType instrumentType) =>
         Enum.GetName(instrumentType)?.ToUpperInvariant();

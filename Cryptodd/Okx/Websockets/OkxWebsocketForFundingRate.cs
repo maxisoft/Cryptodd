@@ -77,7 +77,7 @@ public abstract class OkxWebsocketForFundingRate<TData, TOptions> : BaseOkxWebso
         res.Converters.Add(new JsonDoubleConverter());
         res.Converters.Add(new JsonLongConverter());
         res.Converters.Add(new PooledStringJsonConverter(PreParsedOkxWebSocketMessageParser.StringPool));
-        res.Converters.Add(new OkxHttpFundingRateJsonConverter());
+        //res.Converters.Add(new OkxHttpFundingRateJsonConverter());
         res.Converters.Add(new SafeJsonDoubleConverter<SafeJsonDoubleDefaultValue>());
         res.Converters.Add(new OneItemListJsonConverter<OkxHttpFundingRate>());
 

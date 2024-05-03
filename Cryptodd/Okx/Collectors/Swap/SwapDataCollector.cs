@@ -79,7 +79,7 @@ public sealed class SwapDataCollector : IService, ISwapDataCollector
             var markPrice = repo.MarkPrices[identifier];
             try
             {
-                await _swapDataWriter.Value.WriteAsync(identifier.Id, (oi, fr, ticker, markPrice), fr.date, token).ConfigureAwait(true);
+                await _swapDataWriter.Value.WriteAsync(identifier.Id, (oi, fr, ticker, markPrice), fr.Date, token).ConfigureAwait(true);
             }
             catch (Exception e)
             {
@@ -123,7 +123,7 @@ public sealed class SwapDataCollector : IService, ISwapDataCollector
     {
         if (!_disposed.Value)
         {
-            _cancellationTokenSource.Cancel();
+            await _cancellationTokenSource.CancelAsync();
         }
 
         if (_collectLoop is { IsCompleted: false })

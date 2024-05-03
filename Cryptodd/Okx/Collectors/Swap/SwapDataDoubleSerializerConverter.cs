@@ -5,12 +5,13 @@ using Cryptodd.Okx.Models;
 namespace Cryptodd.Okx.Collectors.Swap;
 
 public struct SwapDataDoubleSerializerConverter : IDoubleSerializerConverter<
-    (OkxHttpOpenInterest, OkxHttpFundingRateWithDate, OkxHttpTickerInfo, OkxHttpMarkPrice), SwapData>
+    (OkxHttpOpenInterest, OkxHttpFundingRate, OkxHttpTickerInfo, OkxHttpMarkPrice), SwapData>
 {
-    public SwapData Convert(in (OkxHttpOpenInterest, OkxHttpFundingRateWithDate, OkxHttpTickerInfo, OkxHttpMarkPrice) doubleSerializable)
+    public SwapData Convert(
+        in (OkxHttpOpenInterest, OkxHttpFundingRate, OkxHttpTickerInfo, OkxHttpMarkPrice) doubleSerializable)
     {
         var (oi, fr, ticker, markPrice) = doubleSerializable;
-        var ts = Math.Max(oi.ts, fr.date.ToUnixTimeMilliseconds());
+        var ts = Math.Max(oi.ts, fr.ts);
         var price = ticker.last.Value;
         var spreadPercent = ticker.askPx > 0 && ticker.bidPx > 0 ? (ticker.askPx / ticker.bidPx - 1) * 100 : 0;
         if (ticker.askPx > 0 && ticker.bidPx > 0 && spreadPercent < 0.05)
@@ -19,11 +20,24 @@ public struct SwapDataDoubleSerializerConverter : IDoubleSerializerConverter<
             price = (ticker.askPx + ticker.bidPx) * 0.5;
         }
 
+        double nextFundingRate = fr.nextFundingRate;
+        if (!double.IsNormal(nextFundingRate) || fr.method == "current_period")
+        {
+            if (fr.settState == "processing" && double.IsNormal(fr.settFundingRate))
+            {
+                nextFundingRate = fr.settFundingRate;
+            }
+            else
+            {
+                nextFundingRate = fr.fundingRate;
+            }
+        }
+
         return new SwapData(
             Timestamp: ts,
             NextFundingTime: fr.nextFundingTime - ts,
             FundingRate: fr.fundingRate,
-            NextFundingRate: fr.nextFundingRate,
+            NextFundingRate: nextFundingRate,
             OpenInterest: oi.oi,
             OpenInterestInCurrency: oi.oiCcy,
             SpreadPercent: spreadPercent,
