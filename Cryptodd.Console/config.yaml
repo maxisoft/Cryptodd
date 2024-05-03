@@ -4,11 +4,37 @@ Torify:
   ProxyAddress: socks5://192.168.1.200:19050
   UseForBitfinex: false
   UseForOkx: true
+  UseForBinance: false
   Enabled: true
   DebugLog: false
   ConnectTimeoutMs: 1900
 
 Binance:
+  Collector:
+    Kline:
+      Task:
+        Enabled: true
+      PairFilter:
+        - BTCUSDT
+        - BTCBUSD
+        - BTCUSD
+        - BUSDUSDT
+        - ETHBUSD
+        - ETHUSDT
+        - BTCGBP
+        - BTCEUR
+        - ETHBTC
+        - DOGEUSDT
+        - BNBUSDT
+        - XRPUSDT
+        - MATICUSDT
+        - BNBBUSD
+        - LTCUSDT
+        - USDTTRY
+        - BTCTRY
+        - SOLUSDT
+        - BTCAUD
+        - BTCBRL
   Orderbook:
     Task:
       Enabled: false
@@ -22,7 +48,7 @@ Binance:
       - DOGEUSDT
       - BNBUSDT
       - XRPUSDT
-      - XRP/BUSD
+      - XRPBUSD
       - MATICUSDT
       - BNBBUSD
       - LTCUSDT
@@ -30,7 +56,7 @@ Binance:
       - ETHBTC
       - SOLUSDT
       - BTCEUR
-      - DOGEBUSD
+      - DOGEUSDT
       - LINKUSDT
       - GRTUSDT
       - BTCGBP
@@ -47,7 +73,7 @@ Binance:
       - ALGOUSDT
       - AVAXUSDT
       - LTCBTC
-      - FTMBUSD
+      - FTMUSDT
       - BTCAUD
       - FILUSDT
       - WBTCBTC
@@ -58,7 +84,7 @@ Binance:
       - MANAUSDT
       - PAXGUSDT
       - XLMUSDT
-      - ATOMBUSD
+      - ATOMUSDT
       - BTCSTUSDT
       - BNBETH
       - USDTRUB
@@ -67,26 +93,26 @@ Binance:
       - RSRUSDT
       - ETHDOWNUSDT
       - RVNUSDT
-      - ICPBUSD
+      - ICPUSDT
       - MINAUSDT
       - BTCRUB
       - USDTUAH
       - DODOUSDT
       - ENSBNB
-      - CTXCBUSD
-      - FTTBUSD
+      - CTXCUSDT
+      - FTTUSDT
       - FETUSDT
       - OPUSDT
       - APEUSDT
-      - MATICBUSD
+      - MATICUSDT
       - FTMUSDT
       - EOSUSDT
-      - APEBUSD
+      - APEUSDT
       - SANDUSDT
       - ATOMUSDT
       - ENSUSDT
       - WAVESUSDT
-      - AXSBUSD
+      - AXSUSDT
       - OCEANUSDT
       - LRCUSDT
       - UNIUSDT
@@ -105,6 +131,33 @@ Binance:
       - KSMUSDT
 
 BinanceFutures:
+  Collector:
+    Kline:
+      Task:
+        Enabled: true
+      PairFilter:
+        - BTCUSDT
+        - BTCBUSD
+        - BTCUSD
+        - BUSDUSDT
+        - ETHBUSD
+        - ETHUSDT
+        - ETHUSD
+        - MATICUSDT
+        - DOGEUSDT
+        - BNBUSDT
+        - XRPUSDT
+        - BNBBUSD
+        - LTCUSDT
+        - SOLUSDT
+        - ADAUSDT
+        - 1000SHIBUSDT
+        - ETCUSDT
+        - SOLUSDT
+        - SOLUSD
+        - MATICUSDT
+        - DOGEUSDT
+
   Orderbook:
     Collector:
       FullCleanupOrderbookOnReconnect: false
@@ -152,7 +205,7 @@ BinanceFutures:
       - RVNUSDT
       - ^BTCUSDT_[0-9]+?$
       - ^ETHUSDT_[0-9]+?$
-      - ^[0-9]*?SHIBBUSD$
+      - ^[0-9]*?SHIBB?USDT?$
         
         
 Okx:

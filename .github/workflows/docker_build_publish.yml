@@ -24,7 +24,7 @@ jobs:
     - name: Setup .NET Core SDK
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: '6.0.x'
+        dotnet-version: '8.0.x'
 
     - 
       name: Build Dockerfile
@@ -36,15 +36,15 @@ jobs:
       timeout-minutes: 2
       run: |
             pushd /tmp
-            wget --no-verbose https://github.com/wagoodman/dive/releases/download/v0.10.0/dive_0.10.0_linux_amd64.deb
-            sudo apt install --quiet -y ./dive_0.10.0_linux_amd64.deb
+            wget --no-verbose https://github.com/wagoodman/dive/releases/download/v0.12.0/dive_0.12.0_linux_amd64.deb
+            sudo apt install --quiet -y ./dive_0.12.0_linux_amd64.deb
             popd
             CI=true dive --ci-config "${{ github.workspace }}/.dive-ci" cryptodd:testing
   
     # cross publish locally to reduce time taken
     - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/amd64 --runtime linux-musl-x64 --self-contained false
     - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm/v7 --runtime linux-musl-arm --self-contained false
-    - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm64/v8 --runtime linux-musl-arm64 --self-contained false
+    - run: dotnet publish "Cryptodd.Console" -c Release -o publish/linux/arm64 --runtime linux-musl-arm64 --self-contained false
 
     # https://github.com/docker/setup-qemu-action
     - name: Set up QEMU

@@ -5,7 +5,7 @@ namespace Cryptodd.Binance.Orderbooks;
 
 public class OrderbookCollection : IReadOnlyCollection<string>
 {
-    private ConcurrentDictionary<string, InMemoryOrderbook<OrderBookEntryWithStat>> _orderbooksPerSymbol = new();
+    private readonly ConcurrentDictionary<string, InMemoryOrderbook<OrderBookEntryWithStat>> _orderbooksPerSymbol = new();
 
     public InMemoryOrderbook<OrderBookEntryWithStat> this[string symbol] =>
         _orderbooksPerSymbol.GetOrAdd(symbol, ValueFactory);

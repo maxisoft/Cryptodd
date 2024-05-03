@@ -333,10 +333,9 @@ public class OkxPublicHttpApi : IOkxPublicHttpApi, IOkxPublicHttpRubikApi, IOkxI
         res.Converters.Add(new PooledStringJsonConverter(StringPool));
         res.Converters.Add(new PooledListConverter<OkxHttpTickerInfo>());
         res.Converters.Add(new PooledListConverter<OkxHttpOpenInterest>());
-        var fundingRateJsonConverter = new OkxHttpFundingRateJsonConverter();
-        res.Converters.Add(new OneItemListJsonConverter<OkxHttpFundingRate>
-            { InnerConverter = fundingRateJsonConverter });
-        res.Converters.Add(fundingRateJsonConverter);
+        //var fundingRateJsonConverter = new OkxHttpFundingRateJsonConverter();
+        res.Converters.Add(new OneItemListJsonConverter<OkxHttpFundingRate>());
+        //res.Converters.Add(fundingRateJsonConverter);
         return res;
     }
 }
