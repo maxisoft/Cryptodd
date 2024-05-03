@@ -47,7 +47,7 @@ jobs:
           path-to-lcov: Cryptodd.Tests/TestResults/coverage.info
 
       - name: Create artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Cryptodd_${{ matrix.os }}_${{ matrix.dotnet-version }}
