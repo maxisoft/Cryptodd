@@ -259,14 +259,20 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         return (Drop(_asks, minDate, ref _asksVersion), Drop(_bids, minDate, ref _bidsVersion));
     }
 
-    public (int askCount, int bidCount) DropZeros()
+    public (int askCount, int bidCount) DropZeros(bool checkNoChanges = true)
     {
+        return (Drop(_asks, ref _asksVersion, checkNoChanges), Drop(_bids, ref _bidsVersion, checkNoChanges));
+
         static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary,
-            ref long version)
+            ref long version, bool checkNoChanges)
         {
             using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16));
             foreach (var (key, value) in dictionary)
             {
+                if (checkNoChanges && value.ChangeCounter > 0)
+                {
+                    continue;
+                }
                 if (!double.IsNormal(value.Quantity) || value.Quantity <= 0)
                 {
                     toRemove.Add(key);
@@ -300,10 +306,10 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
             return res;
         }
-
-        return (Drop(_asks, ref _asksVersion), Drop(_bids, ref _bidsVersion));
-
     }
 
-    public bool IsEmpty() => _asks.IsEmpty && _bids.IsEmpty;
+    public bool IsEmpty()
+    {
+        return _asks.IsEmpty && _bids.IsEmpty;
+    }
 }
