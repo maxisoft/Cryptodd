@@ -19,6 +19,8 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
     private long _lastUpdateId = long.MinValue;
 
     public bool SafeToRemoveEntries { get; set; } = false;
+    
+    public required string Name { get; init; } = string.Empty;
 
 
     public long LastUpdateId

@@ -12,11 +12,23 @@ public class OrderbookCollection : IReadOnlyCollection<string>
 
     public int Count => _orderbooksPerSymbol.Count;
 
-    public bool ContainsSymbol(string symbol) => _orderbooksPerSymbol.ContainsKey(symbol);
+    public bool ContainsSymbol(string symbol)
+    {
+        return _orderbooksPerSymbol.ContainsKey(symbol);
+    }
 
-    private InMemoryOrderbook<OrderBookEntryWithStat> ValueFactory(string arg) => new();
+    private InMemoryOrderbook<OrderBookEntryWithStat> ValueFactory(string arg)
+    {
+        return new InMemoryOrderbook<OrderBookEntryWithStat> { Name = arg };
+    }
 
-    public IEnumerator<string> GetEnumerator() => _orderbooksPerSymbol.Keys.GetEnumerator();
+    public IEnumerator<string> GetEnumerator()
+    {
+        return _orderbooksPerSymbol.Keys.GetEnumerator();
+    }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 }

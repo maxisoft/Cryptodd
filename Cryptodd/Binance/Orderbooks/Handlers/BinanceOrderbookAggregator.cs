@@ -112,8 +112,7 @@ public sealed class BinanceOrderbookAggregator : IService, IOrderbookAggregator
         {
             dm.LinkDisposable(enumerator);
         }
-
-
+        
         ArrayList<int> flatIndices = new(Size)
         {
             isDirect ? lastIndex : 0
@@ -160,10 +159,11 @@ public sealed class BinanceOrderbookAggregator : IService, IOrderbookAggregator
         }
 
 
-        var originalFlatIndices = flatIndices.Data();
+        
 
         if (flatIndices.Count > Size)
         {
+            var originalFlatIndices = flatIndices.Data();
             var originalLength = flatIndices.Count;
             flatIndices = new ArrayList<int>(Size) { isDirect ? lastIndex : 0 };
             Random.NextUnique(count: Size - 1, minValue: 1, maxValue: originalLength - 1,
