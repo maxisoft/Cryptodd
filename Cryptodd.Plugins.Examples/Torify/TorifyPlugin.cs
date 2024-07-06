@@ -80,7 +80,7 @@ public sealed class TorifyClientWebSocketFactory : IClientWebSocketFactory, IDis
         _logger = container.GetRequiredService<ILogger>().ForContext(GetType());
         _configuration = configuration;
         _previousClientWebSocketFactory =
-            previousClientWebSocketFactory ?? container.GetRequiredService<ClientWebSocketFactory>();
+            previousClientWebSocketFactory ?? container.GetRequiredService<IClientWebSocketFactory>();
         if (_previousClientWebSocketFactory is TorifyClientWebSocketFactory)
         {
             _previousClientWebSocketFactory = container.GetRequiredService<ClientWebSocketFactory>();

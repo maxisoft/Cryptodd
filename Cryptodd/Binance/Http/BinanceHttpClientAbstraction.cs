@@ -5,11 +5,8 @@ using Serilog;
 
 namespace Cryptodd.Binance.Http;
 
-public sealed class BinanceHttpClientAbstraction : BaseBinanceHttpClientAbstraction, IBinanceHttpClientAbstraction
-{
-    public BinanceHttpClientAbstraction(HttpClient client, ILogger logger, IUriRewriteService uriRewriteService) : base(
-        client, logger, uriRewriteService)
-    {
-        
-    }
-}
+public sealed class BinanceHttpClientAbstraction(
+    HttpClient client,
+    ILogger logger,
+    IUriRewriteService uriRewriteService)
+    : BaseBinanceHttpClientAbstraction(client, logger, uriRewriteService), IBinanceHttpClientAbstraction;

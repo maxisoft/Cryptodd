@@ -50,6 +50,37 @@ public class BinancePublicHttpApiRealTest
         Assert.NotEmpty(res);
         Assert.NotEmpty(res["symbols"] as JsonArray ?? new JsonArray());
     }
+    
+    
+    [RetryFact]
+    public async void TestGetExchangeInfoAsync_UsingHttpClientFactoryHelper()
+    {
+        var httpClientFactoryHelper = new HttpClientFactoryHelper(new ConfigurationManager(),
+            new Lazy<IDnsClientFactory>(() => new DnsClientFactory()));
+        using var httpclient = new HttpClient(httpClientFactoryHelper.GetHandler());
+        httpClientFactoryHelper.Configure(httpclient);
+        var client = new BinanceHttpClientAbstraction(httpclient, new Mock<RealLogger>() { CallBase = true }.Object,
+            new Mock<MockableUriRewriteService>() { CallBase = true }.Object);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(Array.Empty<KeyValuePair<string, string?>>())
+            .Build();
+        JsonObject res;
+        try
+        {
+            res = await new BinancePublicHttpApi(client,
+                new Mock<RealLogger>(MockBehavior.Loose) { CallBase = true }.Object, config,
+                new EmptyBinanceRateLimiter()).GetExchangeInfoAsync();
+        }
+        catch (HttpRequestException e) when (e.StatusCode is (HttpStatusCode)418 or (HttpStatusCode)429
+                                                 or (HttpStatusCode)451
+                                                 or (HttpStatusCode)403)
+        {
+            Skip.Always(e.ToStringDemystified());
+            throw;
+        }
+
+        Assert.NotEmpty(res);
+        Assert.NotEmpty(res["symbols"] as JsonArray ?? new JsonArray());
+    }
 
     [RetryFact]
     public async void TestGetOrderbook()

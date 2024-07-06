@@ -1,30 +1,31 @@
 ﻿namespace Cryptodd.Http.Abstractions;
 
-public abstract class HttpClientAbstraction : IHttpClientAbstraction
+public abstract class HttpClientAbstraction(HttpClient client) : IHttpClientAbstraction
 {
-    public HttpClient Client { get; set; }
+    protected HttpClient Client { get; } = client;
 
-
-    protected HttpClientAbstraction(HttpClient client)
-    {
-        Client = client;
-    }
 
     protected virtual ValueTask<(HttpRequestMessage, HttpCompletionOption, CancellationToken)> PreSendAsync(
         HttpRequestMessage request, HttpCompletionOption completionOption,
-        CancellationToken cancellationToken) =>
-        ValueTask.FromResult<(HttpRequestMessage, HttpCompletionOption, CancellationToken)>((request,
+        CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<(HttpRequestMessage, HttpCompletionOption, CancellationToken)>((request,
             completionOption, cancellationToken));
+    }
 
     protected virtual ValueTask<HttpResponseMessage> PostSendAsync(HttpResponseMessage result,
         HttpRequestMessage request, HttpCompletionOption completionOption,
-        CancellationToken cancellationToken) =>
-        ValueTask.FromResult<HttpResponseMessage>(result);
-    
+        CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<HttpResponseMessage>(result);
+    }
+
     protected virtual ValueTask<(Exception?, HttpResponseMessage?)> ErrorSendAsync(Exception exception, HttpResponseMessage? result,
         HttpRequestMessage request, HttpCompletionOption completionOption,
-        CancellationToken cancellationToken) =>
-        ValueTask.FromResult<(Exception?, HttpResponseMessage?)>((exception, result));
+        CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<(Exception?, HttpResponseMessage?)>((exception, result));
+    }
 
     public virtual async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, HttpCompletionOption completionOption,
         CancellationToken cancellationToken)
@@ -57,11 +58,16 @@ public abstract class HttpClientAbstraction : IHttpClientAbstraction
         return await PostSendAsync(res, request, completionOption, cancellationToken).ConfigureAwait(false);
     }
 
-    public virtual Uri? CreateUri(string? uri) => IHttpClientAbstraction.DoCreateUri(uri);
+    public virtual Uri? CreateUri(string? uri)
+    {
+        return IHttpClientAbstraction.DoCreateUri(uri);
+    }
 
     Version IHttpClientAbstraction.DefaultRequestVersion => Client.DefaultRequestVersion;
     HttpVersionPolicy IHttpClientAbstraction.DefaultVersionPolicy => Client.DefaultVersionPolicy;
 
-    public virtual HttpRequestMessage CreateRequestMessage(HttpMethod method, Uri? uri) =>
-        IHttpClientAbstraction.DoCreateRequestMessage(this, method, uri);
+    public virtual HttpRequestMessage CreateRequestMessage(HttpMethod method, Uri? uri)
+    {
+        return IHttpClientAbstraction.DoCreateRequestMessage(this, method, uri);
+    }
 }
