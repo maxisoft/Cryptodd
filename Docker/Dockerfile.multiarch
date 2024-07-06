@@ -1,4 +1,4 @@
-﻿FROM alpine:edge AS base
+﻿FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS base
 WORKDIR /app
 
 FROM base AS final
@@ -13,7 +13,7 @@ ARG APP_PATH=/app
 LABEL maintainer="${maintainer}" name="cryptodd" description="Save usefull crypto data into databases" url="https://github.com/${maintainer}/Cryptodd" vcs-url="https://github.com/${maintainer}/Cryptodd" org.opencontainers.image.source="https://github.com/${maintainer}/Cryptodd"
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_RUNNING_IN_CONTAINER=true DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false PUID=$uid PGID=$gid IS_DOCKER=1 NICE_ADJUSTEMENT=5 IONICE_CLASS=3 IONICE_CLASSDATA=7 CRYPTODd_BASEPATH=$destfolder CRYPTO_DUMPER_USER_NAME=${username} CRYPTO_DUMPER_GROUP_NAME=${groupname} APP_PATH=${APP_PATH}
 RUN \
-    apk add --no-cache su-exec shadow icu-libs aspnetcore8-runtime && \
+    apk add --no-cache su-exec shadow icu-libs && \
     addgroup --system --gid $gid $groupname && \
     adduser --system --uid $uid --ingroup $groupname --shell /bin/sh $username && \
     mkdir -p "$destfolder" && \
