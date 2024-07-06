@@ -2,7 +2,7 @@
 
 public static class SemaphoreSlimUtils
 {
-    public sealed class SemaphoreSlimReleaseOnDispose : IDisposable
+    public sealed class SemaphoreSlimReleaseOnDispose(SemaphoreSlim semaphore) : IDisposable
     {
         public const int DisposedValue = -1;
 
@@ -17,24 +17,18 @@ public static class SemaphoreSlimUtils
             _releaseCount = DisposedValue;
         }
 
-        private readonly SemaphoreSlim _semaphore;
         private int _releaseCount = 1;
-
-        public SemaphoreSlimReleaseOnDispose(SemaphoreSlim semaphore)
-        {
-            _semaphore = semaphore;
-        }
 
         public bool Disposed => ReleaseCount == DisposedValue;
 
-        public bool ReferenceEquals(SemaphoreSlim semaphore) => ReferenceEquals(semaphore, _semaphore);
+        public bool ReferenceEquals(SemaphoreSlim semaphore1) => ReferenceEquals(semaphore1, semaphore);
 
         public void Dispose()
         {
             var count = ReleaseCount;
             if (count > 0)
             {
-                _semaphore.Release(count);
+                semaphore.Release(count);
             }
 
             Interlocked.CompareExchange(ref _releaseCount, DisposedValue, count);

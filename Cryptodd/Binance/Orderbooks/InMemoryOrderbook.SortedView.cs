@@ -7,18 +7,14 @@ namespace Cryptodd.Binance.Orderbooks;
 
 public partial class InMemoryOrderbook<T>
 {
-    public abstract class SortedView : IReadOnlyCollection<T>, IDisposable
+#pragma warning disable CA1710
+    public abstract class SortedView(InMemoryOrderbook<T> orderbook) : IReadOnlyCollection<T>, IDisposable
+#pragma warning restore CA1710
     {
-        private readonly InMemoryOrderbook<T> _orderbook;
         // ReSharper disable once ConvertToAutoProperty
-        public InMemoryOrderbook<T> Orderbook => _orderbook;
+        public InMemoryOrderbook<T> Orderbook => orderbook;
         private long? _version;
         private PooledList<PriceRoundKey>? _keys;
-
-        protected SortedView(InMemoryOrderbook<T> orderbook)
-        {
-            _orderbook = orderbook;
-        }
 
         public abstract ConcurrentDictionary<PriceRoundKey, T> Collection { get; }
         protected abstract long Version { get; }
@@ -80,7 +76,7 @@ public partial class InMemoryOrderbook<T>
 
             return _keys[index];
         }
-        
+
 
         private PooledList<PriceRoundKey> CreateKeys()
         {
@@ -112,7 +108,11 @@ public partial class InMemoryOrderbook<T>
 
         public void EnforceKeysEnumeration()
         {
-            CreateKeys();
+            do
+            {
+                _version = Version;
+                _keys = CreateKeys();
+            } while (_version != Version);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -151,16 +151,14 @@ public partial class InMemoryOrderbook<T>
         }
     }
 
-    private sealed class BidSortedView : SortedView
+    private sealed class BidSortedView(InMemoryOrderbook<T> orderbook) : SortedView(orderbook)
     {
-        public BidSortedView(InMemoryOrderbook<T> orderbook) : base(orderbook) { }
         public override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._bids;
         protected override long Version => Orderbook._bidsVersion;
     }
 
-    private sealed class AskSortedView : SortedView
+    private sealed class AskSortedView(InMemoryOrderbook<T> orderbook) : SortedView(orderbook)
     {
-        public AskSortedView(InMemoryOrderbook<T> orderbook) : base(orderbook) { }
         public override ConcurrentDictionary<PriceRoundKey, T> Collection => Orderbook._asks;
         protected override long Version => Orderbook._asksVersion;
     }

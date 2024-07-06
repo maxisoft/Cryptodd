@@ -10,16 +10,10 @@ namespace Cryptodd.Okx.Limiters;
 [Singleton]
 // ReSharper disable once UnusedType.Global
 // ReSharper disable once ClassWithVirtualMembersNeverInherited.Global
-public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
+public class OkxLimiterRegistry(IConfiguration configuration) : IService, IOkxLimiterRegistry, IDisposable
 {
-    private readonly IConfiguration _configuration;
     private readonly DisposableManager _disposableManager = new();
     private readonly ConcurrentDictionary<string, OkxLimiter> _limiters = new();
-
-    public OkxLimiterRegistry(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
 
     public void Dispose()
     {
@@ -46,7 +40,7 @@ public class OkxLimiterRegistry : IService, IOkxLimiterRegistry, IDisposable
     private OkxLimiter ValueFactory<T>(string name, string configName, bool withOptionChangeCallback = true) where T : OkxLimiter, new()
     {
         var options = new OkxLimiterOptions();
-        var section = _configuration.GetSection("Okx:Limiter").GetSection(configName);
+        var section = configuration.GetSection("Okx:Limiter").GetSection(configName);
         section.Bind(options);
         var res = Create<T>(options);
 

@@ -244,11 +244,11 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
         GC.SuppressFinalize(this);
     }
 
-    public async virtual ValueTask DisposeAsync(bool disposing)
+    public virtual async ValueTask DisposeAsync(bool disposing)
     {
         try
         {
-            LoopCancellationTokenSource.Cancel();
+            await LoopCancellationTokenSource.CancelAsync();
         }
         catch (ObjectDisposedException e)
         {
@@ -479,7 +479,7 @@ public abstract class BaseWebsocket<TData, TOptions> : IDisposable, IAsyncDispos
                 }
                 finally
                 {
-                    mem?.Dispose();
+                    mem.Dispose();
                 }
             }
         }

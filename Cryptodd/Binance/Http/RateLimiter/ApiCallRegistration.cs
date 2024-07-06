@@ -66,7 +66,7 @@ public sealed class ApiCallRegistration : IApiCallRegistration
     ~ApiCallRegistration()
     {
         Debug.WriteIf(Node is not null,
-            $"{typeof(ApiCallRegistration).FullNameInCode()}.Node is not null while object deletion");
+            $"{GetType().FullNameInCode()}.Node is not null while object deletion");
         Cleanup();
     }
 }

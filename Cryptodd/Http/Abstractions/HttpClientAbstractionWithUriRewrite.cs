@@ -2,11 +2,13 @@
 
 namespace Cryptodd.Http.Abstractions;
 
-public abstract class HttpClientAbstractionWithUriRewrite<TUriRewriteService, TContext> : HttpClientAbstraction
+public abstract class HttpClientAbstractionWithUriRewrite<TUriRewriteService, TContext>(
+    HttpClient client,
+    TUriRewriteService uriRewriteService) : HttpClientAbstraction(client)
     where TUriRewriteService : IUriRewriteService
     where TContext : HttpClientAbstractionContext
 {
-    protected TUriRewriteService UriRewriteService { get; }
+    protected TUriRewriteService UriRewriteService { get; } = uriRewriteService;
     private readonly AsyncLocal<TContext> _localContext = new();
 
     protected abstract TContext DefaultContext();
@@ -23,12 +25,6 @@ public abstract class HttpClientAbstractionWithUriRewrite<TUriRewriteService, TC
     {
         context = _localContext.Value;
         return context is not null;
-    }
-
-    protected HttpClientAbstractionWithUriRewrite(HttpClient client, TUriRewriteService uriRewriteService) :
-        base(client)
-    {
-        UriRewriteService = uriRewriteService;
     }
 
     protected Uri? Rewrite(Uri? uri, bool setContext = true)

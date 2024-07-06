@@ -3,20 +3,14 @@ using System.Runtime.CompilerServices;
 
 namespace Cryptodd.Json;
 
-public struct OneItemList<T> : IList<T>, IReadOnlyList<T>
+public struct OneItemList<T>(T value, int count = 1) : IList<T>, IReadOnlyList<T>
 {
     public OneItemList() : this(default!, 0)
     {
     }
 
-    public OneItemList(T value, int count = 1)
-    {
-        Value = value;
-        Count = count;
-    }
-    
 #pragma warning disable CA1051
-    public T Value;
+    public T Value = value;
 #pragma warning restore CA1051
 
     public int Capacity => 1;
@@ -25,7 +19,10 @@ public struct OneItemList<T> : IList<T>, IReadOnlyList<T>
     public bool IsEmpty => Count == 0;
     public T? NullableValue => HasValue ? Value : default;
 
-    public T Coalesce(T other) => HasValue ? Value : other;
+    public T Coalesce(T other)
+    {
+        return HasValue ? Value : other;
+    }
 
     public void Add(T item)
     {
@@ -68,13 +65,22 @@ public struct OneItemList<T> : IList<T>, IReadOnlyList<T>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public bool Equals(in T item) => Count != 0 && EqualityComparer<T>.Default.Equals(item, Value);
+    public bool Equals(in T item)
+    {
+        return Count != 0 && EqualityComparer<T>.Default.Equals(item, Value);
+    }
 
-    public bool Contains(T item) => Equals(in item);
+    public bool Contains(T item)
+    {
+        return Count > 0 && Equals(in item);
+    }
 
     public void CopyTo(T[] array, int arrayIndex)
     {
-        array[arrayIndex] = Value;
+        if (Count > 0)
+        {
+            array[arrayIndex] = Value;
+        }
     }
 
     public bool Remove(T item)
@@ -88,7 +94,7 @@ public struct OneItemList<T> : IList<T>, IReadOnlyList<T>
         return false;
     }
 
-    public int Count { get; private set; }
+    public int Count { get; private set; } = count;
     public bool IsReadOnly => false;
 
     public IEnumerator<T> GetEnumerator()

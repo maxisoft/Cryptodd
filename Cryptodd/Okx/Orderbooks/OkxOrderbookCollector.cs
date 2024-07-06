@@ -146,7 +146,7 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                     try
                     {
                         // ReSharper disable once AccessToDisposedClosure
-                        cts.Cancel();
+                        await cts.CancelAsync();
                     }
                     catch (ObjectDisposedException e)
                     {
@@ -389,7 +389,7 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                         await Task.WhenAll(returnTasks).WaitAsync(cancellationToken).ConfigureAwait(false);
                     }
 
-                    cts.Cancel();
+                    await cts.CancelAsync();
                     await Task.WhenAll(websockets.Select(static ws => ws.DisposeAsync().AsTask()));
                 }
                 catch (OperationCanceledException e)
@@ -398,7 +398,7 @@ public class OkxOrderbookCollector : IOkxOrderbookCollector, IService
                 }
             }
 
-            cts.Cancel();
+            await cts.CancelAsync();
 
             foreach (var task in tasks)
             {

@@ -27,8 +27,8 @@ public sealed class RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : 
     public void Add(in T value)
     {
         var count = Count;
-        bool recheckMinValue, insert;
-        insert = count < _k;
+        bool recheckMinValue;
+        var insert = count < _k;
         if (!insert)
         {
             insert = _comparer.Compare(value, _minValue!) > 0;
@@ -42,21 +42,6 @@ public sealed class RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : 
         if (!insert)
         {
             return;
-        }
-
-        [Conditional("DEBUG")]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void ThrowOnFail(bool success, Exception? exception, string message)
-        {
-            if (!success)
-            {
-                if (exception is not null)
-                {
-                    throw new ArgumentException(message, nameof(value), exception);
-                }
-
-                throw new ArgumentException(message, nameof(value));
-            }
         }
 
         // ReSharper disable RedundantAssignment
@@ -83,6 +68,25 @@ public sealed class RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : 
         {
             _minValue = _tree.CurrentLeast;
         }
+
+        return;
+
+        [Conditional("DEBUG")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static void ThrowOnFail(bool success, Exception? exception, string message)
+        {
+            if (success)
+            {
+                return;
+            }
+
+            if (exception is not null)
+            {
+                throw new ArgumentException(message, nameof(value), exception);
+            }
+
+            throw new ArgumentException(message, nameof(value));
+        }
     }
 
     public int CopyTo(Span<T> span)
@@ -98,24 +102,21 @@ public sealed class RedBlackTreeHeap<T, TComparer> : IHeap<T> where TComparer : 
 
         return i;
     }
-
+    
     public IEnumerator<T> GetEnumerator() => _tree.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    private struct InternalComparer : IFunc<T, T, CompareResult>
+    private readonly struct InternalComparer(TComparer comparer) : IFunc<T, T, CompareResult>
     {
-        private readonly TComparer _comparer;
-
-        public InternalComparer(TComparer comparer)
-        {
-            _comparer = comparer;
-        }
-
         public CompareResult Invoke(T arg1, T arg2)
         {
-            var res = _comparer.Compare(arg1, arg2);
-            return res > 0 ? CompareResult.Greater : res < 0 ? CompareResult.Less : CompareResult.Equal;
+            return comparer.Compare(arg1, arg2) switch
+            {
+                0 => CompareResult.Equal,
+                < 0 => CompareResult.Less,
+                _ => CompareResult.Greater
+            };
         }
     }
 }
