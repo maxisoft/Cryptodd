@@ -83,7 +83,7 @@ public sealed class BinanceOrderbookAggregator : IService, IOrderbookAggregator
                 var volumeMean = stats is { Count: > 1 } ? stats.Mean : entry.Quantity;
                 changeTopK.Add(((sbyte)int.Log2(entry.ChangeCounter + 1), volumeLog, entry.ChangeCounter, iT));
                 volumeTopK.Add((volumeLog, volumeMean, iT));
-                
+
                 if (stats is { Count: >= 8 })
                 {
                     varianceTopK.Add((Math.ILogB(stats.PopulationVariance + 1), stats.Mean, iT));
@@ -112,16 +112,20 @@ public sealed class BinanceOrderbookAggregator : IService, IOrderbookAggregator
         {
             dm.LinkDisposable(enumerator);
         }
-        
-        ArrayList<int> flatIndices = new(Size)
-        {
-            isDirect ? lastIndex : 0
-        };
-        var indiceBitArray = new BitArray(view.Count)
-        {
-            [flatIndices.Front()] = true
-        };
 
+        ArrayList<int> flatIndices = new(Size);
+        var indiceBitArray = new BitArray(view.Count);
+        
+        if (lastIndex > 0)
+        {
+            var first = isDirect ? lastIndex : 0;
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+            if (0 <= first && first < view.Count)
+            {
+                flatIndices.Add(first);
+                indiceBitArray[first] = true;
+            }
+        }
 
         var lastEnumeratorIndex = 0;
         while (flatIndices.Count < Size)
@@ -158,8 +162,6 @@ public sealed class BinanceOrderbookAggregator : IService, IOrderbookAggregator
             lastEnumeratorIndex = checked(lastEnumeratorIndex + random + i + 1) % indicesEnumerators.Length;
         }
 
-
-        
 
         if (flatIndices.Count > Size)
         {
