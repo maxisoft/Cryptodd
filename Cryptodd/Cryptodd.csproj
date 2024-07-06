@@ -10,11 +10,11 @@
 
     <ItemGroup>
         <PackageReference Include="Ben.Demystifier" Version="0.4.1" />
-        <PackageReference Include="BitFaster.Caching" Version="2.4.1" />
+        <PackageReference Include="BitFaster.Caching" Version="2.5.1" />
         <PackageReference Include="Dapper" Version="2.1.35" />
         <PackageReference Include="Faster.Map" Version="4.2.0" />
         <PackageReference Include="Humanizer.Core" Version="2.14.1" />
-        <PackageReference Include="Lamar" Version="13.0.3" />
+        <PackageReference Include="Lamar" Version="13.0.4" />
         <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
         <PackageReference Include="Maxisoft.Utils" Version="0.1.0-alpha" />
         <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.4" />
@@ -23,14 +23,14 @@
         <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
-        <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="8.0.4" />
+        <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="8.0.6" />
         <PackageReference Include="NetEscapades.Configuration.Yaml" Version="3.1.0" />
         <PackageReference Include="Npgsql" Version="8.0.2" />
         <PackageReference Include="Parquet.Net" Version="4.0.2" />
         <PackageReference Include="PathLib" Version="0.9.8" />
         <PackageReference Include="PetaPoco.Compiled" Version="6.0.677" />
         <PackageReference Include="PetaPoco.SqlKata" Version="2.1.11" />
-        <PackageReference Include="Polly" Version="8.3.1" />
+        <PackageReference Include="Polly" Version="8.4.1" />
         <PackageReference Include="Serilog" Version="3.1.1" />
         <PackageReference Include="Serilog.Exceptions" Version="8.4.0" />
         <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.0" />
@@ -38,7 +38,7 @@
         <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
         <PackageReference Include="Serilog.Sinks.Async" Version="1.5.0" />
         <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
-        <PackageReference Include="SmartFormat" Version="3.3.2" />
+        <PackageReference Include="SmartFormat" Version="3.4.0" />
         <PackageReference Include="SqlKata" Version="2.4.0" />
         <PackageReference Include="SqlKata.Execution" Version="2.4.0" />
         <PackageReference Include="SqlKata" Version="2.4.0" />
@@ -53,6 +53,7 @@
         <PackageReference Include="T-Digest" Version="1.0.0" />
         <PackageReference Include="System.Text.Json" Version="8.0.3" />
         <PackageReference Include="Towel" Version="1.0.40" />
+        <PackageReference Include="TurnerSoftware.DinoDNS" Version="0.3.0" />
         <PackageReference Include="UriBuilder.Fluent" Version="3.0.0" />
     </ItemGroup>
 
