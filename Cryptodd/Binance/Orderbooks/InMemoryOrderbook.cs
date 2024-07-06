@@ -219,7 +219,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary, in DateTimeOffset minDate,
             ref long version)
         {
-            using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16));
+            using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16), DequeInitialUsage.Lifo);
             foreach (var (key, value) in dictionary)
             {
                 if (value.Time < minDate)
@@ -266,7 +266,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary,
             ref long version, bool checkNoChanges)
         {
-            using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16));
+            using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16), DequeInitialUsage.Lifo);
             foreach (var (key, value) in dictionary)
             {
                 if (checkNoChanges && value.ChangeCounter > 0)
