@@ -4,6 +4,8 @@ using Cryptodd.Binance.Http;
 using Cryptodd.Binance.Models;
 using Maxisoft.Utils.Collections.Lists;
 using Maxisoft.Utils.Collections.Lists.Specialized;
+using Maxisoft.Utils.Collections.Queues;
+using Maxisoft.Utils.Collections.Queues.Specialized;
 
 namespace Cryptodd.Binance.Orderbooks;
 
@@ -17,7 +19,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
     private long _lastUpdateId = long.MinValue;
 
     public bool SafeToRemoveEntries { get; set; } = false;
-    
+
 
     public long LastUpdateId
     {
@@ -25,7 +27,9 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         protected internal set => _lastUpdateId = Math.Max(_lastUpdateId, value);
     }
 
-    public InMemoryOrderbook() { }
+    public InMemoryOrderbook()
+    {
+    }
 
     public SortedView Asks => new AskSortedView(this);
     public SortedView Bids => new BidSortedView(this);
@@ -61,7 +65,10 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
                 {
                     if (safeToRemove && entry.Quantity <= 0 && prev.ChangeCounter == 0 && updateId != prev.UpdateId)
                     {
-                        dictionary.TryRemove(key, out _);
+                        if (dictionary.TryRemove(key, out var removed))
+                        {
+                            removed.ResetStatistics();
+                        }
                         // ReSharper disable once RedundantOverflowCheckingContext
                         unchecked
                         {
@@ -152,17 +159,18 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
             PriceRoundKey roundMax, ref long versionCounter)
         {
             Debug.Assert(roundMin.Value <= roundMax.Value, "roundMin <= roundMax");
-            using PooledList<PriceRoundKey> toDrop = new();
+            using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16), DequeInitialUsage.Lifo);
             foreach (var (key, bookEntry) in dictionary)
             {
                 if (bookEntry.UpdateId <= updateId && roundMin <= key && key <= roundMax)
                 {
-                    toDrop.Add(key);
+                    toRemove.Add(key);
                 }
             }
 
-            if (toDrop.Count > 0)
+            if (toRemove.Count > 0)
             {
+                // ReSharper disable once RedundantOverflowCheckingContext
                 unchecked
                 {
                     Interlocked.Increment(ref versionCounter);
@@ -171,9 +179,15 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
             var res = 0;
             // ReSharper disable once ForeachCanBeConvertedToQueryUsingAnotherGetEnumerator
-            foreach (var key in toDrop)
+            foreach (var key in toRemove)
             {
-                res += dictionary.TryRemove(key, out _) ? 1 : 0;
+                if (!dictionary.TryRemove(key, out var bookEntry))
+                {
+                    continue;
+                }
+
+                res++;
+                bookEntry.ResetStatistics();
             }
 
             return res;
@@ -205,7 +219,7 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary, in DateTimeOffset minDate,
             ref long version)
         {
-            ArrayList<PriceRoundKey> toRemove = new();
+            using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16));
             foreach (var (key, value) in dictionary)
             {
                 if (value.Time < minDate)
@@ -223,14 +237,18 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
 
 
             Interlocked.Increment(ref version);
+            res = 0;
             lock (dictionary)
             {
                 foreach (var key in toRemove)
                 {
-                    if (dictionary.TryRemove(key, out var value))
+                    if (!dictionary.TryRemove(key, out var value))
                     {
-                        value.ResetStatistics();
+                        continue;
                     }
+
+                    value.ResetStatistics();
+                    res++;
                 }
             }
 
@@ -239,6 +257,52 @@ public partial class InMemoryOrderbook<T> where T : IOrderBookEntry, new()
         }
 
         return (Drop(_asks, minDate, ref _asksVersion), Drop(_bids, minDate, ref _bidsVersion));
+    }
+
+    public (int askCount, int bidCount) DropZeros()
+    {
+        static int Drop(in ConcurrentDictionary<PriceRoundKey, T> dictionary,
+            ref long version)
+        {
+            using PooledDeque<PriceRoundKey> toRemove = new(Math.Max(dictionary.Count / 16, 16));
+            foreach (var (key, value) in dictionary)
+            {
+                if (!double.IsNormal(value.Quantity) || value.Quantity <= 0)
+                {
+                    toRemove.Add(key);
+                }
+            }
+
+            var res = toRemove.Count;
+
+            if (res <= 0)
+            {
+                return 0;
+            }
+
+
+            Interlocked.Increment(ref version);
+            res = 0;
+            lock (dictionary)
+            {
+                foreach (var key in toRemove)
+                {
+                    if (!dictionary.TryRemove(key, out var value))
+                    {
+                        continue;
+                    }
+
+                    value.ResetStatistics();
+                    res++;
+                }
+            }
+
+
+            return res;
+        }
+
+        return (Drop(_asks, ref _asksVersion), Drop(_bids, ref _bidsVersion));
+
     }
 
     public bool IsEmpty() => _asks.IsEmpty && _bids.IsEmpty;

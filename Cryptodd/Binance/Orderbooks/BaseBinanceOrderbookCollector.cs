@@ -29,8 +29,8 @@ public abstract class
         TOptions,
         TOrderbookHttpCallOptions,
         TBinanceWebsocketCollection> :
-        IAsyncDisposable,
-        IService
+    IAsyncDisposable,
+    IService
     where TOptions : BaseBinanceOrderbookWebsocketOptions, new()
     where TBinanceOrderbookWebsocket : BaseBinanceOrderbookWebsocket<TOptions>
     where TOrderbookHttpCallOptions : IBinancePublicHttpApiCallOptions, new()
@@ -102,7 +102,7 @@ public abstract class
         }
 
         TargetBlock.Complete();
-        _cancellationTokenSource.Cancel();
+        await _cancellationTokenSource.CancelAsync();
         await Websockets.DisposeAsync();
         _disposableManager.Dispose();
         _websocketTask.Dispose();
@@ -277,7 +277,7 @@ public abstract class
         }
         catch (Exception e)
         {
-            cts.Cancel();
+            await cts.CancelAsync();
             foreach (var task in tasks)
             {
                 try
@@ -392,28 +392,40 @@ public abstract class
                     orderbook.SafeToRemoveEntries = false;
                 }
 
-                using var remoteOb =
-                    await HttpOrderbookProvider.GetOrderbook(symbol, MaxOrderBookLimit,
-                        cancellationToken).ConfigureAwait(false);
-                var dateTime = remoteOb.DateTime ?? DateTimeOffset.Now;
-
-                lock (orderbook)
+                try
                 {
-                    orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
-                    orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect, MaxOrderBookLimit);
-                    orderbook.SafeToRemoveEntries = false;
-                    try
-                    {
-                        orderbook.Update(in remoteOb, dateTime);
-                    }
-                    catch
+                    using var remoteOb =
+                        await HttpOrderbookProvider.GetOrderbook(symbol, MaxOrderBookLimit,
+                            cancellationToken).ConfigureAwait(false);
+
+                    var dateTime = remoteOb.DateTime ?? DateTimeOffset.Now;
+
+                    lock (orderbook)
                     {
                         orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
-                        throw;
-                    }
+                        orderbook.DropOutdated(remoteOb, Options.FullCleanupOrderbookOnReconnect, MaxOrderBookLimit);
+                        orderbook.SafeToRemoveEntries = false;
+                        try
+                        {
+                            orderbook.Update(in remoteOb, dateTime);
+                        }
+                        catch
+                        {
+                            orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
+                            throw;
+                        }
 
-                    orderbook.SafeToRemoveEntries = true;
+                        orderbook.SafeToRemoveEntries = true;
+                    }
                 }
+                finally
+                {
+                    lock (orderbook)
+                    {
+                        orderbook.SafeToRemoveEntries = prevSafeToRemoveEntries;
+                    }
+                }
+
 
                 lock (_pendingSymbolsForHttp)
                 {
@@ -479,20 +491,32 @@ public abstract class
                 continue;
             }
 
-            InMemoryOrderbook<OrderBookEntryWithStat>.SortedView asks;
-            InMemoryOrderbook<OrderBookEntryWithStat>.SortedView bids;
-            lock (rawOb)
             {
-                asks = rawOb.Asks;
-                asks.EnforceKeysEnumeration();
-                bids = rawOb.Bids;
-                bids.EnforceKeysEnumeration();
+                InMemoryOrderbook<OrderBookEntryWithStat>.SortedView? asks = null, bids = null;
+
+                try
+                {
+                    lock (rawOb)
+                    {
+                        asks = rawOb.Asks;
+                        asks.EnforceKeysEnumeration();
+                        bids = rawOb.Bids;
+                        bids.EnforceKeysEnumeration();
+                    }
+
+                    await DispatchToHandlers(symbol, asks, bids, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    asks?.Dispose();
+                    bids?.Dispose();
+                }
             }
 
-            await DispatchToHandlers(symbol, asks, bids, cancellationToken).ConfigureAwait(false);
-
+            int askCount, bidCount;
             lock (rawOb)
             {
+                rawOb.DropZeros();
                 rawOb.ResetStatistics();
                 if (Options.EntryExpiry <= TimeSpan.Zero)
                 {
@@ -505,12 +529,13 @@ public abstract class
                     continue;
                 }
 
-                var (askCount, bidCount) = rawOb.DropOutdated(DateTimeOffset.Now - Options.EntryExpiry);
+                (askCount, bidCount) = rawOb.DropOutdated(DateTimeOffset.Now - Options.EntryExpiry);
                 _expiryCleanupStopwatch.Restart();
-                if (askCount + bidCount > 0)
-                {
-                    ScheduleSymbolForHttpUpdate(symbol);
-                }
+            }
+
+            if (askCount + bidCount > 0)
+            {
+                ScheduleSymbolForHttpUpdate(symbol);
             }
         }
     }
