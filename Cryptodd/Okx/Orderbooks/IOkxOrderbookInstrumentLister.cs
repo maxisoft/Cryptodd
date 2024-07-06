@@ -2,5 +2,5 @@
 
 public interface IOkxOrderbookInstrumentLister
 {
-    public Task<List<string>> ListInstruments(CancellationToken cancellationToken);
+    public Task<ICollection<string>> ListInstruments(CancellationToken cancellationToken);
 }
