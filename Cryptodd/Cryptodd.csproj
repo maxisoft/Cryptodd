@@ -12,7 +12,7 @@
         <PackageReference Include="Ben.Demystifier" Version="0.4.1" />
         <PackageReference Include="BitFaster.Caching" Version="2.4.1" />
         <PackageReference Include="Dapper" Version="2.1.35" />
-        <PackageReference Include="Faster.Map" Version="4.2.0" />
+        <PackageReference Include="Faster.Map" Version="6.0.3" />
         <PackageReference Include="Humanizer.Core" Version="2.14.1" />
         <PackageReference Include="Lamar" Version="13.0.3" />
         <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
