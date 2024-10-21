@@ -209,6 +209,13 @@ BinanceFutures:
         
         
 Okx:
+  Collector:
+    Rubik:
+      Task:
+        Enabled: false
+    Swap:
+      Task:
+        Enabled: false
   Orderbook:
     Task:
       #Period: 60000
