@@ -4,7 +4,7 @@ namespace Cryptodd.Okx.Websockets;
 
 public abstract class BaseOkxWebsocketOptions : BaseWebsocketOptions
 {
-    public const string DefaultAddress = "wss://wsaws.okx.com:8443/ws/v5/public";
+    public const string DefaultAddress = "wss://ws.okx.com:8443/ws/v5/public";
 
     protected BaseOkxWebsocketOptions()
     {
